@@ -1,0 +1,23 @@
+[package]
+name = "structparse-core"
+version = "0.1.0"
+edition = "2021"
+description = "Parse strings using a specification based on the Python format() syntax (Rust implementation)"
+authors = ["Odos Matthews <odosmatthews@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/eddiethedean/parse-rs"
+readme = "README.md"
+
+[lib]
+name = "_structparse"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }
+regex = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
