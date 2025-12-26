@@ -5,11 +5,11 @@ use crate::parser::raw_match::RawMatchData;
 
 /// Results container that stores raw match data and lazily converts to ParseResult
 /// This avoids creating all ParseResult objects upfront, improving performance
+/// The struct itself is lightweight - just a Vec of raw data
 #[pyclass]
 pub struct Results {
     raw_data: Vec<RawMatchData>,
     // Cache for converted ParseResult objects (lazy evaluation)
-    #[pyo3(get)]
     cached_results: Option<PyObject>,
 }
 
@@ -92,10 +92,11 @@ impl Results {
         }
     }
     
-    /// Iterator support (lazy - converts items on-demand)
+    /// Iterator support (batch converts on first iteration)
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<ResultsIterator> {
         Ok(ResultsIterator {
             results: slf.into(),
+            cached_list: None,
             index: 0,
         })
     }
@@ -115,10 +116,12 @@ impl Results {
     }
 }
 
-/// Iterator for Results (lazy conversion)
+/// Iterator for Results (batch conversion on first iteration)
+/// This avoids FFI overhead by converting all items at once when iteration starts
 #[pyclass]
 pub struct ResultsIterator {
     results: Py<Results>,
+    cached_list: Option<PyObject>,  // Cached list of converted items
     index: usize,
 }
 
@@ -129,14 +132,23 @@ impl ResultsIterator {
     }
     
     fn __next__(&mut self, py: Python) -> PyResult<Option<PyObject>> {
-        let results = self.results.bind(py);
-        let len = results.call_method0("__len__")?.extract::<usize>()?;
+        // On first iteration, batch convert all items at once
+        if self.cached_list.is_none() {
+            let results = self.results.bind(py);
+            // Convert all items in a single batch (one GIL block)
+            let list = results.call_method0("to_list")?;
+            self.cached_list = Some(list.to_object(py));
+        }
+        
+        // Now iterate over the cached list (no FFI overhead)
+        let list_bound = self.cached_list.as_ref().unwrap().bind(py).downcast::<pyo3::types::PyList>()?;
+        let len = list_bound.len();
         
         if self.index >= len {
             return Ok(None);
         }
         
-        let item = results.call_method1("__getitem__", (self.index,))?;
+        let item = list_bound.get_item(self.index)?;
         self.index += 1;
         Ok(Some(item.to_object(py)))
     }

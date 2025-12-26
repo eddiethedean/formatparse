@@ -165,12 +165,12 @@ This Rust-backed implementation provides significant performance improvements ov
 
 | Test Case | Result | Speedup |
 |-----------|--------|---------|
-| Simple named fields | ✅ Faster | **8.80x** |
-| Multiple named fields | ✅ Faster | **7.61x** |
-| Positional fields | ✅ Faster | **6.21x** |
-| Complex pattern with types | ✅ Faster | **40.93x** |
-| No match (fail fast) | ✅ Faster | **29.20x** |
-| Long string with match at end | ✅ Faster | **22.73x** |
+| Simple named fields | ✅ Faster | **8.61x** |
+| Multiple named fields | ✅ Faster | **7.59x** |
+| Positional fields | ✅ Faster | **5.99x** |
+| Complex pattern with types | ✅ Faster | **42.24x** |
+| No match (fail fast) | ✅ Faster | **27.64x** |
+| Long string with match at end | ✅ Faster | **25.03x** |
 
 #### Optimization-Focused Benchmarks
 
@@ -178,15 +178,15 @@ These benchmarks highlight scenarios where Rust optimizations provide the most b
 
 | Optimization Test | Result | Speedup |
 |-------------------|--------|---------|
-| **Long String Search** | ✅ Faster | **80.68x** |
-| **Fast Type Conversion Paths** | ✅ Faster | **58.33x** |
-| **Pre-compiled Search Regex** | ✅ Faster | **23.18x** |
-| **Cache Warmup** | ✅ Faster | **25.70x** |
-| **Pattern Caching (LRU Cache)** | ✅ Faster | **7.84x** |
-| **Pre-allocation (Many Fields)** | ✅ Faster | **7.51x** |
-| **Mixed Patterns (Cache Management)** | ✅ Faster | **7.68x** |
-| **Case-Insensitive Matching** | ✅ Faster | **5.98x** |
-| Findall (Multiple Matches) | ⚠️ Slower | 1.25x |
+| **Long String Search** | ✅ Faster | **79.94x** |
+| **Fast Type Conversion Paths** | ✅ Faster | **58.07x** |
+| **Pre-compiled Search Regex** | ✅ Faster | **22.41x** |
+| **Cache Warmup** | ✅ Faster | **23.86x** |
+| **Pattern Caching (LRU Cache)** | ✅ Faster | **7.76x** |
+| **Pre-allocation (Many Fields)** | ✅ Faster | **7.81x** |
+| **Mixed Patterns (Cache Management)** | ✅ Faster | **7.60x** |
+| **Case-Insensitive Matching** | ✅ Faster | **6.04x** |
+| **Findall (Multiple Matches)** | ✅ Faster | **2.88x** |
 
 **Key Optimizations:**
 - **Pattern Caching**: LRU cache (1000 patterns) eliminates regex compilation overhead
@@ -196,7 +196,7 @@ These benchmarks highlight scenarios where Rust optimizations provide the most b
 - **Reduced GIL Overhead**: Batched Python operations minimize interpreter overhead
 - **Custom Type Validation Caching**: Pre-computed validation results eliminate repeated Python attribute lookups
 - **Reference-based Matching**: Eliminated HashMap cloning in hot paths for better performance
-- **Lazy Results Conversion**: Custom `Results` object stores raw data and converts to Python objects only when accessed, significantly improving performance when iterating through results (2.37x faster than original when accessing all items, even faster when accessing only some items)
+- **Lazy Results Conversion**: Custom `Results` object stores raw data and converts to Python objects only when accessed, with batch conversion on first iteration. This makes `findall` **2.88x faster** than the original library, including both the call and iteration overhead
 
 Run the benchmarks yourself:
 ```bash

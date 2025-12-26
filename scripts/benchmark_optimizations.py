@@ -186,12 +186,22 @@ def test_findall_optimization():
     print("-"*70)
     
     print("Benchmarking original parse library (findall)...")
-    original_stats = benchmark_function(findall_original, pattern, string, iterations=iterations)
+    # Include iteration to measure full performance (real-world usage)
+    def findall_orig_with_iter(p, s):
+        results = findall_original(p, s)
+        _ = [r.named for r in results]  # Access all items
+        return results
+    original_stats = benchmark_function(findall_orig_with_iter, pattern, string, iterations=iterations)
     print(f"  Mean:   {original_stats['mean']:.4f} ms")
     print(f"  Total:  {original_stats['total']:.2f} ms")
     
     print("Benchmarking formatparse (findall with optimizations)...")
-    formatparse_stats = benchmark_function(findall_formatparse, pattern, string, iterations=iterations)
+    # Include iteration to measure full performance (real-world usage)
+    def findall_fp_with_iter(p, s):
+        results = findall_formatparse(p, s)
+        _ = [r.named for r in results]  # Access all items
+        return results
+    formatparse_stats = benchmark_function(findall_fp_with_iter, pattern, string, iterations=iterations)
     print(f"  Mean:   {formatparse_stats['mean']:.4f} ms")
     print(f"  Total:  {formatparse_stats['total']:.2f} ms")
     

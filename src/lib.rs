@@ -208,6 +208,7 @@ fn findall(
         
         // Return Results object with raw data (lazy conversion)
         // This avoids creating all ParseResult objects upfront
+        // The Results object is lightweight - just stores raw data
         return Python::with_gil(|py| -> PyResult<PyObject> {
             let results = Results::new(raw_results);
             Ok(Py::new(py, results)?.to_object(py))
