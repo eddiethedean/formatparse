@@ -10,12 +10,14 @@ pub fn parse_pattern(
     extra_types: Option<&HashMap<String, PyObject>>,
     custom_patterns: &HashMap<String, String>,
 ) -> PyResult<(String, String, Vec<FieldSpec>, Vec<Option<String>>, Vec<Option<String>>, HashMap<String, String>)> {
-    let mut regex_parts = Vec::new();
-    let mut field_specs = Vec::new();
-    let mut field_names = Vec::new();  // Original names
-    let mut normalized_names = Vec::new();  // Normalized for regex
-    let mut name_mapping = HashMap::new();  // normalized -> original
-    let mut field_name_types = HashMap::new();  // Track field name -> FieldType for validation
+    // Pre-allocate with estimated capacity based on pattern length
+    let estimated_fields = pattern.matches('{').count();
+    let mut regex_parts = Vec::with_capacity(estimated_fields * 2);
+    let mut field_specs = Vec::with_capacity(estimated_fields);
+    let mut field_names = Vec::with_capacity(estimated_fields);  // Original names
+    let mut normalized_names = Vec::with_capacity(estimated_fields);  // Normalized for regex
+    let mut name_mapping = HashMap::with_capacity(estimated_fields);  // normalized -> original
+    let mut field_name_types = HashMap::with_capacity(estimated_fields);  // Track field name -> FieldType for validation
     let mut chars: std::iter::Peekable<std::str::Chars> = pattern.chars().peekable();
     let mut literal = String::new();
 

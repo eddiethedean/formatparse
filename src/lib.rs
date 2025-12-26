@@ -13,6 +13,12 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::HashMap;
+use std::sync::Mutex;
+use once_cell::sync::Lazy;
+use lru::LruCache;
+use std::num::NonZeroUsize;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
 mod datetime;
 mod error;
@@ -27,6 +33,56 @@ pub use result::*;
 pub use types::*;
 pub use match_rs::Match;
 
+// Pattern cache for compiled FormatParser instances
+// Cache size: 1000 patterns
+// Using u64 hash as key for faster lookups
+static PATTERN_CACHE: Lazy<Mutex<LruCache<u64, FormatParser>>> = Lazy::new(|| {
+    Mutex::new(LruCache::new(NonZeroUsize::new(1000).unwrap()))
+});
+
+/// Create a cache key hash from pattern and extra_types
+fn create_cache_key_hash(pattern: &str, extra_types: &Option<HashMap<String, PyObject>>) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    pattern.hash(&mut hasher);
+    if let Some(extra_types) = extra_types {
+        // Sort keys for consistent hashing
+        let mut keys: Vec<&String> = extra_types.keys().collect();
+        keys.sort();
+        for key in keys {
+            key.hash(&mut hasher);
+        }
+    }
+    hasher.finish()
+}
+
+/// Get or create a FormatParser from cache
+fn get_or_create_parser(
+    pattern: &str,
+    extra_types: Option<HashMap<String, PyObject>>,
+) -> PyResult<FormatParser> {
+    let cache_key = create_cache_key_hash(pattern, &extra_types);
+    
+    // Try to get from cache
+    {
+        let mut cache = PATTERN_CACHE.lock().unwrap();
+        if let Some(cached_parser) = cache.get(&cache_key) {
+            // Clone the parser (FormatParser is Clone)
+            return Ok(cached_parser.clone());
+        }
+    }
+    
+    // Not in cache, create new parser
+    let parser = FormatParser::new_with_extra_types(pattern, extra_types)?;
+    
+    // Store in cache
+    {
+        let mut cache = PATTERN_CACHE.lock().unwrap();
+        cache.put(cache_key, parser.clone());
+    }
+    
+    Ok(parser)
+}
+
 /// Parse a string using a format specification
 #[pyfunction]
 #[pyo3(signature = (pattern, string, extra_types=None, case_sensitive=false, evaluate_result=true))]
@@ -37,9 +93,8 @@ fn parse(
     case_sensitive: bool,
     evaluate_result: bool,
 ) -> PyResult<Option<PyObject>> {
-    // Check for unmatched braces - if pattern compilation fails due to unmatched brace, return None
-    // But propagate NotImplementedError for unsupported features
-    match FormatParser::new_with_extra_types(pattern, extra_types.clone()) {
+    // Use cached parser if available
+    match get_or_create_parser(pattern, extra_types.clone()) {
         Ok(parser) => parser.parse_internal(string, case_sensitive, extra_types, evaluate_result),
         Err(e) => {
             let err_msg = e.to_string();
@@ -69,7 +124,7 @@ fn search(
     case_sensitive: bool,
     evaluate_result: bool,
 ) -> PyResult<Option<PyObject>> {
-    let parser = FormatParser::new_with_extra_types(pattern, extra_types.clone())?;
+    let parser = get_or_create_parser(pattern, extra_types.clone())?;
     let end = endpos.unwrap_or(string.len());
     let search_string = &string[pos..end];
     
@@ -101,7 +156,7 @@ fn findall(
     case_sensitive: bool,
     evaluate_result: bool,
 ) -> PyResult<Vec<PyObject>> {
-    let parser = FormatParser::new_with_extra_types(pattern, extra_types.clone())?;
+    let parser = get_or_create_parser(pattern, extra_types.clone())?;
     let mut results = Vec::new();
     let mut pos = 0;
     

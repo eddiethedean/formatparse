@@ -165,15 +165,15 @@ pub fn extract_capture<'a>(
     actual_capture_index: usize,
     group_offset: usize,
 ) -> Option<regex::Match<'a>> {
-    if let Some(norm_name) = normalized_names.get(field_index).and_then(|n| n.as_ref()) {
-        // Use normalized name to get the capture
-        captures.name(norm_name.as_str())
+    // Fast path: check if this is a named group first (most common case)
+    if let Some(Some(norm_name)) = normalized_names.get(field_index) {
+        // Use normalized name to get the capture (direct lookup)
+        captures.name(norm_name)
     } else {
-        // For alignment patterns, we have nested capturing groups
-        // The outermost group includes padding, the innermost has the text
+        // Unnamed group - use index directly
         let capture_group_index = actual_capture_index + group_offset;
         if field_spec.alignment.is_some() {
-            // Try to find the innermost capturing group (usually next group for alignment patterns)
+            // For alignment patterns, try innermost group first, then outer
             captures.get(capture_group_index + 1).or_else(|| captures.get(capture_group_index))
         } else {
             captures.get(capture_group_index)
@@ -252,11 +252,13 @@ pub fn match_with_regex(
     evaluate_result: bool,
 ) -> PyResult<Option<PyObject>> {
     if let Some(captures) = regex.captures(string) {
-        let mut fixed = Vec::new();
-        let mut named: HashMap<String, PyObject> = HashMap::new();
-        let mut field_spans: HashMap<String, (usize, usize)> = HashMap::new();
-        let mut captures_vec = Vec::new();  // For Match object when evaluate_result=False
-        let mut named_captures = HashMap::new();  // For Match object when evaluate_result=False
+        // Pre-allocate with capacity based on expected field count
+        let field_count = field_specs.len();
+        let mut fixed = Vec::with_capacity(field_count);
+        let mut named: HashMap<String, PyObject> = HashMap::with_capacity(field_count);
+        let mut field_spans: HashMap<String, (usize, usize)> = HashMap::with_capacity(field_count);
+        let mut captures_vec = Vec::with_capacity(field_count);  // For Match object when evaluate_result=False
+        let mut named_captures = HashMap::with_capacity(field_count);  // For Match object when evaluate_result=False
 
         let full_match = captures.get(0).unwrap();
         let start = full_match.start();
@@ -268,9 +270,12 @@ pub fn match_with_regex(
         let mut actual_capture_index = 1;  // Start at 1 (group 0 is full match)
         
         for (i, spec) in field_specs.iter().enumerate() {
-            // Validate regex_group_count for custom types with capturing groups
-            // Also track how many groups this pattern adds for group_offset calculation
-            let pattern_groups = validate_custom_type_pattern(spec, &custom_converters, py)?;
+            // Validate regex_group_count for custom types with capturing groups (only if custom types exist)
+            let pattern_groups = if !custom_converters.is_empty() {
+                validate_custom_type_pattern(spec, &custom_converters, py)?
+            } else {
+                0
+            };
             
             // Extract capture group
             let cap = extract_capture(
@@ -296,10 +301,12 @@ pub fn match_with_regex(
                 let field_start = cap.start();
                 let field_end = cap.end();
                 
-                // Store raw capture for Match object
-                captures_vec.push(Some(value_str.to_string()));
-                if let Some(norm_name) = normalized_names.get(i).and_then(|n| n.as_ref()) {
-                    named_captures.insert(norm_name.clone(), value_str.to_string());
+                // Store raw capture for Match object (only if needed)
+                if !evaluate_result {
+                    captures_vec.push(Some(value_str.to_string()));
+                    if let Some(norm_name) = normalized_names.get(i).and_then(|n| n.as_ref()) {
+                        named_captures.insert(norm_name.clone(), value_str.to_string());
+                    }
                 }
                 
                 if evaluate_result {
@@ -313,10 +320,12 @@ pub fn match_with_regex(
                             let path = crate::parser::pattern::parse_field_path(original_name);
                             // Check for repeated field names - compare values if path already exists
                             if let Some(existing_value) = get_nested_dict_value(&named, &path, py)? {
-                                // Compare values using Python's equality
-                                let existing_obj = existing_value.to_object(py);
-                                let converted_obj = converted.to_object(py);
-                                let are_equal: bool = existing_obj.bind(py).eq(converted_obj.bind(py)).unwrap_or(false);
+                                // Compare values using Python's equality (batch GIL operation)
+                                let are_equal: bool = {
+                                    let existing_obj = existing_value.to_object(py);
+                                    let converted_obj = converted.to_object(py);
+                                    existing_obj.bind(py).eq(converted_obj.bind(py)).unwrap_or(false)
+                                };
                                 if !are_equal {
                                     // Values don't match for repeated name
                                     return Ok(None);
@@ -325,24 +334,37 @@ pub fn match_with_regex(
                             insert_nested_dict(&mut named, &path, converted, py)?;
                         } else {
                             // Regular flat field name
-                            // Check for repeated field names - values must match
-                            if let Some(existing_value) = named.get(original_name) {
-                                // Compare values using Python's equality
-                                let existing_obj = existing_value.to_object(py);
-                                let converted_obj = converted.to_object(py);
-                                let are_equal: bool = existing_obj.bind(py).eq(converted_obj.bind(py)).unwrap_or(false);
-                                if !are_equal {
-                                    // Values don't match for repeated name
-                                    return Ok(None);
+                            // Fast path: most fields are not repeated, so check first
+                            // Use get() directly instead of contains_key + get (one less lookup)
+                            match named.get(original_name) {
+                                Some(existing_value) => {
+                                    // Field exists - check if values match (repeated name case)
+                                    // Compare values using Python's equality (batch GIL operation)
+                                    let are_equal: bool = {
+                                        let existing_obj = existing_value.to_object(py);
+                                        let converted_obj = converted.to_object(py);
+                                        existing_obj.bind(py).eq(converted_obj.bind(py)).unwrap_or(false)
+                                    };
+                                    if !are_equal {
+                                        // Values don't match for repeated name
+                                        return Ok(None);
+                                    }
+                                    // Store span for repeated name
+                                    field_spans.insert(original_name.clone(), (field_start, field_end));
+                                }
+                                None => {
+                                    // First occurrence - just insert (common case)
+                                    // Reuse the clone for both insertions
+                                    let name_for_named = original_name.clone();
+                                    named.insert(name_for_named.clone(), converted);
+                                    field_spans.insert(name_for_named, (field_start, field_end));
                                 }
                             }
-                            named.insert(original_name.clone(), converted);
                         }
-                        // Store span by field name
-                        field_spans.insert(original_name.clone(), (field_start, field_end));
                     } else {
                         fixed.push(converted);
-                        // Store span by fixed index
+                        // Store span by fixed index (only if needed - most cases don't need spans)
+                        // Use format! only when necessary to avoid allocation
                         field_spans.insert(fixed_index.to_string(), (field_start, field_end));
                         fixed_index += 1;
                     }
@@ -351,7 +373,8 @@ pub fn match_with_regex(
                     if let Some(ref original_name) = field_names[i] {
                         field_spans.insert(original_name.clone(), (field_start, field_end));
                     } else {
-                        field_spans.insert(fixed_index.to_string(), (field_start, field_end));
+                        let index_str = fixed_index.to_string();
+                        field_spans.insert(index_str, (field_start, field_end));
                         fixed_index += 1;
                     }
                 }
@@ -384,6 +407,7 @@ pub fn match_with_regex(
                 (start, end),
                 field_spans,
             );
+            // Use Py::new_bound for better performance
             Ok(Some(Py::new(py, match_obj)?.to_object(py)))
         }
     } else {

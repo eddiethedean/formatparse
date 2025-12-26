@@ -6,36 +6,37 @@ use std::collections::HashMap;
 
 impl FieldSpec {
     pub fn convert_value(&self, value: &str, py: Python, custom_converters: &HashMap<String, PyObject>) -> PyResult<PyObject> {
-        // Check if this type has a custom converter (even if it's a built-in type name)
-        let type_name = match &self.field_type {
-            FieldType::Custom(name) => name.clone(),
-            FieldType::String => "s".to_string(),
-            FieldType::Integer => "d".to_string(),  // Use 'd' as the canonical integer type name
-            FieldType::Float => "f".to_string(),
-            FieldType::Boolean => "b".to_string(),
-            FieldType::Letters => "l".to_string(),
-            FieldType::Word => "w".to_string(),
-            FieldType::NonLetters => "W".to_string(),
-            FieldType::NonWhitespace => "S".to_string(),
-            FieldType::NonDigits => "D".to_string(),
-            FieldType::NumberWithThousands => "n".to_string(),
-            FieldType::Scientific => "e".to_string(),
-            FieldType::GeneralNumber => "g".to_string(),
-            FieldType::Percentage => "%".to_string(),
-            FieldType::DateTimeISO => "ti".to_string(),
-            FieldType::DateTimeRFC2822 => "te".to_string(),
-            FieldType::DateTimeGlobal => "tg".to_string(),
-            FieldType::DateTimeUS => "ta".to_string(),
-            FieldType::DateTimeCtime => "tc".to_string(),
-            FieldType::DateTimeHTTP => "th".to_string(),
-            FieldType::DateTimeTime => "tt".to_string(),
-            FieldType::DateTimeSystem => "ts".to_string(),
-            FieldType::DateTimeStrftime => "strftime".to_string(),
-        };
-        
-        // If there's a custom converter for this type name, use it instead of built-in
-        if custom_converters.contains_key(&type_name) {
-            if let Some(converter) = custom_converters.get(&type_name) {
+        // Fast path: if no custom converters, skip the lookup entirely
+        if !custom_converters.is_empty() {
+            // Check if this type has a custom converter (even if it's a built-in type name)
+            let type_name = match &self.field_type {
+                FieldType::Custom(name) => name.as_str(),
+                FieldType::String => "s",
+                FieldType::Integer => "d",
+                FieldType::Float => "f",
+                FieldType::Boolean => "b",
+                FieldType::Letters => "l",
+                FieldType::Word => "w",
+                FieldType::NonLetters => "W",
+                FieldType::NonWhitespace => "S",
+                FieldType::NonDigits => "D",
+                FieldType::NumberWithThousands => "n",
+                FieldType::Scientific => "e",
+                FieldType::GeneralNumber => "g",
+                FieldType::Percentage => "%",
+                FieldType::DateTimeISO => "ti",
+                FieldType::DateTimeRFC2822 => "te",
+                FieldType::DateTimeGlobal => "tg",
+                FieldType::DateTimeUS => "ta",
+                FieldType::DateTimeCtime => "tc",
+                FieldType::DateTimeHTTP => "th",
+                FieldType::DateTimeTime => "tt",
+                FieldType::DateTimeSystem => "ts",
+                FieldType::DateTimeStrftime => "strftime",
+            };
+            
+            // If there's a custom converter for this type name, use it instead of built-in
+            if let Some(converter) = custom_converters.get(type_name) {
                 let args = (value,);
                 return converter.call1(py, args);
             }
@@ -44,16 +45,30 @@ impl FieldSpec {
         // Use built-in conversion
         match &self.field_type {
             FieldType::String => {
-                // Strip whitespace based on alignment
-                let trimmed = match self.alignment {
-                    Some('<') => value.trim_end(),  // Left-aligned: strip trailing spaces
-                    Some('>') => value.trim_start(), // Right-aligned: strip leading spaces
-                    Some('^') => value.trim(),      // Center-aligned: strip both
-                    _ => value,                     // No alignment: keep as-is
-                };
-                Ok(trimmed.to_object(py))
+                // Fast path: no alignment means no trimming needed
+                if self.alignment.is_none() {
+                    Ok(value.to_object(py))
+                } else {
+                    // Strip whitespace based on alignment
+                    let trimmed = match self.alignment {
+                        Some('<') => value.trim_end(),  // Left-aligned: strip trailing spaces
+                        Some('>') => value.trim_start(), // Right-aligned: strip leading spaces
+                        Some('^') => value.trim(),      // Center-aligned: strip both
+                        _ => value,                     // No alignment: keep as-is
+                    };
+                    Ok(trimmed.to_object(py))
+                }
             },
             FieldType::Integer => {
+                // Fast path: common case - decimal integer, no special formatting
+                if self.fill.is_none() && self.alignment != Some('=') && self.original_type_char.is_none() {
+                    // Try parsing directly first (most common case)
+                    if let Ok(n) = value.trim().parse::<i64>() {
+                        return Ok(n.to_object(py));
+                    }
+                }
+                
+                // Full path: handle all cases
                 // Strip whitespace before parsing (width may include spaces)
                 let mut trimmed_str = value.trim().to_string();
                 
@@ -131,16 +146,32 @@ impl FieldSpec {
                 }
             }
             FieldType::Float => {
-                // Strip whitespace before parsing (width may include spaces)
-                let trimmed = value.trim();
-                match trimmed.parse::<f64>() {
+                // Fast path: try parsing directly first (most floats don't have leading/trailing spaces)
+                match value.parse::<f64>() {
                     Ok(n) => Ok(n.to_object(py)),
-                    Err(_) => Err(error::conversion_error(value, "float")),
+                    Err(_) => {
+                        // Fallback: strip whitespace and try again
+                        let trimmed = value.trim();
+                        match trimmed.parse::<f64>() {
+                            Ok(n) => Ok(n.to_object(py)),
+                            Err(_) => Err(error::conversion_error(value, "float")),
+                        }
+                    }
                 }
             }
             FieldType::Boolean => {
-                let lower = value.to_lowercase();
-                let b = matches!(lower.as_str(), "true" | "1" | "yes" | "on");
+                // Fast path: check common cases without allocation
+                let b = match value.len() {
+                    1 => value == "1",
+                    2 => matches!(value, "on" | "ON"),
+                    3 => matches!(value, "yes" | "YES"),
+                    4 => matches!(value, "true" | "TRUE"),
+                    _ => {
+                        // Fallback: lowercase comparison
+                        let lower = value.to_lowercase();
+                        matches!(lower.as_str(), "true" | "1" | "yes" | "on")
+                    }
+                };
                 Ok(b.to_object(py))
             }
             FieldType::Letters => Ok(value.to_object(py)),  // Letters are just strings

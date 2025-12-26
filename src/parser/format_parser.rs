@@ -15,6 +15,8 @@ pub struct FormatParser {
     regex: Regex,
     regex_str: String,  // Store the regex string for _expression property
     regex_case_insensitive: Option<Regex>,
+    search_regex: Regex,  // Pre-compiled search regex (case-sensitive, no anchors)
+    search_regex_case_insensitive: Option<Regex>,  // Pre-compiled search regex (case-insensitive, no anchors)
     pub(crate) field_specs: Vec<FieldSpec>,
     pub(crate) field_names: Vec<Option<String>>,  // Original field names (with hyphens/dots)
     pub(crate) normalized_names: Vec<Option<String>>,  // Normalized names for regex groups (hyphens->underscores)
@@ -54,11 +56,17 @@ impl FormatParser {
         // Build case-insensitive regex
         let regex_case_insensitive = crate::parser::regex::build_case_insensitive_regex(&regex_str_with_anchors);
 
+        // Pre-compile search regex variants (without anchors)
+        let search_regex = crate::parser::regex::build_search_regex(regex.as_str(), true)?;
+        let search_regex_case_insensitive = crate::parser::regex::build_search_regex(regex.as_str(), false).ok();
+
         Ok(Self {
             pattern: pattern.to_string(),
             regex,
             regex_str,
             regex_case_insensitive,
+            search_regex,
+            search_regex_case_insensitive,
             field_specs,
             field_names,
             normalized_names,
@@ -74,18 +82,17 @@ impl FormatParser {
         extra_types: Option<HashMap<String, PyObject>>,
         evaluate_result: bool,
     ) -> PyResult<Option<PyObject>> {
-        // For search, we remove the ^ anchor to allow matching anywhere
+        // Use pre-compiled search regex
+        let search_regex = if case_sensitive {
+            &self.search_regex
+        } else {
+            self.search_regex_case_insensitive.as_ref().unwrap_or(&self.search_regex)
+        };
+        
         Python::with_gil(|py| {
-            // Get the base regex string (without flags)
-            // self.regex has (?s) prefix, so we need to extract the actual pattern
-            let regex_str = self.regex.as_str();
-            
-            // Build search regex (removes anchors, handles case sensitivity)
-            let search_regex = crate::parser::regex::build_search_regex(regex_str, case_sensitive)?;
-            
             if search_regex.captures(string).is_some() {
                 return crate::parser::matching::match_with_regex(
-                    &search_regex,
+                    search_regex,
                     string,
                     &self.pattern,
                     &self.field_specs,
@@ -262,6 +269,8 @@ impl FormatParser {
         self.regex_str = reconstructed.regex_str;
         self.regex = reconstructed.regex;
         self.regex_case_insensitive = reconstructed.regex_case_insensitive;
+        self.search_regex = reconstructed.search_regex;
+        self.search_regex_case_insensitive = reconstructed.search_regex_case_insensitive;
         self.field_specs = reconstructed.field_specs;
         self.field_names = reconstructed.field_names;
         self.normalized_names = reconstructed.normalized_names;
