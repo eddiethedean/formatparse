@@ -3,7 +3,7 @@ use regex;
 use std::collections::HashMap;
 
 /// Convert strftime format string to regex pattern
-fn strftime_to_regex(format_str: &str) -> String {
+pub fn strftime_to_regex(format_str: &str) -> String {
     let mut regex_parts = Vec::new();
     let mut chars = format_str.chars().peekable();
     
@@ -13,17 +13,17 @@ fn strftime_to_regex(format_str: &str) -> String {
                 let regex_part = match next_ch {
                     'Y' => r"\d{4}",           // Year with century
                     'y' => r"\d{2}",           // Year without century
-                    'm' => r"\d{2}",           // Month (01-12)
-                    'd' => r"\d{2}",           // Day (01-31)
-                    'H' => r"\d{2}",           // Hour (00-23)
-                    'M' => r"\d{2}",           // Minute (00-59)
-                    'S' => r"\d{2}",           // Second (00-59)
+                    'm' => r"\d{1,2}",         // Month (1-12 or 01-12) - flexible
+                    'd' => r"\d{1,2}",         // Day (1-31 or 01-31) - flexible
+                    'H' => r"\d{1,2}",         // Hour (0-23 or 00-23) - flexible
+                    'M' => r"\d{1,2}",         // Minute (0-59 or 00-59) - flexible
+                    'S' => r"\d{1,2}",         // Second (0-59 or 00-59) - flexible
                     'b' | 'h' => r"[A-Za-z]{3}", // Abbreviated month name
                     'B' => r"[A-Za-z]+",       // Full month name
                     'a' => r"[A-Za-z]{3}",     // Abbreviated weekday
                     'A' => r"[A-Za-z]+",       // Full weekday
                     'w' => r"\d",              // Weekday as decimal (0=Sunday)
-                    'j' => r"\d{3}",           // Day of year
+                    'j' => r"\d{1,3}",         // Day of year (1-366, flexible padding)
                     'U' | 'W' => r"\d{2}",     // Week number
                     'c' => r".+",              // Date and time representation (locale dependent)
                     'x' => r".+",              // Date representation (locale dependent)
@@ -80,6 +80,7 @@ pub struct FieldSpec {
     pub fill: Option<char>,
     pub zero_pad: bool,
     pub strftime_format: Option<String>, // For strftime-style patterns
+    pub original_type_char: Option<char>, // Original type character (e.g., 'b', 'o', 'x' for binary/octal/hex)
 }
 
 impl Default for FieldSpec {
@@ -94,6 +95,7 @@ impl Default for FieldSpec {
             fill: None,
             zero_pad: false,
             strftime_format: None,
+            original_type_char: None,
         }
     }
 }
@@ -112,12 +114,12 @@ impl FieldSpec {
                     format!(".{{{}}}", prec)
                 } else if let Some(width) = self.width {
                     // Width only (no precision): 
-                    // - If followed by a non-greedy field (like {}), use exact width
-                    // - If followed by a greedy/exact field (like {:.4}), use greedy (at least width)
+                    // - If there's a next field with precision (like {:.4}), use greedy (at least width)
+                    // - If there's a next field without precision (like {}), use exact width
                     // - If it's the last field, use greedy (at least width)
                     match next_field_is_greedy {
-                        Some(false) => format!(".{{{}}}", width),  // Exact when followed by non-greedy
-                        _ => format!(".{{{},}}", width),  // Greedy otherwise
+                        Some(false) => format!(".{{{}}}", width),  // Exact when followed by non-greedy field
+                        _ => format!(".{{{},}}", width),  // Greedy when followed by greedy field or last field
                     }
                 } else if self.alignment.is_some() {
                     // Alignment specified but no width - match with optional surrounding whitespace
@@ -134,10 +136,9 @@ impl FieldSpec {
                         _ => r"[^\{\}]+?".to_string(),
                     }
                 } else {
-                    // For empty {} fields, match non-whitespace sequences (words)
-                    // Use \S+ (greedy) - it will match full words and backtrack as needed
-                    // when the next part of the pattern requires it
-                    r"\S+".to_string()
+                    // For empty {} fields, match any characters including newlines (non-greedy)
+                    // Use .+? to match the original parse library behavior
+                    r".+?".to_string()
                 }
             }
             FieldType::Integer => {
@@ -148,15 +149,44 @@ impl FieldSpec {
                     _ => r"[+-]?",  // Default: allow optional + or -
                 }).unwrap_or(r"[+-]?");  // Default: allow optional + or -
                 
+                // Handle fill character with alignment (e.g., {:x=5d})
+                // For '=' alignment, fill goes between sign and digits
+                // Pattern should match: [sign][fill*][digits]
+                let (fill_prefix, fill_suffix) = if let (Some(fill_ch), Some('=')) = (self.fill, self.alignment) {
+                    // For '=' alignment with fill, match fill characters between sign and number
+                    let fill_escaped = regex::escape(&fill_ch.to_string());
+                    (format!("{}*", fill_escaped), String::new())
+                } else {
+                    (String::new(), String::new())
+                };
+                
                 let base_pattern = if self.zero_pad {
                     // Zero-padded: if width is specified, match exactly that many digits
                     if let Some(width) = self.width {
-                        format!("{}[0-9]{{{}}}", sign, width)
+                        format!("{}{}{}[0-9]{{{}}}", sign, fill_prefix, fill_suffix, width)
                     } else {
-                        format!("{}[0-9]+", sign)
+                        format!("{}{}{}[0-9]+", sign, fill_prefix, fill_suffix)
                     }
                 } else {
-                    format!("{}(?:0[xX][0-9a-fA-F]+|0[oO][0-7]+|0[bB][01]+|[0-9]+)", sign)
+                    // Check original type to determine what digits to match
+                    match self.original_type_char {
+                        Some('x') | Some('X') => {
+                            // Hex: match hex digits with or without 0x prefix
+                            format!("{}{}{}(?:0[xX][0-9a-fA-F]+|[0-9a-fA-F]+)", sign, fill_prefix, fill_suffix)
+                        },
+                        Some('o') => {
+                            // Octal: match octal digits with or without 0o prefix
+                            format!("{}{}{}(?:0[oO][0-7]+|[0-7]+)", sign, fill_prefix, fill_suffix)
+                        },
+                        Some('b') => {
+                            // Binary: match binary digits with or without 0b prefix
+                            format!("{}{}{}(?:0[bB][01]+|[01]+)", sign, fill_prefix, fill_suffix)
+                        },
+                        _ => {
+                            // Decimal: match decimal digits, or hex/octal/binary with prefix
+                            format!("{}{}{}(?:0[xX][0-9a-fA-F]+|0[oO][0-7]+|0[bB][01]+|[0-9]+)", sign, fill_prefix, fill_suffix)
+                        }
+                    }
                 };
                 
                 // Always allow optional leading spaces (the pattern matching handles this naturally
@@ -233,8 +263,8 @@ impl FieldSpec {
                     ' ' => r"[- ]?",
                     _ => "-?",
                 }).unwrap_or("-?");
-                // General number: can be int or float or scientific
-                format!(r"{}(?:\d+\.\d+|\.\d+|\d+\.|\d+)(?:[eE][+-]?\d+)?", sign)
+                // General number: can be int or float or scientific, or nan/inf
+                format!(r"{}(?:\d+\.\d+|\.\d+|\d+\.|\d+)(?:[eE][+-]?\d+)?|nan|NAN|[-+]?inf|[-+]?INF", sign)
             },
             FieldType::Percentage => {
                 let sign = self.sign.as_ref().map(|s| match s {
@@ -256,12 +286,12 @@ impl FieldSpec {
                 r"(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+)?\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\s+\d{2}:\d{2}:\d{2}\s+[+-]\d{2}:?\d{2,4}".to_string()
             },
             FieldType::DateTimeGlobal => {
-                // Global format: 21/11/2011 10:21:36 AM +1000
-                r"\d{1,2}[-/]\d{1,2}[-/]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s+[AP]M)?(?:\s+[+-]\d{2}:?\d{2})?)?".to_string()
+                // Global format: 21/11/2011 10:21:36 AM +1000 or 21-Nov-2011 10:21:36 AM +1:00
+                r"\d{1,2}[-/](?:\d{1,2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|June|July|August|September|October|November|December)[-/]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s+[AP]M)?(?:\s+[+-]\d{1,2}:?\d{2,4})?)?".to_string()
             },
             FieldType::DateTimeUS => {
-                // US format: 11/21/2011 10:21:36 AM +1000
-                r"\d{1,2}[-/]\d{1,2}[-/]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s+[AP]M)?(?:\s+[+-]\d{2}:?\d{2})?)?".to_string()
+                // US format: 11/21/2011 10:21:36 AM +1000 or 11-Nov-2011 10:21:36 AM +1000 or Nov-21-2011 10:21:36 AM +1000
+                r"(?:\d{1,2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|June|July|August|September|October|November|December)[-/]\d{1,2}[-/]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s+[AP]M)?(?:\s+[+-]\d{2}:?\d{2,4})?)?".to_string()
             },
             FieldType::DateTimeCtime => {
                 // ctime format: Mon Nov 21 10:21:36 2011
@@ -348,15 +378,75 @@ impl FieldSpec {
             },
             FieldType::Integer => {
                 // Strip whitespace before parsing (width may include spaces)
-                let trimmed = value.trim();
-                let v = if trimmed.starts_with("0x") || trimmed.starts_with("0X") {
-                    i64::from_str_radix(&trimmed[2..], 16)
-                } else if trimmed.starts_with("0o") || trimmed.starts_with("0O") {
-                    i64::from_str_radix(&trimmed[2..], 8)
-                } else if trimmed.starts_with("0b") || trimmed.starts_with("0B") {
-                    i64::from_str_radix(&trimmed[2..], 2)
+                let mut trimmed_str = value.trim().to_string();
+                
+                // Strip fill characters if alignment is '=' with fill
+                // Fill characters appear between sign and digits (e.g., "-xxx12" or "+xxx12")
+                // But NOT between sign and prefix (e.g., "-0o10" should not strip '0')
+                if let (Some(fill_ch), Some('=')) = (self.fill, self.alignment) {
+                    // Check if there's a sign first
+                    if trimmed_str.starts_with('-') || trimmed_str.starts_with('+') {
+                        // Keep the sign, strip fill chars after it but before the number part
+                        let sign_char = &trimmed_str[..1];
+                        let rest = &trimmed_str[1..];
+                        // Only strip fill if it's not part of a prefix (0x, 0o, 0b)
+                        if rest.starts_with("0x") || rest.starts_with("0X") || 
+                           rest.starts_with("0o") || rest.starts_with("0O") ||
+                           rest.starts_with("0b") || rest.starts_with("0B") {
+                            // Has prefix, don't strip (fill shouldn't appear here)
+                            // Actually, fill can appear: "-xxx0o10" -> strip xxx
+                            let rest_trimmed = rest.trim_start_matches(fill_ch);
+                            trimmed_str = format!("{}{}", sign_char, rest_trimmed);
+                        } else {
+                            // No prefix, strip fill chars
+                            let rest_trimmed = rest.trim_start_matches(fill_ch);
+                            trimmed_str = format!("{}{}", sign_char, rest_trimmed);
+                        }
+                    } else {
+                        // No sign, just strip leading fill chars
+                        trimmed_str = trimmed_str.trim_start_matches(fill_ch).to_string();
+                    }
+                }
+                
+                let trimmed = trimmed_str.as_str();
+                // Handle negative numbers with prefixes (e.g., "-0o10")
+                let (is_negative, num_str) = if trimmed.starts_with('-') {
+                    (true, &trimmed[1..])
+                } else if trimmed.starts_with('+') {
+                    (false, &trimmed[1..])
                 } else {
-                    trimmed.parse::<i64>()
+                    (false, trimmed)
+                };
+                
+                let v = if num_str.starts_with("0x") || num_str.starts_with("0X") {
+                    i64::from_str_radix(&num_str[2..], 16).map(|n| if is_negative { -n } else { n })
+                } else if num_str.starts_with("0o") || num_str.starts_with("0O") {
+                    i64::from_str_radix(&num_str[2..], 8).map(|n| if is_negative { -n } else { n })
+                } else if num_str.starts_with("0b") || num_str.starts_with("0B") {
+                    // Check if type is 'x' - if so, "0B" should be parsed as hex (0xB)
+                    let result = if self.original_type_char == Some('x') || self.original_type_char == Some('X') {
+                        // For hex type, "0B" means 0xB (hex), not binary
+                        if num_str == "0B" || num_str == "0b" {
+                            i64::from_str_radix("B", 16)
+                        } else if num_str.len() > 2 {
+                            // "0B1" should be parsed as "B1" in hex
+                            i64::from_str_radix(&num_str[1..], 16)
+                        } else {
+                            i64::from_str_radix(&num_str[2..], 2)
+                        }
+                    } else {
+                        i64::from_str_radix(&num_str[2..], 2)
+                    };
+                    result.map(|n| if is_negative { -n } else { n })
+                } else {
+                    // Check original type character to determine base if no prefix
+                    let result = match self.original_type_char {
+                        Some('b') => i64::from_str_radix(num_str, 2), // Binary without 0b prefix
+                        Some('o') => i64::from_str_radix(num_str, 8), // Octal without 0o prefix
+                        Some('x') | Some('X') => i64::from_str_radix(num_str, 16), // Hex without 0x prefix
+                        _ => num_str.parse::<i64>(), // Decimal
+                    };
+                    result.map(|n| if is_negative { -n } else { n })
                 };
                 match v {
                     Ok(n) => Ok(n.to_object(py)),
@@ -399,15 +489,25 @@ impl FieldSpec {
                 }
             },
             FieldType::GeneralNumber => {
-                // Parse as int if possible, otherwise float
+                // Parse as int if possible, otherwise float, or nan/inf
                 let trimmed = value.trim();
-                // Try int first
-                if let Ok(n) = trimmed.parse::<i64>() {
-                    Ok(n.to_object(py))
-                } else if let Ok(n) = trimmed.parse::<f64>() {
-                    Ok(n.to_object(py))
+                let lower = trimmed.to_lowercase();
+                // Check for nan/inf first
+                if lower == "nan" {
+                    Ok(f64::NAN.to_object(py))
+                } else if lower == "inf" || lower == "+inf" {
+                    Ok(f64::INFINITY.to_object(py))
+                } else if lower == "-inf" {
+                    Ok(f64::NEG_INFINITY.to_object(py))
                 } else {
-                    Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid number: {}", value)))
+                    // Try int first
+                    if let Ok(n) = trimmed.parse::<i64>() {
+                        Ok(n.to_object(py))
+                    } else if let Ok(n) = trimmed.parse::<f64>() {
+                        Ok(n.to_object(py))
+                    } else {
+                        Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid number: {}", value)))
+                    }
                 }
             },
             FieldType::Percentage => {

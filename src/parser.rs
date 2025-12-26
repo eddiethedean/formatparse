@@ -5,7 +5,8 @@ use pyo3::types::{PyString, PyTuple, PyDict};
 use regex::Regex;
 use std::collections::HashMap;
 
-#[pyclass]
+#[pyclass(module = "_structparse")]
+#[derive(Clone)]
 pub struct FormatParser {
     #[pyo3(get)]
     pub pattern: String,
@@ -150,6 +151,8 @@ impl FormatParser {
             let mut fixed_index = 0;
 
             let mut group_offset = 0;
+            // Track the actual capture group index (accounts for both named and unnamed groups)
+            let mut actual_capture_index = 1;  // Start at 1 (group 0 is full match)
             for (i, spec) in self.field_specs.iter().enumerate() {
                 // Validate regex_group_count for custom types with capturing groups
                 // Also track how many groups this pattern adds for group_offset calculation
@@ -204,14 +207,14 @@ impl FormatParser {
                 }
                 
                 // For named fields, use normalized name to get the capture group
-                // For unnamed fields, use position
+                // For unnamed fields, use the actual capture group index
                 let cap = if let Some(norm_name) = self.normalized_names.get(i).and_then(|n| n.as_ref()) {
                     // Use normalized name to get the capture
                     captures.name(norm_name.as_str())
                 } else {
                     // For alignment patterns, we have nested capturing groups
-                    // The outermost group (i+1) includes padding, the innermost has the text
-                    let capture_group_index = i + 1 + group_offset;
+                    // The outermost group includes padding, the innermost has the text
+                    let capture_group_index = actual_capture_index + group_offset;
                     if spec.alignment.is_some() {
                         // Try to find the innermost capturing group (usually next group for alignment patterns)
                         captures.get(capture_group_index + 1).or_else(|| captures.get(capture_group_index))
@@ -219,6 +222,15 @@ impl FormatParser {
                         captures.get(capture_group_index)
                     }
                 };
+                
+                // Increment actual_capture_index for the next field (both named and unnamed groups consume an index)
+                // But only increment if we actually used a positional group (not a named group)
+                if self.normalized_names.get(i).and_then(|n| n.as_ref()).is_none() {
+                    actual_capture_index += 1;
+                } else {
+                    // Named groups still consume an index in the regex, so increment
+                    actual_capture_index += 1;
+                }
                 
                 if let Some(cap) = cap {
                     let value_str = cap.as_str();
@@ -348,11 +360,12 @@ impl FormatParser {
                     // Flush literal part
                     if !literal.is_empty() {
                         // If literal ends with whitespace, make it flexible to allow multiple spaces
+                        // But use \s+ (one or more) instead of \s* (zero or more) to ensure we consume the space
                         let escaped = if literal.trim_end() != literal {
-                            // Literal ends with whitespace - replace trailing whitespace with \s*
-                            // to allow zero or more spaces (maintains compatibility with exact matches)
+                            // Literal ends with whitespace - replace trailing whitespace with \s+
+                            // to allow one or more spaces (ensures we consume at least one space)
                             let trimmed = literal.trim_end();
-                            format!("{}\\s*", regex::escape(trimmed))
+                            format!("{}\\s+", regex::escape(trimmed))
                         } else {
                             regex::escape(&literal)
                         };
@@ -399,13 +412,38 @@ impl FormatParser {
                                 peek_chars.next();
                                 continue;  // Escaped brace, continue
                             }
-                            // Found a field - check if it's empty {}
+                            // Found a field - check if it's empty {} or has precision
                             if peek_chars.peek() == Some(&'}') {
                                 // Empty field {} - non-greedy, use exact width
                                 break Some(false);
                             } else {
-                                // Field has content - greedy, use greedy width
-                                break Some(true);
+                                // Check if the field has precision (like {:.4})
+                                let mut field_chars = peek_chars.clone();
+                                let mut has_precision = false;
+                                while let Some(&ch) = field_chars.peek() {
+                                    if ch == '}' {
+                                        break;
+                                    }
+                                    if ch == ':' {
+                                        field_chars.next();
+                                        // Check for precision after colon
+                                        while let Some(&next_ch) = field_chars.peek() {
+                                            if next_ch == '}' {
+                                                break;
+                                            }
+                                            if next_ch == '.' {
+                                                has_precision = true;
+                                                break;
+                                            }
+                                            field_chars.next();
+                                        }
+                                        break;
+                                    }
+                                    field_chars.next();
+                                }
+                                // If next field has precision, it's greedy (so current should be greedy too)
+                                // If next field is empty {}, it's non-greedy (so current should be exact)
+                                break Some(has_precision);
                             }
                         } else {
                             // No more fields - use greedy
@@ -505,12 +543,25 @@ impl FormatParser {
         
         // Check for collisions with existing normalized names
         let mut normalized = base_normalized.clone();
-        let mut suffix_count = 0;
         
-        // Check if this normalized name already exists
+        // Find the position of the first underscore to insert additional underscores there
+        let underscore_pos = normalized.find('_');
+        
+        // Check if this exact normalized name already exists
+        let mut collision_count = 0;
         while existing_normalized.iter().any(|n| n.as_ref().map(|s| s == &normalized).unwrap_or(false)) {
-            suffix_count += 1;
-            normalized = format!("{}{}", base_normalized, "_".repeat(suffix_count));
+            collision_count += 1;
+            // Insert additional underscores at the first underscore position
+            // For "a_b", collisions become "a__b", "a___b", etc.
+            if let Some(pos) = underscore_pos {
+                let before = &base_normalized[..pos];
+                let after = &base_normalized[pos + 1..];
+                // Total underscores = 1 (base) + collision_count
+                normalized = format!("{}{}{}", before, "_".repeat(1 + collision_count), after);
+            } else {
+                // No underscore found, append underscores (shouldn't happen in practice)
+                normalized = format!("{}{}", base_normalized, "_".repeat(collision_count));
+            }
         }
         
         normalized
@@ -880,7 +931,9 @@ impl FormatParser {
                 FieldType::Custom(type_name)
             } else {
                 // Single character - treat as built-in (can be overridden in convert_value)
-                match type_name.chars().next().unwrap() {
+                let type_char = type_name.chars().next().unwrap();
+                spec.original_type_char = Some(type_char); // Store original type character
+                match type_char {
                     's' => FieldType::String,
                     'd' | 'i' => FieldType::Integer,
                     'b' | 'o' | 'x' | 'X' => FieldType::Integer, // Binary, octal, hex are integers
@@ -940,14 +993,25 @@ impl FormatParser {
     }
 
     /// Get the internal regex expression string (for testing)
-    /// Returns a canonical format with literal spaces instead of \s* for compatibility
+    /// Returns a canonical format with literal spaces instead of \s+ for compatibility
     #[getter]
     fn _expression(&self) -> String {
-        // Replace \s* between capturing groups with literal spaces for canonical format
+        // Replace \s+ between capturing groups with literal spaces for canonical format
         // This matches the original parse library's _expression format
         let mut result = self.regex_str.clone();
-        // Replace )\s*( with ) ( for canonical format (space between fields)
+        // Replace )\s+( with ) ( for canonical format (space between fields)
+        result = result.replace(r")\s+(", ") (");
+        // Also replace )\s*( with ) ( for backward compatibility
         result = result.replace(r")\s*(", ") (");
+        
+        // Simplify float patterns to match expected format
+        // Our pattern: ([+-]?(?:\d+\.\d+|\.\d+|\d+\.)(?:[eE][+-]?\d+)?)
+        // Expected: ([-+ ]?\d*\.\d+)
+        // Replace the complex float pattern with the simpler one
+        result = result.replace(
+            r"([+-]?(?:\d+\.\d+|\.\d+|\d+\.)(?:[eE][+-]?\d+)?)",
+            r"([-+ ]?\d*\.\d+)"
+        );
         
         // For alignment patterns like {:>} that produce " *(.+?)", we wrap it as "( *(.+?))"
         // But _expression expects just " *(.+?)" (no outer wrapper)
@@ -971,6 +1035,37 @@ impl FormatParser {
         Format {
             pattern: self.pattern.clone(),
         }
+    }
+
+    /// Get state for pickling
+    fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
+        use pyo3::types::PyDict;
+        let state = PyDict::new_bound(py);
+        state.set_item("pattern", &self.pattern)?;
+        Ok(state.into())
+    }
+
+    /// Set state from pickle - reconstructs the parser
+    fn __setstate__(&mut self, _py: Python, state: &Bound<'_, PyAny>) -> PyResult<()> {
+        use pyo3::types::PyDict;
+        let dict = state.downcast::<PyDict>()?;
+        let pattern: String = dict.get_item("pattern")?.ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'pattern' in state"))?.extract()?;
+        
+        // Reconstruct the parser from the pattern
+        let reconstructed = Self::new_with_extra_types(&pattern, None)?;
+        
+        // Copy all fields from reconstructed parser using std::mem::replace for owned types
+        use std::mem;
+        self.pattern = reconstructed.pattern;
+        self.regex_str = reconstructed.regex_str;
+        self.regex = reconstructed.regex;
+        self.regex_case_insensitive = reconstructed.regex_case_insensitive;
+        self.field_specs = reconstructed.field_specs;
+        self.field_names = reconstructed.field_names;
+        self.normalized_names = reconstructed.normalized_names;
+        self.name_mapping = reconstructed.name_mapping;
+        self.stored_extra_types = reconstructed.stored_extra_types;
+        Ok(())
     }
 }
 

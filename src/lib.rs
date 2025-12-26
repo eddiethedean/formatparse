@@ -96,13 +96,13 @@ fn findall(
     while pos < string.len() {
         if let Some(result) = parser.search_pattern(&string[pos..], case_sensitive, extra_types.clone(), evaluate_result)? {
             Python::with_gil(|py| {
-                // Get span from result
-                let span_end = if let Ok(parse_result) = result.bind(py).downcast::<ParseResult>() {
-                    parse_result.borrow().span.1
+                // Get span from result (relative to search start, which is pos)
+                let (span_start, span_end) = if let Ok(parse_result) = result.bind(py).downcast::<ParseResult>() {
+                    parse_result.borrow().span
                 } else if let Ok(match_obj) = result.bind(py).downcast::<Match>() {
-                    match_obj.borrow().span.1
+                    match_obj.borrow().span
                 } else {
-                    0
+                    (0, 0)
                 };
                 
                 // Adjust offset for ParseResult
@@ -118,9 +118,13 @@ fn findall(
                 };
                 
                 results.push(adjusted_result);
-                pos = pos + span_end;
-                if span_end == 0 {
-                    pos += 1; // Avoid infinite loop
+                
+                // Advance position: start from the end of the match, or start+1 if match was empty
+                let new_pos = pos + span_end;
+                if new_pos == pos {
+                    pos += 1; // Avoid infinite loop if match was empty
+                } else {
+                    pos = new_pos;
                 }
                 Ok::<(), PyErr>(())
             })?;
