@@ -52,24 +52,26 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Create virtual environment
-        shell: bash
         run: |
           python -m venv .venv
-          source .venv/bin/activate
           python -m pip install --upgrade pip
           pip install maturin pytest
 
       - name: Build extension module
-        shell: bash
         run: |
-          source .venv/bin/activate
-          maturin develop --release
+          python -m pip install -e . --no-build-isolation
+        env:
+          MATURIN_PEP517_ARGS: --release
 
       - name: Run pytest suite
         shell: bash
         run: |
-          source .venv/bin/activate
-          python -m pytest tests/ -v
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            .venv\Scripts\python -m pytest tests/ -v
+          else
+            source .venv/bin/activate
+            python -m pytest tests/ -v
+          fi
 
       - name: Run cargo tests
         run: cargo test
