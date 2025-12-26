@@ -90,7 +90,7 @@ impl ParseResult {
         Python::with_gil(|py| {
             // Try to extract as slice first
             if let Ok(slice) = key.downcast::<PySlice>() {
-                let len = self.fixed.len() as i64;
+                let len = self.fixed.len() as std::os::raw::c_long;
                 let indices = slice.indices(len)?;
                 
                 let mut result = Vec::new();
