@@ -72,6 +72,8 @@ jobs:
 
       - name: Build extension module
         shell: bash
+        env:
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: ${{ matrix.python-version == '3.13' && '1' || '' }}
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             .venv/Scripts/python -m pip install maturin

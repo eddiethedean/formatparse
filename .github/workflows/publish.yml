@@ -38,6 +38,8 @@ jobs:
           pip install maturin
 
       - name: Build wheel
+        env:
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: ${{ matrix.python == '3.13' && '1' || '' }}
         run: maturin build --out dist --strip --release
 
       - name: Upload wheel artifact
