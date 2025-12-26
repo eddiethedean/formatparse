@@ -91,34 +91,30 @@ jobs:
         with:
           pattern: wheel-*
           merge-multiple: true
-          path: dist/wheels
+          path: artifacts/wheels
 
       - name: Download sdist
         uses: actions/download-artifact@v4
         with:
           pattern: sdist
           merge-multiple: true
-          path: dist/sdist
+          path: artifacts/sdist
 
       - name: Combine artifacts
         shell: bash
         run: |
           # Create clean dist directory
-          rm -rf dist
           mkdir -p dist
           
-          # Copy wheels from wheels directory
-          if [ -d dist/wheels ]; then
-            find dist/wheels -name "*.whl" -exec cp {} dist/ \;
+          # Copy wheels from artifacts directory
+          if [ -d artifacts/wheels ]; then
+            find artifacts/wheels -name "*.whl" -exec cp {} dist/ \;
           fi
           
-          # Copy sdist from sdist directory
-          if [ -d dist/sdist ]; then
-            find dist/sdist -name "*.tar.gz" -exec cp {} dist/ \;
+          # Copy sdist from artifacts directory
+          if [ -d artifacts/sdist ]; then
+            find artifacts/sdist -name "*.tar.gz" -exec cp {} dist/ \;
           fi
-          
-          # Remove the temporary directories
-          rm -rf dist/wheels dist/sdist
           
           # List final contents
           echo "Final dist contents:"
