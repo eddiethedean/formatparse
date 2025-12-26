@@ -16,13 +16,11 @@ This will:
 3. Create and push a git tag (e.g., `v0.1.0`)
 4. Push to the main branch
 
-Then create a GitHub release:
-1. Go to https://github.com/eddiethedean/structparse/releases/new
-2. Select the tag you just created
-3. Fill in release title and notes
-4. Click "Publish release"
+The GitHub Actions workflow will **automatically** trigger when you push the tag and will:
+- Build wheels for all platforms and Python versions
+- Publish to PyPI
 
-The GitHub Actions workflow will automatically build wheels for all platforms and publish to PyPI.
+**Note:** Creating a GitHub release is optional but recommended for better visibility and release notes.
 
 ## Manual Release
 
