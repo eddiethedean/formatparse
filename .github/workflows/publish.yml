@@ -85,6 +85,8 @@ jobs:
     name: Publish to PyPI
     needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -103,25 +105,49 @@ jobs:
       - name: Combine artifacts
         shell: bash
         run: |
+          # Debug: Show what we downloaded
+          echo "=== Artifacts structure ==="
+          find artifacts -type f -o -type d | sort
+          echo ""
+          
           # Create clean dist directory
           mkdir -p dist
           
-          # Copy wheels from artifacts directory
+          # Copy wheels from artifacts directory (handle nested structure)
           if [ -d artifacts/wheels ]; then
-            find artifacts/wheels -name "*.whl" -exec cp {} dist/ \;
+            echo "Copying wheels..."
+            find artifacts/wheels -name "*.whl" -type f -exec cp -v {} dist/ \;
+          else
+            echo "WARNING: artifacts/wheels directory not found!"
           fi
           
-          # Copy sdist from artifacts directory
+          # Copy sdist from artifacts directory (handle nested structure)
           if [ -d artifacts/sdist ]; then
-            find artifacts/sdist -name "*.tar.gz" -exec cp {} dist/ \;
+            echo "Copying sdist..."
+            find artifacts/sdist -name "*.tar.gz" -type f -exec cp -v {} dist/ \;
+          else
+            echo "WARNING: artifacts/sdist directory not found!"
           fi
           
-          # List final contents
-          echo "Final dist contents:"
-          ls -la dist/
+          # Verify we have files
           echo ""
-          echo "Distribution files:"
-          find dist -type f \( -name "*.whl" -o -name "*.tar.gz" \)
+          echo "=== Final dist contents ==="
+          ls -lah dist/
+          echo ""
+          echo "=== Distribution files ==="
+          find dist -type f \( -name "*.whl" -o -name "*.tar.gz" \) | sort
+          echo ""
+          
+          # Count files
+          WHEEL_COUNT=$(find dist -name "*.whl" -type f | wc -l)
+          SDIST_COUNT=$(find dist -name "*.tar.gz" -type f | wc -l)
+          echo "Wheels: $WHEEL_COUNT"
+          echo "Source distributions: $SDIST_COUNT"
+          
+          if [ "$WHEEL_COUNT" -eq 0 ] && [ "$SDIST_COUNT" -eq 0 ]; then
+            echo "ERROR: No distribution files found!"
+            exit 1
+          fi
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
