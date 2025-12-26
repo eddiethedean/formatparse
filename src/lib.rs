@@ -1,9 +1,21 @@
+//! structparse-core: A Rust-backed Python library for parsing strings
+//!
+//! This library provides high-performance string parsing using Python format() syntax.
+//! It's organized into several modules:
+//!
+//! - `datetime`: Datetime parsing for various formats (ISO 8601, RFC 2822, etc.)
+//! - `error`: Centralized error handling and custom error types
+//! - `parser`: Core parsing logic (pattern parsing, regex generation, matching)
+//! - `result`: ParseResult struct for returning parsed data
+//! - `types`: Type system (FieldType, FieldSpec, conversion logic)
+//! - `match_rs`: Match struct for raw regex captures
+
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::HashMap;
 
 mod datetime;
-mod datetime_parse;
+mod error;
 mod parser;
 mod result;
 mod types;
@@ -97,12 +109,12 @@ fn findall(
         if let Some(result) = parser.search_pattern(&string[pos..], case_sensitive, extra_types.clone(), evaluate_result)? {
             Python::with_gil(|py| {
                 // Get span from result (relative to search start, which is pos)
-                let (span_start, span_end) = if let Ok(parse_result) = result.bind(py).downcast::<ParseResult>() {
-                    parse_result.borrow().span
+                let span_end = if let Ok(parse_result) = result.bind(py).downcast::<ParseResult>() {
+                    parse_result.borrow().span.1
                 } else if let Ok(match_obj) = result.bind(py).downcast::<Match>() {
-                    match_obj.borrow().span
+                    match_obj.borrow().span.1
                 } else {
-                    (0, 0)
+                    0
                 };
                 
                 // Adjust offset for ParseResult
@@ -153,12 +165,11 @@ fn extract_format(
     format_string: &str,
     _match_dict: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<PyObject> {
-    use crate::parser::FormatParser;
     use crate::types::FieldSpec;
     
     // Parse the format spec string
     let mut spec = FieldSpec::new();
-    FormatParser::parse_format_spec(format_string, &mut spec, None);
+    crate::parser::pattern::parse_format_spec(format_string, &mut spec, None);
     
     // Extract type from the original format_string (preserve original type chars like 'o', 'x', 'b')
     // Parse the format spec to extract the type characters that come after width/precision/alignment

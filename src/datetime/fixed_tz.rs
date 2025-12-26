@@ -1,5 +1,4 @@
 use pyo3::prelude::*;
-use pyo3::types::PyDelta;
 
 /// Fixed timezone offset for datetime parsing
 #[pyclass]

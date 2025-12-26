@@ -1,5 +1,5 @@
+use crate::error;
 use crate::result::ParseResult;
-use crate::parser::FormatParser;
 use crate::types::FieldSpec;
 use pyo3::prelude::*;
 use std::collections::HashMap;
@@ -42,8 +42,8 @@ impl Match {
                     // Check if this is a dict-style field name (contains [])
                     if original_name.contains('[') {
                         // Parse the path and insert into nested dict structure
-                        let path = FormatParser::parse_field_path(original_name);
-                        FormatParser::insert_nested_dict(&mut named, &path, converted, py)?;
+                        let path = crate::parser::parse_field_path(original_name);
+                        crate::parser::matching::insert_nested_dict(&mut named, &path, converted, py)?;
                     } else {
                         // Regular flat field name
                         // Check for repeated field names - values must match
@@ -52,9 +52,7 @@ impl Match {
                             let converted_obj = converted.to_object(py);
                             let are_equal: bool = existing_obj.bind(py).eq(converted_obj.bind(py)).unwrap_or(false);
                             if !are_equal {
-                                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                                    format!("Repeated field '{}' has mismatched values", original_name)
-                                ));
+                                return Err(error::repeated_name_error(original_name));
                             }
                         }
                         named.insert(original_name.clone(), converted);
