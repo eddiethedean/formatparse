@@ -22,12 +22,27 @@ impl FieldSpec {
                 // Count leading and trailing fill characters
                 let leading_count = value.chars().take_while(|&c| c == fill_ch).count();
                 let trailing_count = value.chars().rev().take_while(|&c| c == fill_ch).count();
-                let content_len = value.len() - leading_count - trailing_count;
+                // Avoid underflow: if all chars are fill, content_len is 0
+                let content_len = if leading_count + trailing_count >= value.len() {
+                    0
+                } else {
+                    value.len() - leading_count - trailing_count
+                };
+                
+                // Special case: if all chars are fill (content_len == 0), allow it if total length equals width
+                if content_len == 0 {
+                    if let Some(width) = self.width {
+                        if value.len() == width {
+                            return true;  // Valid: empty content, all fill, total = width
+                        }
+                    }
+                    return false;  // Invalid: all fill but doesn't match width
+                }
                 
                 match align {
                     '>' => {
                         // Right-aligned: fill chars should only be on the left
-                        // Reject if fill char on both sides (invalid)
+                        // Reject if fill char on both sides (invalid) - but only if there's actual content
                         if has_leading_fill && has_trailing_fill {
                             return false;
                         }
