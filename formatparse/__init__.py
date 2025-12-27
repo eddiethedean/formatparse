@@ -5,7 +5,8 @@ This is a Rust-backed implementation of the parse library for better performance
 """
 
 from datetime import timedelta, tzinfo
-from typing import Callable
+from typing import Callable, Optional, Union
+import re
 
 # Import from the Rust extension module
 from _formatparse import (  # type: ignore[import-not-found]
@@ -204,4 +205,6 @@ __all__ = [
     "Match",
     "Result",  # Alias for ParseResult (original parse library name)
     "Parser",  # Alias for FormatParser (original parse library name)
+    "BidirectionalPattern",
+    "BidirectionalResult",
 ]
