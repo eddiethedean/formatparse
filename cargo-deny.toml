@@ -1,12 +1,6 @@
 # Cargo-deny configuration for formatparse
 # See https://github.com/EmbarkStudios/cargo-deny
 
-[dependencies]
-# Deny duplicate dependencies
-deny = ["duplicate"]
-# Don't skip any dependencies
-skip = []
-
 [licenses]
 # Allow common permissive licenses
 allow = [
@@ -38,15 +32,12 @@ copyleft = "deny"
 [advisories]
 # Vulnerability database
 db-path = "~/.cargo/advisory-db"
-# Don't explicitly deny specific advisories (let the database handle it)
-deny = []
-ignore = []
 # Vulnerabilities that haven't been patched yet
 vulnerability = "deny"
 # Notices for vulnerabilities
 notice = "warn"
-# Unmaintained crates
-unmaintained = "warn"
+# Unmaintained crates - check all dependencies
+unmaintained = "all"
 # Unsound crates
 unsound = "deny"
 # Yanked crates
@@ -54,11 +45,13 @@ yanked = "warn"
 # Ignore specific advisories (use sparingly)
 # ignore = ["RUSTSEC-XXXX-XXXX"]
 
-[ban]
+[bans]
 # Multiple versions of the same crate
 multiple-versions = "warn"
 # Circular dependencies
 cyclic = "deny"
 # Wildcard dependencies
 wildcards = "deny"
+# Duplicate dependencies
+duplicate = "deny"
 
