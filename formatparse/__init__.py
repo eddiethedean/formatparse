@@ -4,6 +4,7 @@ Parse strings using a specification based on the Python format() syntax.
 This is a Rust-backed implementation of the parse library for better performance.
 """
 
+from datetime import timedelta, tzinfo
 from typing import Callable
 
 # Import from the Rust extension module
@@ -92,9 +93,6 @@ def findall(
 
 
 # Create a tzinfo-compatible wrapper for FixedTzOffset
-from datetime import tzinfo, timedelta
-
-
 class FixedTzOffset(tzinfo):
     """Fixed timezone offset compatible with datetime.tzinfo"""
 

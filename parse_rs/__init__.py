@@ -4,6 +4,7 @@ Parse strings using a specification based on the Python format() syntax.
 This is a Rust-backed implementation of the parse library for better performance.
 """
 
+from datetime import timedelta, tzinfo
 from typing import Callable
 
 # Import from the Rust extension module
