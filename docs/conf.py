@@ -52,7 +52,7 @@ try:
         if match:
             release = match.group(1)
         else:
-            release = '0.5.0'
+            release = '0.5.1'
 except Exception:
     release = '0.5.0'
 
