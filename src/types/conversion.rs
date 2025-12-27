@@ -49,12 +49,33 @@ impl FieldSpec {
                 if self.alignment.is_none() {
                     Ok(value.to_object(py))
                 } else {
-                    // Strip whitespace based on alignment
+                    // Strip fill characters and whitespace based on alignment
                     let trimmed = match self.alignment {
-                        Some('<') => value.trim_end(),  // Left-aligned: strip trailing spaces
-                        Some('>') => value.trim_start(), // Right-aligned: strip leading spaces
-                        Some('^') => value.trim(),      // Center-aligned: strip both
-                        _ => value,                     // No alignment: keep as-is
+                        Some('<') => {
+                            // Left-aligned: strip trailing fill chars, then trailing spaces
+                            if let Some(fill_ch) = self.fill {
+                                value.trim_end_matches(fill_ch).trim_end()
+                            } else {
+                                value.trim_end()
+                            }
+                        },
+                        Some('>') => {
+                            // Right-aligned: strip leading fill chars, then leading spaces
+                            if let Some(fill_ch) = self.fill {
+                                value.trim_start_matches(fill_ch).trim_start()
+                            } else {
+                                value.trim_start()
+                            }
+                        },
+                        Some('^') => {
+                            // Center-aligned: strip both leading and trailing fill chars, then spaces
+                            if let Some(fill_ch) = self.fill {
+                                value.trim_matches(fill_ch).trim()
+                            } else {
+                                value.trim()
+                            }
+                        },
+                        _ => value,  // No alignment: keep as-is
                     };
                     Ok(trimmed.to_object(py))
                 }
