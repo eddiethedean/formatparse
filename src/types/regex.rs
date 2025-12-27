@@ -99,9 +99,10 @@ impl FieldSpec {
                 };
                 
                 let base_pattern = if self.zero_pad {
-                    // Zero-padded: if width is specified, match exactly that many digits
+                    // Zero-padded: if width is specified, match 1 to width digits
+                    // This allows unpadded values (e.g., '9' for {c:02d}) but rejects values exceeding width
                     if let Some(width) = self.width {
-                        format!("{}{}{}[0-9]{{{}}}", sign, fill_prefix, fill_suffix, width)
+                        format!("{}{}{}[0-9]{{1,{}}}", sign, fill_prefix, fill_suffix, width)
                     } else {
                         format!("{}{}{}[0-9]+", sign, fill_prefix, fill_suffix)
                     }
