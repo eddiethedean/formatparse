@@ -254,25 +254,32 @@ class BidirectionalPattern:
             
             # Extract width and precision
             # Format: [fill][align][sign][width][.precision]
-            # Simplified: extract width and precision
-            width_match = re.search(r'(\d+)', format_spec)
-            if width_match:
-                # Check if it's precision (after dot) or width
-                dot_pos = format_spec.find('.')
-                if dot_pos >= 0:
-                    # Has precision
-                    width_str = format_spec[:dot_pos]
-                    precision_str = format_spec[dot_pos+1:]
-                    if width_str:
-                        width_match = re.search(r'(\d+)', width_str)
-                        if width_match:
-                            constraint['width'] = int(width_match.group(1))
-                    if precision_str:
-                        precision_match = re.search(r'(\d+)', precision_str)
-                        if precision_match:
-                            constraint['precision'] = int(precision_match.group(1))
-                else:
-                    # Just width
+            # Handle formats like: "05d" (width=5), ">10" (width=10), ".5s" (precision=5), ">10.5s" (width=10, precision=5)
+            
+            # Check for precision first (after dot)
+            dot_pos = format_spec.find('.')
+            if dot_pos >= 0:
+                # Has precision
+                precision_str = format_spec[dot_pos+1:]
+                # Remove type char from precision if present
+                precision_str = re.sub(r'[a-zA-Z%]$', '', precision_str)
+                if precision_str:
+                    precision_match = re.search(r'(\d+)', precision_str)
+                    if precision_match:
+                        constraint['precision'] = int(precision_match.group(1))
+                # Width is before the dot
+                width_str = format_spec[:dot_pos]
+            else:
+                width_str = format_spec
+            
+            # Extract width from width_str (remove type char, fill, align, sign)
+            # Remove type char if still present
+            width_str = re.sub(r'[a-zA-Z%]$', '', width_str)
+            # Remove fill, align, sign characters
+            width_str = re.sub(r'[<>=^+\- ]', '', width_str)
+            if width_str:
+                width_match = re.search(r'(\d+)', width_str)
+                if width_match:
                     constraint['width'] = int(width_match.group(1))
             
             constraints.append(constraint)
