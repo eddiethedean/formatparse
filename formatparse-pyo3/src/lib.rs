@@ -95,9 +95,9 @@ fn parse(
     evaluate_result: bool,
 ) -> PyResult<Option<PyObject>> {
     // Validate input lengths
-    formatparse_core::parser::validate_pattern_length(pattern)
+    formatparse_core::validate_pattern_length(pattern)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
-    formatparse_core::parser::validate_input_length(string)
+    formatparse_core::validate_input_length(string)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
     
     // Check for null bytes in inputs
@@ -154,9 +154,9 @@ fn search(
     }
     
     // Validate input lengths
-    formatparse_core::parser::validate_pattern_length(pattern)
+    formatparse_core::validate_pattern_length(pattern)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
-    formatparse_core::parser::validate_input_length(string)
+    formatparse_core::validate_input_length(string)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
     
     // Check for null bytes in inputs
@@ -200,9 +200,9 @@ fn findall(
     evaluate_result: bool,
 ) -> PyResult<PyObject> {
     // Validate input lengths
-    formatparse_core::parser::validate_pattern_length(pattern)
+    formatparse_core::validate_pattern_length(pattern)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
-    formatparse_core::parser::validate_input_length(string)
+    formatparse_core::validate_input_length(string)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
     
     // Check for null bytes in inputs
