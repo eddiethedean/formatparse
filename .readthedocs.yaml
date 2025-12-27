@@ -12,11 +12,9 @@ build:
 sphinx:
   configuration: docs/conf.py
 
-# Install the project and dependencies
+# Install only documentation dependencies (skip building Rust extension)
 python:
   install:
-    - method: pip
-      path: .
     - requirements: docs/requirements.txt
 
 # Optionally build your docs in additional formats such as PDF and ePub

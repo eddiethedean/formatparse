@@ -70,11 +70,19 @@ intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
 }
 
+# Mock imports for autodoc (since we can't build the Rust extension on ReadTheDocs)
+autodoc_mock_imports = ['_formatparse']
+
 # Doctest configuration
+# Note: Doctests will be skipped on ReadTheDocs if the package isn't available
 doctest_global_setup = """
-from formatparse import parse, search, findall, compile, with_pattern
-from formatparse import ParseResult, FormatParser, BidirectionalPattern, BidirectionalResult
-from formatparse import FixedTzOffset, RepeatedNameError
+try:
+    from formatparse import parse, search, findall, compile, with_pattern
+    from formatparse import ParseResult, FormatParser, BidirectionalPattern, BidirectionalResult
+    from formatparse import FixedTzOffset, RepeatedNameError
+except ImportError:
+    # Skip doctests if package isn't available
+    pass
 """
 
 doctest_test_doctest_blocks = 'default'
