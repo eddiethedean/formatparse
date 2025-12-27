@@ -385,8 +385,10 @@ class BidirectionalPattern:
             # Width validation for integers (zero-padded)
             if isinstance(value, int) and width is not None:
                 # Check if value fits in width with zero-padding
+                # Need to account for sign if negative
                 value_str = str(abs(value))
-                if len(value_str) > width:
+                sign_len = 1 if value < 0 else 0
+                if len(value_str) + sign_len > width:
                     errors.append(f"Field '{field_name or i}': integer {value} exceeds width {width} (with zero-padding)")
         
         return len(errors) == 0, errors
