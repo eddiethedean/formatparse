@@ -47,18 +47,25 @@ jobs:
           pytest tests/test_performance.py --benchmark-only --benchmark-json=benchmark_results.json
 
       - name: Store benchmark results
-        if: always() && hashFiles('benchmark_results.json') != ''
+        if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: benchmark_results.json
           retention-days: 30
+          if-no-files-found: ignore
 
       - name: Compare with baseline
-        if: always() && hashFiles('benchmark_results.json') != ''
+        if: always()
         continue-on-error: true
         run: |
           source .venv/bin/activate
+          # Only compare if benchmark results exist
+          if [ ! -f benchmark_results.json ]; then
+            echo "No benchmark results found, skipping comparison."
+            exit 0
+          fi
           # Check if baseline exists, if not create one
           if [ -f baseline_benchmarks.json ]; then
             echo "Comparing against baseline..."
