@@ -30,6 +30,7 @@ Quick Start
    user_guides/index
    api/index
    examples/index
+   security
 
 Indices and tables
 ==================

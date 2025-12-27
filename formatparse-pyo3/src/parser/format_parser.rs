@@ -1,6 +1,8 @@
 use crate::error;
 use formatparse_core::FieldSpec;
+use formatparse_core::parser::{validate_pattern_length, validate_input_length, MAX_FIELDS};
 use pyo3::prelude::*;
+use pyo3::exceptions::PyValueError;
 use pyo3::types::{PyString, PyTuple};
 use regex::Regex;
 use std::collections::HashMap;
@@ -52,6 +54,15 @@ impl FormatParser {
         })?;
         
         let (regex_str_with_anchors, regex_str, field_specs, field_names, normalized_names, name_mapping) = crate::parser::pattern::parse_pattern(pattern, extra_types.as_ref(), &custom_patterns)?;
+        
+        // Validate field count
+        if field_specs.len() > MAX_FIELDS {
+            return Err(PyValueError::new_err(format!(
+                "Pattern contains {} fields, which exceeds the maximum allowed count of {}",
+                field_specs.len(),
+                MAX_FIELDS
+            )));
+        }
         
         // Pre-compute custom type validation results (pattern_groups per field)
         // This avoids calling validate_custom_type_pattern for every match
@@ -202,7 +213,12 @@ impl FormatParser {
     #[pyo3(signature = (pattern=None, extra_types=None))]
     fn new_py(pattern: Option<&str>, extra_types: Option<HashMap<String, PyObject>>) -> PyResult<Self> {
         match pattern {
-            Some(p) => Self::new_with_extra_types(p, extra_types),
+            Some(p) => {
+                // Validate pattern length if provided
+                validate_pattern_length(p)
+                    .map_err(|e| PyValueError::new_err(e))?;
+                Self::new_with_extra_types(p, extra_types)
+            },
             None => {
                 // Create a dummy instance for unpickling - __setstate__ will initialize it properly
                 // We need to create a valid but minimal instance
@@ -236,6 +252,14 @@ impl FormatParser {
         extra_types: Option<HashMap<String, PyObject>>,
         evaluate_result: bool,
     ) -> PyResult<Option<PyObject>> {
+        // Validate input length
+        validate_input_length(string)
+            .map_err(|e| PyValueError::new_err(e))?;
+        
+        // Check for null bytes
+        if string.contains('\0') {
+            return Err(PyValueError::new_err("Input string contains null byte"));
+        }
         // Merge stored extra_types with provided extra_types (provided takes precedence)
         let merged_extra_types = Python::with_gil(|py| -> PyResult<Option<HashMap<String, PyObject>>> {
             let mut merged = self.stored_extra_types.clone().unwrap_or_default();
@@ -311,6 +335,15 @@ impl FormatParser {
         extra_types: Option<HashMap<String, PyObject>>,
         evaluate_result: bool,
     ) -> PyResult<Option<PyObject>> {
+        // Validate input length
+        validate_input_length(string)
+            .map_err(|e| PyValueError::new_err(e))?;
+        
+        // Check for null bytes
+        if string.contains('\0') {
+            return Err(PyValueError::new_err("Input string contains null byte"));
+        }
+        
         self.search_pattern(string, case_sensitive, extra_types, evaluate_result)
     }
 

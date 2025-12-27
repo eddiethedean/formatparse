@@ -94,6 +94,20 @@ fn parse(
     case_sensitive: bool,
     evaluate_result: bool,
 ) -> PyResult<Option<PyObject>> {
+    // Validate input lengths
+    formatparse_core::parser::validate_pattern_length(pattern)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
+    formatparse_core::parser::validate_input_length(string)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
+    
+    // Check for null bytes in inputs
+    if pattern.contains('\0') {
+        return Err(pyo3::exceptions::PyValueError::new_err("Pattern contains null byte"));
+    }
+    if string.contains('\0') {
+        return Err(pyo3::exceptions::PyValueError::new_err("Input string contains null byte"));
+    }
+    
     // Use cached parser if available
     match get_or_create_parser(pattern, extra_types.clone()) {
         Ok(parser) => parser.parse_internal(string, case_sensitive, extra_types, evaluate_result),
@@ -139,6 +153,20 @@ fn search(
         return Ok(None);
     }
     
+    // Validate input lengths
+    formatparse_core::parser::validate_pattern_length(pattern)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
+    formatparse_core::parser::validate_input_length(string)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
+    
+    // Check for null bytes in inputs
+    if pattern.contains('\0') {
+        return Err(pyo3::exceptions::PyValueError::new_err("Pattern contains null byte"));
+    }
+    if string.contains('\0') {
+        return Err(pyo3::exceptions::PyValueError::new_err("Input string contains null byte"));
+    }
+    
     let parser = get_or_create_parser(pattern, extra_types.clone())?;
     let search_string = &string[pos..end];
     
@@ -171,6 +199,20 @@ fn findall(
     case_sensitive: bool,
     evaluate_result: bool,
 ) -> PyResult<PyObject> {
+    // Validate input lengths
+    formatparse_core::parser::validate_pattern_length(pattern)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
+    formatparse_core::parser::validate_input_length(string)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
+    
+    // Check for null bytes in inputs
+    if pattern.contains('\0') {
+        return Err(pyo3::exceptions::PyValueError::new_err("Pattern contains null byte"));
+    }
+    if string.contains('\0') {
+        return Err(pyo3::exceptions::PyValueError::new_err("Input string contains null byte"));
+    }
+    
     let parser = get_or_create_parser(pattern, extra_types.clone())?;
     
     // Fast path: if no custom converters and evaluate_result=True, use raw matching

@@ -115,3 +115,9 @@ jobs:
 
       - name: Run cargo tests
         run: cargo test --package formatparse-core
+
+      - name: Run cargo audit (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo install cargo-audit --version 0.19.0 || cargo install cargo-audit
+          cargo audit || true  # Don't fail CI, just report vulnerabilities

@@ -1,0 +1,64 @@
+# Cargo-deny configuration for formatparse
+# See https://github.com/EmbarkStudios/cargo-deny
+
+[dependencies]
+# Deny duplicate dependencies
+deny = ["duplicate"]
+# Don't skip any dependencies
+skip = []
+
+[licenses]
+# Allow common permissive licenses
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "Unlicense",
+    "CC0-1.0",
+]
+# Deny GPL licenses (too restrictive)
+deny = [
+    "GPL-2.0",
+    "GPL-3.0",
+    "AGPL-1.0",
+    "AGPL-3.0",
+    "LGPL-2.0",
+    "LGPL-2.1",
+    "LGPL-3.0",
+]
+# Don't allow any unlicensed code
+default = "deny"
+# Copy-left licenses are denied by default
+copyleft = "deny"
+
+[advisories]
+# Vulnerability database
+db-path = "~/.cargo/advisory-db"
+# Don't explicitly deny specific advisories (let the database handle it)
+deny = []
+ignore = []
+# Vulnerabilities that haven't been patched yet
+vulnerability = "deny"
+# Notices for vulnerabilities
+notice = "warn"
+# Unmaintained crates
+unmaintained = "warn"
+# Unsound crates
+unsound = "deny"
+# Yanked crates
+yanked = "warn"
+# Ignore specific advisories (use sparingly)
+# ignore = ["RUSTSEC-XXXX-XXXX"]
+
+[ban]
+# Multiple versions of the same crate
+multiple-versions = "warn"
+# Circular dependencies
+cyclic = "deny"
+# Wildcard dependencies
+wildcards = "deny"
+

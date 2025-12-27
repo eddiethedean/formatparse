@@ -15,6 +15,9 @@ jobs:
   mutation:
     name: Mutation Testing
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     # Only run on main branch to avoid excessive CI usage
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
     
