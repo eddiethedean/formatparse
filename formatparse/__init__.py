@@ -5,7 +5,7 @@ This is a Rust-backed implementation of the parse library for better performance
 """
 
 from datetime import timedelta, tzinfo
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 import re
 
 # Import from the Rust extension module
