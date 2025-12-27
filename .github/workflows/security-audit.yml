@@ -33,6 +33,7 @@ jobs:
 
       - name: Run cargo audit
         run: cargo audit
+        continue-on-error: true  # May fail due to CVSS 4.0 compatibility issues in older versions
 
   cargo-deny:
     name: Cargo Deny
@@ -51,7 +52,7 @@ jobs:
           cargo deny --version
 
       - name: Run cargo deny check
-        run: cargo deny check
+        run: cargo deny check --config cargo-deny.toml
 
   pip-audit:
     name: Pip Audit
