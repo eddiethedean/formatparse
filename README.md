@@ -1,5 +1,6 @@
 # formatparse
 
+[![PyPI version](https://badge.fury.io/py/formatparse.svg)](https://badge.fury.io/py/formatparse)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
@@ -459,24 +460,6 @@ pytest tests/
 
 # Or run tests manually
 python -m pytest tests/ -v
-```
-
-### Project Structure
-
-```
-formatparse/
-├── src/              # Rust source code
-│   ├── lib.rs        # Main Python module bindings
-│   ├── parser/       # Core parsing logic
-│   ├── types/        # Type system and conversion
-│   ├── datetime/     # DateTime parsing
-│   └── result.rs     # ParseResult implementation
-├── formatparse/      # Python package
-│   └── __init__.py   # Python API wrapper
-├── tests/            # Test suite
-├── scripts/          # Benchmark scripts
-├── Cargo.toml        # Rust crate configuration
-└── pyproject.toml    # Python package configuration
 ```
 
 ## Contributing
