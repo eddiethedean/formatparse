@@ -194,9 +194,9 @@ def with_pattern(pattern: str, regex_group_count: int = 0):
 class BidirectionalPattern:
     """
     A bidirectional pattern that can parse and format strings.
-    
+
     Enables round-trip parsing: parse → modify → format back, with built-in validation.
-    
+
     Example:
         >>> formatter = BidirectionalPattern("{name:>10}: {value:05d}")
         >>> result = formatter.parse("      John: 00042")
@@ -210,11 +210,11 @@ class BidirectionalPattern:
         >>> result.format()
         '      John: 00100'
     """
-    
+
     def __init__(self, pattern: str, extra_types=None):
         """
         Initialize a bidirectional pattern.
-        
+
         Args:
             pattern: Format string pattern (e.g., "{name:>10}: {value:05d}")
             extra_types: Optional dict of custom type converters
@@ -224,77 +224,81 @@ class BidirectionalPattern:
         self._extra_types = extra_types
         # Parse pattern to extract field constraints for validation
         self._field_constraints = self._parse_constraints(pattern)
-    
+
     def _parse_constraints(self, pattern: str) -> list[dict]:
         """Parse pattern string to extract field constraints for validation"""
         constraints = []
         # Match field patterns: {name:format} or {name} or {}
-        field_pattern = r'\{([^}]*)\}'
-        
+        field_pattern = r"\{([^}]*)\}"
+
         for match in re.finditer(field_pattern, pattern):
             field_spec = match.group(1)
             if not field_spec:
                 # Positional field with no spec
-                constraints.append({'name': None, 'type': 's', 'width': None, 'precision': None})
+                constraints.append(
+                    {"name": None, "type": "s", "width": None, "precision": None}
+                )
                 continue
-            
+
             # Parse field name and format spec
-            parts = field_spec.split(':', 1)
+            parts = field_spec.split(":", 1)
             name = parts[0] if parts[0] else None
-            format_spec = parts[1] if len(parts) > 1 else ''
-            
+            format_spec = parts[1] if len(parts) > 1 else ""
+
             # Parse format spec (e.g., ">10", "05d", ".2f", ">10.5s")
-            constraint = {'name': name, 'type': 's', 'width': None, 'precision': None}
-            
+            constraint = {"name": name, "type": "s", "width": None, "precision": None}
+
             # Extract type character (last letter if present)
-            type_match = re.search(r'([a-zA-Z%])$', format_spec)
+            type_match = re.search(r"([a-zA-Z%])$", format_spec)
             if type_match:
-                constraint['type'] = type_match.group(1)
+                constraint["type"] = type_match.group(1)
                 format_spec = format_spec[:-1]
-            
+
             # Extract width and precision
             # Format: [fill][align][sign][width][.precision]
             # Handle formats like: "05d" (width=5), ">10" (width=10), ".5s" (precision=5), ">10.5s" (width=10, precision=5)
-            
+
             # Check for precision first (after dot)
-            dot_pos = format_spec.find('.')
+            dot_pos = format_spec.find(".")
             if dot_pos >= 0:
                 # Has precision
-                precision_str = format_spec[dot_pos+1:]
+                precision_str = format_spec[dot_pos + 1 :]
                 # Remove type char from precision if present
-                precision_str = re.sub(r'[a-zA-Z%]$', '', precision_str)
+                precision_str = re.sub(r"[a-zA-Z%]$", "", precision_str)
                 if precision_str:
-                    precision_match = re.search(r'(\d+)', precision_str)
+                    precision_match = re.search(r"(\d+)", precision_str)
                     if precision_match:
-                        constraint['precision'] = int(precision_match.group(1))
+                        constraint["precision"] = int(precision_match.group(1))
                 # Width is before the dot
                 width_str = format_spec[:dot_pos]
             else:
                 width_str = format_spec
-            
+
             # Extract width from width_str (remove type char, fill, align, sign)
             # Remove type char if still present
-            width_str = re.sub(r'[a-zA-Z%]$', '', width_str)
+            width_str = re.sub(r"[a-zA-Z%]$", "", width_str)
             # Remove fill, align, sign characters
-            width_str = re.sub(r'[<>=^+\- ]', '', width_str)
+            width_str = re.sub(r"[<>=^+\- ]", "", width_str)
             if width_str:
-                width_match = re.search(r'(\d+)', width_str)
+                width_match = re.search(r"(\d+)", width_str)
                 if width_match:
-                    constraint['width'] = int(width_match.group(1))
-            
+                    constraint["width"] = int(width_match.group(1))
+
             constraints.append(constraint)
-        
+
         return constraints
-    
-    def parse(self, string: str, case_sensitive: bool = False, evaluate_result: bool = True) -> Optional['BidirectionalResult']:
+
+    def parse(
+        self, string: str, case_sensitive: bool = False, evaluate_result: bool = True
+    ) -> Optional["BidirectionalResult"]:
         """
         Parse a string and return BidirectionalResult.
-        
+
         Args:
             string: String to parse
             case_sensitive: Whether matching is case-sensitive
             evaluate_result: Whether to evaluate result (convert types)
-        
+
         Returns:
             BidirectionalResult if match found, None otherwise
         """
@@ -302,19 +306,19 @@ class BidirectionalPattern:
             string,
             extra_types=self._extra_types,
             case_sensitive=case_sensitive,
-            evaluate_result=evaluate_result
+            evaluate_result=evaluate_result,
         )
         if result:
             return BidirectionalResult(self, result)
         return None
-    
+
     def format(self, values: Union[dict, tuple, ParseResult]) -> str:
         """
         Format values back into the pattern.
-        
+
         Args:
             values: Dict (for named fields), tuple (for positional), or ParseResult
-        
+
         Returns:
             Formatted string
         """
@@ -333,19 +337,21 @@ class BidirectionalPattern:
                 return self._pattern.format(*values.fixed)
         else:
             return self._pattern.format(values)
-    
-    def validate(self, values: Union[dict, tuple, ParseResult]) -> tuple[bool, list[str]]:
+
+    def validate(
+        self, values: Union[dict, tuple, ParseResult]
+    ) -> tuple[bool, list[str]]:
         """
         Validate values against format constraints.
-        
+
         Args:
             values: Dict (for named fields), tuple (for positional), or ParseResult
-        
+
         Returns:
             Tuple of (is_valid, list_of_errors)
         """
         errors = []
-        
+
         # Convert values to dict/list format
         if isinstance(values, ParseResult):
             named_values = dict(values.named) if values.named else {}
@@ -358,14 +364,14 @@ class BidirectionalPattern:
             fixed_values = list(values)
         else:
             return False, ["Invalid values type: expected dict, tuple, or ParseResult"]
-        
+
         # Validate each field
         for i, constraint in enumerate(self._field_constraints):
-            field_name = constraint['name']
-            field_type = constraint['type']
-            width = constraint['width']
-            precision = constraint['precision']
-            
+            field_name = constraint["name"]
+            field_type = constraint["type"]
+            width = constraint["width"]
+            precision = constraint["precision"]
+
             # Get value
             if field_name:
                 if field_name not in named_values:
@@ -375,20 +381,28 @@ class BidirectionalPattern:
                 if i >= len(fixed_values):
                     continue  # Positional field not present
                 value = fixed_values[i]
-            
+
             # Type validation
-            if field_type == 'd' and not isinstance(value, int):
-                errors.append(f"Field '{field_name or i}': expected int, got {type(value).__name__}")
-            elif field_type == 'f' and not isinstance(value, (int, float)):
-                errors.append(f"Field '{field_name or i}': expected float, got {type(value).__name__}")
-            
+            if field_type == "d" and not isinstance(value, int):
+                errors.append(
+                    f"Field '{field_name or i}': expected int, got {type(value).__name__}"
+                )
+            elif field_type == "f" and not isinstance(value, (int, float)):
+                errors.append(
+                    f"Field '{field_name or i}': expected float, got {type(value).__name__}"
+                )
+
             # Width/precision validation for strings
             if isinstance(value, str):
                 if precision is not None and len(value) > precision:
-                    errors.append(f"Field '{field_name or i}': string length {len(value)} exceeds precision {precision}")
+                    errors.append(
+                        f"Field '{field_name or i}': string length {len(value)} exceeds precision {precision}"
+                    )
                 if width is not None and len(value) > width:
-                    errors.append(f"Field '{field_name or i}': string length {len(value)} exceeds width {width}")
-            
+                    errors.append(
+                        f"Field '{field_name or i}': string length {len(value)} exceeds width {width}"
+                    )
+
             # Width validation for integers (zero-padded)
             if isinstance(value, int) and width is not None:
                 # Check if value fits in width with zero-padding
@@ -396,23 +410,25 @@ class BidirectionalPattern:
                 value_str = str(abs(value))
                 sign_len = 1 if value < 0 else 0
                 if len(value_str) + sign_len > width:
-                    errors.append(f"Field '{field_name or i}': integer {value} exceeds width {width} (with zero-padding)")
-        
+                    errors.append(
+                        f"Field '{field_name or i}': integer {value} exceeds width {width} (with zero-padding)"
+                    )
+
         return len(errors) == 0, errors
 
 
 class BidirectionalResult:
     """
     Result from BidirectionalPattern.parse() that allows modification and formatting.
-    
+
     Stores parsed values in a mutable format and provides methods to format back
     and validate against the original pattern constraints.
     """
-    
+
     def __init__(self, pattern: BidirectionalPattern, result: ParseResult):
         """
         Initialize a bidirectional result.
-        
+
         Args:
             pattern: The BidirectionalPattern that created this result
             result: The ParseResult from parsing
@@ -421,48 +437,48 @@ class BidirectionalResult:
         self._result = result
         # Store values in mutable dict/list
         self._values = {
-            'named': dict(result.named) if result.named else {},
-            'fixed': list(result.fixed) if result.fixed else []
+            "named": dict(result.named) if result.named else {},
+            "fixed": list(result.fixed) if result.fixed else [],
         }
-    
+
     @property
     def named(self) -> dict:
         """Mutable named fields dictionary"""
-        return self._values['named']
-    
+        return self._values["named"]
+
     @property
     def fixed(self) -> list:
         """Mutable fixed (positional) fields list"""
-        return self._values['fixed']
-    
+        return self._values["fixed"]
+
     def format(self) -> str:
         """
         Format values back using the pattern.
-        
+
         Returns:
             Formatted string matching the original pattern
         """
-        if self._values['named']:
-            return self._pattern.format(self._values['named'])
+        if self._values["named"]:
+            return self._pattern.format(self._values["named"])
         else:
-            return self._pattern.format(tuple(self._values['fixed']))
-    
+            return self._pattern.format(tuple(self._values["fixed"]))
+
     def validate(self) -> tuple[bool, list[str]]:
         """
         Validate current values against format constraints.
-        
+
         Returns:
             Tuple of (is_valid, list_of_errors)
         """
         # Pass the actual values dict/list, not the wrapper structure
-        if self._values['named']:
-            return self._pattern.validate(self._values['named'])
+        if self._values["named"]:
+            return self._pattern.validate(self._values["named"])
         else:
-            return self._pattern.validate(tuple(self._values['fixed']))
-    
+            return self._pattern.validate(tuple(self._values["fixed"]))
+
     def __repr__(self) -> str:
         """String representation"""
-        if self._values['named']:
+        if self._values["named"]:
             return f"<BidirectionalResult {self._values['named']}>"
         else:
             return f"<BidirectionalResult {self._values['fixed']}>"

@@ -22,7 +22,9 @@ def test_case_sensitivity():
     results = [r.fixed[0] for r in parse.findall("x({})x", "X(hi)X")]
     assert results == ["hi"]
 
-    results = [r.fixed[0] for r in parse.findall("x({})x", "X(hi)X", case_sensitive=True)]
+    results = [
+        r.fixed[0] for r in parse.findall("x({})x", "X(hi)X", case_sensitive=True)
+    ]
     assert results == []
 
 
