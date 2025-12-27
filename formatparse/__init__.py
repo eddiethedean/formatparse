@@ -454,7 +454,11 @@ class BidirectionalResult:
         Returns:
             Tuple of (is_valid, list_of_errors)
         """
-        return self._pattern.validate(self._values)
+        # Pass the actual values dict/list, not the wrapper structure
+        if self._values['named']:
+            return self._pattern.validate(self._values['named'])
+        else:
+            return self._pattern.validate(tuple(self._values['fixed']))
     
     def __repr__(self) -> str:
         """String representation"""
