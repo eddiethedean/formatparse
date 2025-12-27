@@ -49,7 +49,29 @@ impl FieldSpec {
                 // Handle alignment and width for strings
                 if let Some(prec) = self.precision {
                     // Precision specified: match exactly 'precision' characters
-                    format!(".{{{}}}", prec)
+                    // If alignment is also specified, allow fill characters in appropriate positions
+                    if let Some(align) = self.alignment {
+                        let fill_ch = self.fill.unwrap_or(' ');
+                        let fill_escaped = regex::escape(&fill_ch.to_string());
+                        match align {
+                            '<' => {
+                                // Left-aligned: content (precision chars) + optional trailing fill chars
+                                format!(".{{{}}}(?:{}*)", prec, fill_escaped)
+                            },
+                            '>' => {
+                                // Right-aligned: optional leading fill chars + content (precision chars)
+                                format!("(?:{}*).{{{}}}", fill_escaped, prec)
+                            },
+                            '^' => {
+                                // Center-aligned: optional leading fill + content + optional trailing fill
+                                format!("(?:{}*).{{{}}}(?:{}*)", fill_escaped, prec, fill_escaped)
+                            },
+                            _ => format!(".{{{}}}", prec),
+                        }
+                    } else {
+                        // Precision only, no alignment: match exactly 'precision' characters
+                        format!(".{{{}}}", prec)
+                    }
                 } else if let Some(width) = self.width {
                     // Width only (no precision): 
                     // - If there's a next field with precision (like {:.4}), use greedy (at least width)

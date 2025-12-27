@@ -5,6 +5,68 @@ use pyo3::prelude::*;
 use std::collections::HashMap;
 
 impl FieldSpec {
+    /// Validate alignment+precision constraints for string fields
+    /// Returns false if validation fails (should reject the match)
+    pub fn validate_alignment_precision(&self, value: &str) -> bool {
+        if let FieldType::String = &self.field_type {
+            if let (Some(prec), Some(align)) = (self.precision, self.alignment) {
+                let fill_ch = self.fill.unwrap_or(' ');
+                let has_leading_fill = value.starts_with(fill_ch);
+                let has_trailing_fill = value.ends_with(fill_ch);
+                
+                match align {
+                    '>' => {
+                        // Right-aligned: fill chars should only be on the left
+                        // Reject if fill char on both sides (invalid)
+                        if has_leading_fill && has_trailing_fill {
+                            return false;
+                        }
+                        // Reject if fill char on right (should only be on left)
+                        if has_trailing_fill && value.len() > prec {
+                            return false;
+                        }
+                        // Reject if fill on left enables extra content beyond precision
+                        if has_leading_fill && value.len() > prec {
+                            let leading_count = value.chars().take_while(|&c| c == fill_ch).count();
+                            let content_len = value.len() - leading_count;
+                            if content_len > prec {
+                                return false;
+                            }
+                        }
+                    },
+                    '<' => {
+                        // Left-aligned: fill chars should only be on the right
+                        // Reject if fill char on left AND value exceeds precision
+                        if has_leading_fill && value.len() > prec {
+                            return false;
+                        }
+                        // Reject if fill on right enables extra content beyond precision
+                        if has_trailing_fill && value.len() > prec {
+                            let trailing_count = value.chars().rev().take_while(|&c| c == fill_ch).count();
+                            let content_len = value.len() - trailing_count;
+                            if content_len > prec {
+                                return false;
+                            }
+                        }
+                    },
+                    '^' => {
+                        // Center-aligned: reject if too many fill chars enable extra content
+                        if (has_leading_fill || has_trailing_fill) && value.len() > prec {
+                            let leading_count = value.chars().take_while(|&c| c == fill_ch).count();
+                            let trailing_count = value.chars().rev().take_while(|&c| c == fill_ch).count();
+                            let content_len = value.len() - leading_count - trailing_count;
+                            if content_len > prec {
+                                return false;
+                            }
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        }
+        true
+    }
+
     pub fn convert_value(&self, value: &str, py: Python, custom_converters: &HashMap<String, PyObject>) -> PyResult<PyObject> {
         // Fast path: if no custom converters, skip the lookup entirely
         if !custom_converters.is_empty() {

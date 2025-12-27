@@ -412,6 +412,12 @@ pub fn match_with_captures(
             // For evaluate_result=True, we don't need to store raw captures, saving allocations
             
             if evaluate_result {
+                // Validate alignment+precision constraints (issue #3)
+                // This prevents invalid cases where fill characters are in wrong positions
+                if !spec.validate_alignment_precision(value_str) {
+                    return Ok(None);
+                }
+                
                 let converted = spec.convert_value(value_str, py, &custom_converters)?;
 
                 // Use original field name (with hyphens/dots) for the result
@@ -571,6 +577,12 @@ pub fn match_with_regex(
                 }
                 
                 if evaluate_result {
+                    // Validate alignment+precision constraints (issue #3)
+                    // This prevents invalid cases where fill characters are in wrong positions
+                    if !spec.validate_alignment_precision(value_str) {
+                        return Ok(None);
+                    }
+                    
                     let converted = spec.convert_value(value_str, py, &custom_converters)?;
 
                     // Use original field name (with hyphens/dots) for the result

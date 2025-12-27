@@ -58,6 +58,12 @@ pub mod errors {
             format!("Missing required field: {}", field)
         )
     }
+
+    /// Create a validation error (used to signal invalid alignment+precision combinations)
+    /// This error should be caught and converted to None in matching code
+    pub fn validation_error(msg: &str) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(msg.to_string())
+    }
 }
 
 /// Re-export error functions for convenience
