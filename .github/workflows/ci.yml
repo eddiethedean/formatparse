@@ -82,13 +82,7 @@ jobs:
           - os: macos-15-intel
             python-version: "3.13"
             architecture: x86-64
-          # Windows 11 ARM (aarch64)
-          - os: windows-11-arm
-            python-version: "3.9"
-            architecture: aarch64
-          - os: windows-11-arm
-            python-version: "3.10"
-            architecture: aarch64
+          # Windows 11 ARM (aarch64) - Python 3.9 and 3.10 not available for Windows ARM
           - os: windows-11-arm
             python-version: "3.11"
             architecture: aarch64
