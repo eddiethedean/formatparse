@@ -10,6 +10,20 @@ from pathlib import Path
 # Add the parent directory to the path so we can import formatparse
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Create a mock _formatparse module to allow imports to work
+class MockFormatParse:
+    """Mock _formatparse module for documentation builds"""
+    pass
+
+# Mock the _formatparse module if it's not available
+try:
+    import _formatparse
+except ImportError:
+    import sys
+    from unittest.mock import MagicMock
+    _formatparse = MagicMock()
+    sys.modules['_formatparse'] = _formatparse
+
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
