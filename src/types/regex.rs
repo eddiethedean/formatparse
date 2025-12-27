@@ -53,6 +53,8 @@ impl FieldSpec {
                     if let Some(align) = self.alignment {
                         let fill_ch = self.fill.unwrap_or(' ');
                         let fill_escaped = regex::escape(&fill_ch.to_string());
+                        // Regex pattern matches the field, validation ensures constraints are met
+                        // When width is specified, validation will check total length <= width
                         match align {
                             '<' => {
                                 // Left-aligned: content (precision chars) + optional trailing fill chars
@@ -60,6 +62,7 @@ impl FieldSpec {
                             },
                             '>' => {
                                 // Right-aligned: optional leading fill chars + content (precision chars)
+                                // Note: The regex matches the full field, validation ensures total <= width
                                 format!("(?:{}*).{{{}}}", fill_escaped, prec)
                             },
                             '^' => {

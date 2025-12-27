@@ -22,12 +22,28 @@ impl FieldSpec {
                 // Count leading and trailing fill characters
                 let leading_count = value.chars().take_while(|&c| c == fill_ch).count();
                 let trailing_count = value.chars().rev().take_while(|&c| c == fill_ch).count();
-                let content_len = value.len() - leading_count - trailing_count;
+                // Avoid underflow: if all chars are fill, content_len is 0
+                let content_len = if leading_count + trailing_count >= value.len() {
+                    0
+                } else {
+                    value.len() - leading_count - trailing_count
+                };
                 
                 match align {
                     '>' => {
                         // Right-aligned: fill chars should only be on the left
-                        // Reject if fill char on both sides (invalid)
+                        // Special case: if all chars are fill (content_len == 0), allow it
+                        // This handles empty content with fill chars (e.g., ".........." for width=10, prec=10)
+                        if content_len == 0 {
+                            // All fill chars: only valid if total length equals width
+                            if let Some(width) = self.width {
+                                if value.len() == width {
+                                    return true;  // Valid: empty content, all fill, total = width
+                                }
+                            }
+                            return false;  // Invalid: all fill but doesn't match width
+                        }
+                        // Reject if fill char on both sides (invalid) - but only if there's actual content
                         if has_leading_fill && has_trailing_fill {
                             return false;
                         }
@@ -45,6 +61,8 @@ impl FieldSpec {
                             if value.len() > width {
                                 return false;
                             }
+                            // Note: When width == precision, fill chars are allowed as long as
+                            // total length equals width and content doesn't exceed precision
                         } else {
                             // No width specified, but precision is: reject if fill enables extra content
                             if has_leading_fill && value.len() > prec {
@@ -58,6 +76,16 @@ impl FieldSpec {
                     },
                     '<' => {
                         // Left-aligned: fill chars should only be on the right
+                        // Special case: if all chars are fill (content_len == 0), allow it
+                        if content_len == 0 {
+                            // All fill chars: only valid if total length equals width
+                            if let Some(width) = self.width {
+                                if value.len() == width {
+                                    return true;  // Valid: empty content, all fill, total = width
+                                }
+                            }
+                            return false;  // Invalid: all fill but doesn't match width
+                        }
                         // Reject if fill char on left (should only be on right)
                         if has_leading_fill {
                             return false;
@@ -83,7 +111,17 @@ impl FieldSpec {
                         }
                     },
                     '^' => {
-                        // Center-aligned: reject if content exceeds precision
+                        // Center-aligned: special case for all fill chars
+                        if content_len == 0 {
+                            // All fill chars: only valid if total length equals width
+                            if let Some(width) = self.width {
+                                if value.len() == width {
+                                    return true;  // Valid: empty content, all fill, total = width
+                                }
+                            }
+                            return false;  // Invalid: all fill but doesn't match width
+                        }
+                        // Reject if content exceeds precision
                         if content_len > prec {
                             return false;
                         }
