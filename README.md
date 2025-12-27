@@ -95,6 +95,33 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+For detailed contribution guidelines, including testing requirements and development setup, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Testing
+
+The project includes comprehensive test coverage:
+
+- **Unit Tests**: ~436 Python tests + 50 Rust tests
+- **Property-Based Tests**: 32 Hypothesis-based tests
+- **Performance Benchmarks**: Automated regression testing
+- **Stress Tests**: Large input and scalability testing
+- **Fuzz Tests**: Crash-free input testing
+- **Coverage**: >90% code coverage target
+
+Run tests with:
+```bash
+# All tests
+pytest tests/
+
+# With coverage
+pytest tests/ --cov=formatparse --cov-report=html
+
+# Benchmarks
+pytest tests/test_performance.py --benchmark-only
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more testing information.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details

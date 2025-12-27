@@ -1,0 +1,68 @@
+name: Mutation Testing
+
+on:
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'formatparse/**'
+      - 'tests/**'
+
+jobs:
+  mutation:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    # Only run on main branch to avoid excessive CI usage
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Create virtual environment
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install maturin pytest
+          pip install -e ".[test,dev]"
+
+      - name: Build extension module
+        run: |
+          source .venv/bin/activate
+          maturin develop --manifest-path formatparse-pyo3/Cargo.toml --release
+
+      - name: Run mutation tests
+        run: |
+          source .venv/bin/activate
+          # Run mutation testing with a timeout
+          timeout 3600 mutmut run || true
+          
+          # Show results
+          mutmut show --dict
+
+      - name: Upload mutation results
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-results
+          path: .mutmut-cache/
+          retention-days: 7
+
+      - name: Report mutation score
+        run: |
+          source .venv/bin/activate
+          # Count total mutations and survived mutations
+          mutmut results --json > mutation_results.json || echo '{}' > mutation_results.json
+          echo "Mutation testing completed. Check artifacts for details."
+

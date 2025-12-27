@@ -24,7 +24,37 @@ authors = [{ name = "Odos Matthews", email = "odosmatthews@gmail.com" }]
 keywords = ["parse", "format", "string", "parsing"]
 dependencies = []
 
+[project.optional-dependencies]
+test = [
+    "hypothesis>=6.0",
+    "pytest-cov>=4.0",
+    "pytest-benchmark>=4.0",
+    "pympler>=0.9",
+    "memory_profiler>=0.60",
+]
+dev = ["mutmut>=2.0"]
+
 [project.urls]
 Homepage = "https://github.com/eddiethedean/formatparse"
 Repository = "https://github.com/eddiethedean/formatparse"
+
+[tool.pytest.ini_options]
+markers = [
+    "benchmark: marks tests as benchmarks",
+    "slow: marks tests as slow running",
+    "stress: marks tests as stress/load tests",
+]
+
+[tool.coverage.run]
+source = ["formatparse"]
+omit = ["tests/*", "*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 90
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
 

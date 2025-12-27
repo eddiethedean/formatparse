@@ -1,0 +1,98 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Create virtual environment
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install maturin pytest
+          pip install -e ".[test]"
+
+      - name: Build extension module
+        run: |
+          source .venv/bin/activate
+          maturin develop --manifest-path formatparse-pyo3/Cargo.toml --release
+
+      - name: Run benchmarks
+        run: |
+          source .venv/bin/activate
+          pytest tests/test_performance.py --benchmark-only --benchmark-json=benchmark_results.json
+
+      - name: Store benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark_results.json
+          retention-days: 30
+
+      - name: Compare with baseline
+        run: |
+          source .venv/bin/activate
+          # Check if baseline exists, if not create one
+          if [ -f baseline_benchmarks.json ]; then
+            echo "Comparing against baseline..."
+            python -c "
+import json
+import sys
+
+try:
+    with open('baseline_benchmarks.json') as f:
+        baseline = json.load(f)
+    with open('benchmark_results.json') as f:
+        current = json.load(f)
+    
+    # Create dicts for easy lookup
+    baseline_dict = {b['name']: b['stats']['mean'] for b in baseline['benchmarks']}
+    current_dict = {c['name']: c['stats']['mean'] for c in current['benchmarks']}
+    
+    regressions = []
+    for name, current_mean in current_dict.items():
+        if name in baseline_dict:
+            baseline_mean = baseline_dict[name]
+            if baseline_mean > 0:
+                change_pct = ((current_mean - baseline_mean) / baseline_mean) * 100
+                if change_pct > 10:  # More than 10% slower
+                    regressions.append((name, change_pct, baseline_mean, current_mean))
+    
+    if regressions:
+        print('Performance regressions detected (>10% slower):')
+        for name, pct, baseline, current in regressions:
+            print(f'  {name}: {pct:.2f}% slower ({baseline:.6f}s -> {current:.6f}s)')
+        sys.exit(1)
+    else:
+        print('No significant performance regressions detected.')
+except FileNotFoundError:
+    print('No baseline found, creating one...')
+    import shutil
+    shutil.copy('benchmark_results.json', 'baseline_benchmarks.json')
+    print('Baseline created successfully.')
+"
+          else
+            echo "No baseline found, creating baseline from current results..."
+            cp benchmark_results.json baseline_benchmarks.json
+          fi
+

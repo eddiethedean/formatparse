@@ -223,9 +223,9 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
                 // For types that require Python (datetime, custom), we can't convert to raw
                 // This will be handled by falling back to the Python path
                 Err(format!("Type {:?} requires Python conversion", spec.field_type))
-            }
         }
     }
+}
 
 /// Convert RawValue to PyObject (batch conversion)
 impl RawValue {

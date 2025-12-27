@@ -1,7 +1,7 @@
 """Comprehensive tests for type conversion"""
 
 import pytest
-from formatparse import parse
+from formatparse import parse, with_pattern
 import math
 
 
@@ -251,39 +251,42 @@ def test_general_format_uppercase():
     assert abs(result.named["value"] - 1.5e10) < 1e9
 
 
-# Boolean (b) tests
-# Note: :b is for binary numbers, not boolean in formatparse
-# Boolean type exists but isn't accessible via standard format specifiers
-@pytest.mark.skip(reason=":b is for binary numbers, not boolean")
+# Boolean tests
+# Note: :b is for binary numbers, not boolean
+# We use custom type converters to parse boolean values
+@with_pattern(r'True|False|true|false|1|0')
+def parse_bool(text):
+    """Parse boolean values from strings"""
+    text_lower = text.lower()
+    return text_lower in ('true', '1', 'yes', 'on')
+
+
 def test_boolean_true():
     """Test boolean true"""
-    result = parse("value: {value:b}", "value: True")
+    result = parse("value: {:bool}", "value: True", {"bool": parse_bool})
     assert result is not None
-    assert result.named["value"] is True
+    assert result.fixed[0] is True
 
 
-@pytest.mark.skip(reason=":b is for binary numbers, not boolean")
 def test_boolean_false():
     """Test boolean false"""
-    result = parse("value: {value:b}", "value: False")
+    result = parse("value: {:bool}", "value: False", {"bool": parse_bool})
     assert result is not None
-    assert result.named["value"] is False
+    assert result.fixed[0] is False
 
 
-@pytest.mark.skip(reason=":b is for binary numbers, not boolean")
 def test_boolean_true_lowercase():
     """Test boolean true lowercase"""
-    result = parse("value: {value:b}", "value: true")
+    result = parse("value: {:bool}", "value: true", {"bool": parse_bool})
     assert result is not None
-    assert result.named["value"] is True
+    assert result.fixed[0] is True
 
 
-@pytest.mark.skip(reason=":b is for binary numbers, not boolean")
 def test_boolean_false_lowercase():
     """Test boolean false lowercase"""
-    result = parse("value: {value:b}", "value: false")
+    result = parse("value: {:bool}", "value: false", {"bool": parse_bool})
     assert result is not None
-    assert result.named["value"] is False
+    assert result.fixed[0] is False
 
 
 # String (s) tests
@@ -410,10 +413,9 @@ def test_float_invalid():
     assert result is None
 
 
-@pytest.mark.skip(reason=":b is for binary numbers, not boolean")
 def test_boolean_invalid():
     """Test boolean with invalid input"""
-    result = parse("value: {value:b}", "value: maybe")
+    result = parse("value: {:bool}", "value: maybe", {"bool": parse_bool})
     assert result is None
 
 

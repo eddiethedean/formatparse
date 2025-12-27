@@ -189,20 +189,16 @@ def test_parser_pickling():
     parser = compile("{name}: {age:d}")
 
     # Pickle the parser
-    try:
-        pickled = pickle.dumps(parser)
+    pickled = pickle.dumps(parser)
 
-        # Unpickle it
-        unpickled = pickle.loads(pickled)
+    # Unpickle it
+    unpickled = pickle.loads(pickled)
 
-        # Verify it still works
-        result = unpickled.parse("Alice: 30")
-        assert result is not None
-        assert result.named["name"] == "Alice"
-        assert result.named["age"] == 30
-    except TypeError:
-        # Pickling might not be fully supported yet
-        pytest.skip("Pickling not fully supported")
+    # Verify it still works
+    result = unpickled.parse("Alice: 30")
+    assert result is not None
+    assert result.named["name"] == "Alice"
+    assert result.named["age"] == 30
 
 
 def test_parser_with_stored_extra_types():

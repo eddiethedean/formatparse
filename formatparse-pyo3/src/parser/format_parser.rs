@@ -199,9 +199,32 @@ impl FormatParser {
 #[pymethods]
 impl FormatParser {
     #[new]
-    #[pyo3(signature = (pattern, extra_types=None))]
-    fn new_py(pattern: &str, extra_types: Option<HashMap<String, PyObject>>) -> PyResult<Self> {
-        Self::new_with_extra_types(pattern, extra_types)
+    #[pyo3(signature = (pattern=None, extra_types=None))]
+    fn new_py(pattern: Option<&str>, extra_types: Option<HashMap<String, PyObject>>) -> PyResult<Self> {
+        match pattern {
+            Some(p) => Self::new_with_extra_types(p, extra_types),
+            None => {
+                // Create a dummy instance for unpickling - __setstate__ will initialize it properly
+                // We need to create a valid but minimal instance
+                let empty_regex = Regex::new("^$").map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid regex: {}", e)))?;
+                Ok(Self {
+                    pattern: String::new(),
+                    regex: empty_regex.clone(),
+                    regex_str: String::new(),
+                    regex_case_insensitive: None,
+                    search_regex: empty_regex.clone(),
+                    search_regex_case_insensitive: None,
+                    field_specs: Vec::new(),
+                    field_names: Vec::new(),
+                    normalized_names: Vec::new(),
+                    name_mapping: HashMap::new(),
+                    stored_extra_types: None,
+                    custom_type_groups: Vec::new(),
+                    field_count: 0,
+                    has_nested_dict_fields: Vec::new(),
+                })
+            }
+        }
     }
 
     /// Parse a string using this compiled pattern
@@ -320,6 +343,9 @@ impl FormatParser {
         self.normalized_names = reconstructed.normalized_names;
         self.name_mapping = reconstructed.name_mapping;
         self.stored_extra_types = reconstructed.stored_extra_types;
+        self.custom_type_groups = reconstructed.custom_type_groups;
+        self.field_count = reconstructed.field_count;
+        self.has_nested_dict_fields = reconstructed.has_nested_dict_fields;
         Ok(())
     }
 }

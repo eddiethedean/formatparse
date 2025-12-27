@@ -348,17 +348,17 @@ dt_format_to_regex = {
 
 def with_pattern(pattern: str, regex_group_count: int = 0):
     """Decorator to create a custom type converter with a regex pattern.
-    
+
     This decorator adds a ``pattern`` attribute to the converter function,
     which is used by the parse functions when matching custom types.
-    
+
     :param pattern: The regex pattern to match
     :type pattern: str
     :param regex_group_count: Number of regex groups in the pattern (for parentheses) (default: 0)
     :type regex_group_count: int
     :returns: Decorator function that adds the pattern attribute
     :rtype: Callable
-    
+
     Example::
     
         >>> @with_pattern(r'\\d+')
@@ -388,7 +388,7 @@ def with_pattern(pattern: str, regex_group_count: int = 0):
 
 class BidirectionalPattern:
     """A bidirectional pattern that can parse and format strings.
-    
+
     Enables round-trip parsing: parse → modify → format back, with built-in validation.
     This class combines parsing and formatting capabilities, allowing you to parse
     a string, modify the extracted values, and format them back while maintaining
@@ -398,7 +398,7 @@ class BidirectionalPattern:
     :type pattern: str
     :param extra_types: Optional dictionary of custom type converters
     :type extra_types: dict, optional
-    
+
     Example::
     
         >>> formatter = BidirectionalPattern("{name:>10}: {value:05d}")
@@ -416,7 +416,7 @@ class BidirectionalPattern:
 
     def __init__(self, pattern: str, extra_types=None):
         """Initialize a bidirectional pattern.
-        
+
         :param pattern: Format string pattern (e.g., ``"{name:>10}: {value:05d}"``)
         :type pattern: str
         :param extra_types: Optional dictionary of custom type converters
@@ -495,7 +495,7 @@ class BidirectionalPattern:
         self, string: str, case_sensitive: bool = False, evaluate_result: bool = True
     ) -> Optional["BidirectionalResult"]:
         """Parse a string and return BidirectionalResult.
-        
+
         :param string: String to parse
         :type string: str
         :param case_sensitive: Whether matching is case-sensitive (default: False)
@@ -526,7 +526,7 @@ class BidirectionalPattern:
 
     def format(self, values: Union[dict, tuple, ParseResult]) -> str:
         """Format values back into the pattern.
-        
+
         Formats the provided values according to the pattern specification,
         maintaining format constraints like width, precision, and alignment.
         
@@ -640,7 +640,7 @@ class BidirectionalPattern:
 
 class BidirectionalResult:
     """Result from BidirectionalPattern.parse() that allows modification and formatting.
-    
+
     Stores parsed values in a mutable format and provides methods to format back
     and validate against the original pattern constraints. Unlike ParseResult, this
     class allows you to modify the extracted values and format them back while
@@ -659,7 +659,7 @@ class BidirectionalResult:
 
     def __init__(self, pattern: BidirectionalPattern, result: ParseResult):
         """Initialize a bidirectional result.
-        
+
         :param pattern: The BidirectionalPattern that created this result
         :type pattern: BidirectionalPattern
         :param result: The ParseResult from parsing
@@ -709,7 +709,7 @@ class BidirectionalResult:
 
     def format(self) -> str:
         """Format values back using the pattern.
-        
+
         Formats the current (potentially modified) values according to the
         original pattern specification.
         
@@ -731,7 +731,7 @@ class BidirectionalResult:
 
     def validate(self) -> tuple[bool, list[str]]:
         """Validate current values against format constraints.
-        
+
         Checks if the current (potentially modified) values conform to the
         pattern's constraints (type, width, precision).
         

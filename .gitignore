@@ -22,14 +22,14 @@ dmypy.json
 .pyre/
 .pytype/
 cython_debug/
+.ruff_cache/
 
 # Rust
 target/
 **/*.rs.bk
 *.pdb
 # Cargo.lock - typically ignored for libraries, committed for applications
-# Uncomment the next line if you want to ignore Cargo.lock
-# Cargo.lock
+# Note: For this workspace, Cargo.lock is not committed (standard for libraries)
 
 # Maturin / PyO3
 wheels/
@@ -74,6 +74,13 @@ test-results/
 junit.xml
 *.cover
 *.py,cover
+.coverage
+.coverage.*
+htmlcov/
+.mutmut-cache/
+mutmut-cache/
+benchmark_results.json
+baseline_benchmarks.json
 
 # Documentation
 docs/_build/
