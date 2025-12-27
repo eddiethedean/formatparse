@@ -104,6 +104,16 @@ jobs:
             python -m pytest tests/ -v
           fi
 
+      - name: Run security tests
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            .venv/Scripts/python -m pytest tests/test_security.py -v
+          else
+            source .venv/bin/activate
+            python -m pytest tests/test_security.py -v
+          fi
+
       - name: Run coverage (Python 3.11 only)
         if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
         shell: bash
