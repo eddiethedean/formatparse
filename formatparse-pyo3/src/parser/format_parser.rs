@@ -36,6 +36,15 @@ impl FormatParser {
     }
 
     pub fn new_with_extra_types(pattern: &str, extra_types: Option<HashMap<String, PyObject>>) -> PyResult<Self> {
+        // Validate pattern length
+        validate_pattern_length(pattern)
+            .map_err(|e| PyValueError::new_err(e))?;
+        
+        // Check for null bytes in pattern
+        if pattern.contains('\0') {
+            return Err(PyValueError::new_err("Pattern contains null byte"));
+        }
+        
         // Extract patterns from converter functions and build custom_patterns map
         let custom_patterns = Python::with_gil(|py| -> PyResult<HashMap<String, String>> {
             let mut patterns = HashMap::new();

@@ -139,12 +139,20 @@ def test_concurrent_findall():
 @pytest.mark.stress
 def test_large_pattern_compilation():
     """Test compilation of patterns with many fields"""
-    num_fields = 200
+    # MAX_FIELDS is 100, so test with exactly that many fields
+    num_fields = 100
     pattern = " ".join([f"{{field{i}:d}}" for i in range(num_fields)])
     
     parser = compile(pattern)
     assert parser is not None
     assert len(parser.named_fields) == num_fields
+    
+    # Test that exceeding the limit fails
+    num_fields_too_many = 101
+    pattern_too_many = " ".join([f"{{field{i}:d}}" for i in range(num_fields_too_many)])
+    
+    with pytest.raises(ValueError, match="exceeds the maximum allowed count"):
+        compile(pattern_too_many)
 
 
 @pytest.mark.stress

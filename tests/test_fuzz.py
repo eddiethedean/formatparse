@@ -106,6 +106,10 @@ def test_fuzz_malformed_patterns(pattern, text):
 )
 def test_fuzz_large_inputs(text):
     """Fuzz test: Handle large input strings"""
+    # Filter out null bytes - they're now rejected for security
+    if '\0' in text:
+        pytest.skip("Null bytes are now rejected for security reasons")
+    
     pattern = "{data}"
     try:
         result = parse(pattern, f"Start: {text} End")
@@ -115,6 +119,12 @@ def test_fuzz_large_inputs(text):
     except MemoryError:
         # Memory errors on extremely large inputs are acceptable
         pass
+    except ValueError as e:
+        # ValueError for input length or other validation errors is acceptable
+        if "exceeds maximum allowed length" in str(e) or "contains null byte" in str(e):
+            pass
+        else:
+            pytest.fail(f"Unexpected ValueError on large input (len={len(text)}): {e}")
     except Exception as e:
         pytest.fail(f"Unexpected exception on large input (len={len(text)}): {e}")
 

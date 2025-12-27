@@ -236,12 +236,10 @@ def test_carriage_return():
 
 
 def test_null_byte():
-    """Test null byte handling"""
-    # Null bytes are valid in Python strings, should work
-    result = parse("{}", "\x00")
-    # Should match the null byte
-    assert result is not None
-    assert result.fixed[0] == "\x00"
+    """Test null byte handling - now rejected for security"""
+    # Null bytes are now rejected for security reasons
+    with pytest.raises(ValueError, match="contains null byte"):
+        parse("{}", "\x00")
 
 
 def test_compile_invalid_pattern():

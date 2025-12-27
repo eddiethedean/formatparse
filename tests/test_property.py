@@ -571,6 +571,10 @@ def test_search_only_finds_first_match(text_parts, value):
 )
 def test_unicode_round_trip(name, value):
     """Property: Unicode strings should work in round-trip parsing"""
+    # Filter out null bytes - they're now rejected for security
+    if '\0' in name:
+        pytest.skip("Null bytes are now rejected for security reasons")
+    
     # Filter out surrogate characters that can't be encoded in UTF-8
     try:
         name.encode('utf-8')
@@ -587,6 +591,11 @@ def test_unicode_round_trip(name, value):
         if result is not None:
             assert result.named["name"] == name
             assert result.named["value"] == value
+    except ValueError as e:
+        # ValueError for null bytes or other validation errors is acceptable
+        if "contains null byte" in str(e):
+            pytest.skip("Formatted string contains null byte (now rejected for security)")
+        raise
     except UnicodeEncodeError:
         # Some Unicode characters might cause encoding issues
         pytest.skip("Unicode encoding issue in format/parse")

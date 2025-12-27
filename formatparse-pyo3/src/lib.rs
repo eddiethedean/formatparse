@@ -3,6 +3,7 @@
 //! This crate provides Python bindings for the formatparse-core library.
 
 use pyo3::prelude::*;
+use pyo3::exceptions::PyValueError;
 use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -326,6 +327,15 @@ fn compile(
     pattern: &str,
     extra_types: Option<HashMap<String, PyObject>>,
 ) -> PyResult<FormatParser> {
+    // Validate pattern length
+    formatparse_core::validate_pattern_length(pattern)
+        .map_err(|e| PyValueError::new_err(e))?;
+    
+    // Check for null bytes in pattern
+    if pattern.contains('\0') {
+        return Err(PyValueError::new_err("Pattern contains null byte"));
+    }
+    
     FormatParser::new_with_extra_types(pattern, extra_types)
 }
 
