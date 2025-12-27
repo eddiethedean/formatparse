@@ -730,7 +730,10 @@ def test_mixed_type_variant():
     assert r.fixed[21] == "spam"
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 5), reason="Python 3.5 removed the limit of 100 named groups in a regular expression")
+@pytest.mark.skipif(
+    sys.version_info >= (3, 5),
+    reason="Python 3.5 removed the limit of 100 named groups in a regular expression",
+)
 def test_too_many_fields():
     # Python 3.5 removed the limit of 100 named groups in a regular expression,
     # so only test for the exception if the limit exists.

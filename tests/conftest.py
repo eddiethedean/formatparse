@@ -31,18 +31,19 @@ def sample_strings():
 @pytest.fixture
 def custom_type_converters():
     """Common custom type converters for testing"""
-    @with_pattern(r'\d+')
+
+    @with_pattern(r"\d+")
     def parse_number(text):
         return int(text)
-    
-    @with_pattern(r'[A-Za-z]+')
+
+    @with_pattern(r"[A-Za-z]+")
     def parse_word(text):
         return text.upper()
-    
-    @with_pattern(r'(\d+)-(\d+)', regex_group_count=2)
+
+    @with_pattern(r"(\d+)-(\d+)", regex_group_count=2)
     def parse_range(text, start, end):
         return (int(start), int(end))
-    
+
     return {
         "Number": parse_number,
         "Word": parse_word,
@@ -91,4 +92,3 @@ def assert_findall_results(results, count, first_named=None, first_fixed=None):
         assert results[0].named == first_named
     if first_fixed:
         assert results[0].fixed == first_fixed
-

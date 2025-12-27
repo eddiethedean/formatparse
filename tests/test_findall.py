@@ -19,11 +19,11 @@ def test_no_evaluate_result():
 
 
 def test_case_sensitivity():
-    l = [r.fixed[0] for r in parse.findall("x({})x", "X(hi)X")]
-    assert l == ["hi"]
+    results = [r.fixed[0] for r in parse.findall("x({})x", "X(hi)X")]
+    assert results == ["hi"]
 
-    l = [r.fixed[0] for r in parse.findall("x({})x", "X(hi)X", case_sensitive=True)]
-    assert l == []
+    results = [r.fixed[0] for r in parse.findall("x({})x", "X(hi)X", case_sensitive=True)]
+    assert results == []
 
 
 def test_findall_empty_results():
@@ -43,7 +43,7 @@ def test_findall_single_match():
     """Test findall with single match"""
     results = parse.findall("ID:{id:d}", "ID:42")
     assert len(results) == 1
-    assert results[0].named['id'] == 42
+    assert results[0].named["id"] == 42
 
 
 def test_findall_many_matches():
@@ -51,8 +51,8 @@ def test_findall_many_matches():
     text = " ".join(f"ID:{i}" for i in range(100))
     results = parse.findall("ID:{id:d}", text)
     assert len(results) == 100
-    assert results[0].named['id'] == 0
-    assert results[99].named['id'] == 99
+    assert results[0].named["id"] == 0
+    assert results[99].named["id"] == 99
 
 
 def test_findall_very_many_matches():
@@ -60,8 +60,8 @@ def test_findall_very_many_matches():
     text = " ".join(f"ID:{i}" for i in range(1000))
     results = parse.findall("ID:{id:d}", text)
     assert len(results) == 1000
-    assert results[0].named['id'] == 0
-    assert results[999].named['id'] == 999
+    assert results[0].named["id"] == 0
+    assert results[999].named["id"] == 999
 
 
 def test_findall_overlapping_patterns():
@@ -76,7 +76,7 @@ def test_findall_case_sensitive():
     """Test findall with case sensitivity"""
     results = parse.findall("x({})x", "X(hi)X X(bye)X", case_sensitive=True)
     assert len(results) == 0
-    
+
     results = parse.findall("x({})x", "x(hi)x x(bye)x", case_sensitive=True)
     assert len(results) == 2
 
@@ -102,12 +102,14 @@ def test_findall_evaluate_result_false():
 def test_findall_custom_types():
     """Test findall with custom type converters"""
     from formatparse import with_pattern
-    
-    @with_pattern(r'\d+')
+
+    @with_pattern(r"\d+")
     def parse_number(text):
         return int(text)
-    
-    results = parse.findall("Value: {:Number}", "Value: 1, Value: 2, Value: 3", {"Number": parse_number})
+
+    results = parse.findall(
+        "Value: {:Number}", "Value: 1, Value: 2, Value: 3", {"Number": parse_number}
+    )
     assert len(results) == 3
     assert results[0].fixed[0] == 1
     assert results[1].fixed[0] == 2
@@ -120,10 +122,10 @@ def test_findall_named_fields():
     results = parse.findall("{name}: {age:d}", "Alice: 30\nBob: 25\nCharlie: 35")
     assert len(results) >= 3
     # Verify we got results with the expected structure
-    assert all('name' in r.named and 'age' in r.named for r in results[:3])
-    assert results[0].named['age'] == 30
-    assert results[1].named['age'] == 25
-    assert results[2].named['age'] == 35
+    assert all("name" in r.named and "age" in r.named for r in results[:3])
+    assert results[0].named["age"] == 30
+    assert results[1].named["age"] == 25
+    assert results[2].named["age"] == 35
 
 
 def test_findall_positional_fields():
@@ -142,16 +144,16 @@ def test_findall_performance_lazy():
     # Create many matches
     text = " ".join(f"ID:{i}" for i in range(1000))
     results = parse.findall("ID:{id:d}", text)
-    
+
     # Accessing len() should be fast (no conversion)
     assert len(results) == 1000
-    
+
     # Accessing first item should only convert that item
     first = results[0]
-    assert first.named['id'] == 0
-    
+    assert first.named["id"] == 0
+
     # Iterating should batch convert
-    items = [r.named['id'] for r in results]
+    items = [r.named["id"] for r in results]
     assert len(items) == 1000
     assert items[0] == 0
     assert items[999] == 999

@@ -1,7 +1,7 @@
 """Basic tests for formatparse"""
 
 import pytest
-from formatparse import parse, search, findall, ParseResult
+from formatparse import parse, search, findall
 
 
 def test_simple_string():
@@ -64,9 +64,9 @@ def test_findall():
     # single characters: "a", " ", "b", " ", "c"
     results = findall("{}", "a b c")
     assert len(results) >= 3
-    # First match should be "a" 
+    # First match should be "a"
     assert results[0].fixed[0] == "a"
-    
+
     # Test with a pattern that has literal text
     results2 = findall("x{}y", "xay xby xcy")
     assert len(results2) == 3
@@ -83,7 +83,7 @@ def test_result_indexing():
     # But we can index by name
     assert result["name"] == "Alice"
     assert result["age"] == 30
-    
+
     # Test positional fields
     result2 = parse("{}, {}", "Hello, World")
     assert result2[0] == "Hello"
@@ -98,7 +98,7 @@ def test_result_contains():
     assert "name" in result
     assert "age" in result
     assert "unknown" not in result
-    
+
     # Test with positional fields
     result2 = parse("{}, {}", "Hello, World")
     assert 0 in result2
@@ -111,7 +111,7 @@ def test_case_sensitive():
     # For case-sensitive, exact match required
     result1 = parse("Hello, {name}", "Hello, World", case_sensitive=True)
     assert result1 is not None  # Exact match works
-    
+
     # Case-insensitive should match even if case differs
     result2 = parse("hello, {name}", "Hello, World", case_sensitive=False)
     assert result2 is not None  # Case-insensitive match
@@ -120,4 +120,3 @@ def test_case_sensitive():
 
 if __name__ == "__main__":
     pytest.main([__file__])
-

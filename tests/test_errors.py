@@ -47,7 +47,7 @@ def test_repeated_name_same_type():
     """Test that repeated names with same type are allowed"""
     result = parse("{name} {name}", "Alice Alice")
     assert result is not None
-    assert result.named['name'] == "Alice"
+    assert result.named["name"] == "Alice"
 
 
 def test_empty_string_input():
@@ -74,12 +74,13 @@ def test_none_values():
 def test_very_large_string():
     """Test with extremely long string"""
     from formatparse import search
+
     # Use a smaller size to avoid memory issues, but still test large strings
     # parse() requires full match, so use search() for large strings
     large_text = "x" * 10000 + "age: 30"
     result = search("age: {age:d}", large_text)
     assert result is not None
-    assert result.named['age'] == 30
+    assert result.named["age"] == 30
 
 
 def test_very_large_pattern():
@@ -108,13 +109,13 @@ def test_type_conversion_error_float():
 def test_custom_type_error():
     """Test error in custom type converter"""
     from formatparse import with_pattern
-    
-    @with_pattern(r'\d+')
+
+    @with_pattern(r"\d+")
     def parse_number(text):
         if text == "0":
             raise ValueError("Zero not allowed")
         return int(text)
-    
+
     # Should raise error when custom converter raises
     with pytest.raises(ValueError, match="Zero not allowed"):
         parse("Value: {:Number}", "Value: 0", {"Number": parse_number})
@@ -125,12 +126,12 @@ def test_unicode_edge_cases():
     # Emoji
     result = parse("{text}", "text: 😀")
     assert result is not None
-    assert "😀" in result.named['text']
-    
+    assert "😀" in result.named["text"]
+
     # Combining characters
     result = parse("{text}", "text: café")
     assert result is not None
-    assert "café" in result.named['text']
+    assert "café" in result.named["text"]
 
 
 def test_special_regex_characters_in_pattern():
@@ -138,7 +139,7 @@ def test_special_regex_characters_in_pattern():
     # Pattern with special characters
     result = parse("price: ${price:f}", "price: $3.14")
     assert result is not None
-    assert result.named['price'] == 3.14
+    assert result.named["price"] == 3.14
 
 
 def test_special_regex_characters_in_string():
@@ -146,15 +147,15 @@ def test_special_regex_characters_in_string():
     # String with special characters
     result = parse("text: {text}", "text: test (with) [special] {chars}")
     assert result is not None
-    assert "test" in result.named['text']
+    assert "test" in result.named["text"]
 
 
 def test_unicode_in_field_names():
     """Test unicode in field names"""
     result = parse("{名字}: {age:d}", "名字: 30")
     assert result is not None
-    assert result.named['名字'] == "名字"
-    assert result.named['age'] == 30
+    assert result.named["名字"] == "名字"
+    assert result.named["age"] == 30
 
 
 def test_very_deep_nesting():
@@ -210,7 +211,7 @@ def test_newline_in_pattern():
     """Test pattern with newlines"""
     result = parse("hello\n{name}\nworld", "hello\nAlice\nworld")
     assert result is not None
-    assert result.named['name'] == "Alice"
+    assert result.named["name"] == "Alice"
 
 
 def test_newline_in_string():
@@ -224,14 +225,14 @@ def test_tab_characters():
     """Test tab characters in pattern and string"""
     result = parse("hello\t{name}\tworld", "hello\tAlice\tworld")
     assert result is not None
-    assert result.named['name'] == "Alice"
+    assert result.named["name"] == "Alice"
 
 
 def test_carriage_return():
     """Test carriage return characters"""
     result = parse("hello\r{name}\rworld", "hello\rAlice\rworld")
     assert result is not None
-    assert result.named['name'] == "Alice"
+    assert result.named["name"] == "Alice"
 
 
 def test_null_byte():
@@ -265,6 +266,7 @@ def test_parse_with_invalid_extra_types():
 def test_search_invalid_pos():
     """Test search with invalid pos"""
     from formatparse import search
+
     # Negative pos - should handle gracefully (treat as 0 or raise)
     try:
         result = search("age: {age:d}", "age: 30", pos=-1)
@@ -278,7 +280,7 @@ def test_search_invalid_pos():
 def test_search_invalid_endpos():
     """Test search with invalid endpos"""
     from formatparse import search
+
     # endpos < pos - should handle gracefully
     result = search("age: {age:d}", "age: 30", pos=10, endpos=5)
     assert result is None  # No match in invalid range
-

@@ -22,18 +22,18 @@ def test_compile_invalid_pattern():
 def test_compile_with_extra_types():
     """Test compiling with extra types"""
     from formatparse import with_pattern
-    
-    @with_pattern(r'\d+')
+
+    @with_pattern(r"\d+")
     def parse_number(text):
         return int(text)
-    
+
     # compile() doesn't take extra_types - pass them to parse() instead
     # Pattern needs to include literal prefix
     parser = compile("value: {value:Number}")
     assert parser is not None
     result = parser.parse("value: 42", extra_types={"Number": parse_number})
     assert result is not None
-    assert result.named['value'] == 42
+    assert result.named["value"] == 42
 
 
 def test_parser_parse_basic():
@@ -41,8 +41,8 @@ def test_parser_parse_basic():
     parser = compile("{name}: {age:d}")
     result = parser.parse("Alice: 30")
     assert result is not None
-    assert result.named['name'] == "Alice"
-    assert result.named['age'] == 30
+    assert result.named["name"] == "Alice"
+    assert result.named["age"] == 30
 
 
 def test_parser_parse_no_match():
@@ -58,11 +58,11 @@ def test_parser_parse_case_sensitive():
     # Case-sensitive (default False for parse)
     result = parser.parse("Hello, World", case_sensitive=False)
     assert result is not None
-    assert result.named['name'] == "World"
-    
+    assert result.named["name"] == "World"
+
     result = parser.parse("HELLO, World", case_sensitive=False)
     assert result is not None
-    
+
     result = parser.parse("HELLO, World", case_sensitive=True)
     assert result is None
 
@@ -70,15 +70,15 @@ def test_parser_parse_case_sensitive():
 def test_parser_parse_with_extra_types():
     """Test parser.parse() with extra types parameter"""
     from formatparse import with_pattern
-    
-    @with_pattern(r'\d+')
+
+    @with_pattern(r"\d+")
     def parse_number(text):
         return int(text)
-    
+
     parser = compile("{value}")
-    result = parser.parse("value:42", extra_types={"Number": parse_number})
     # This won't match because pattern doesn't use Number type
     # But test that extra_types parameter is accepted
+    parser.parse("value:42", extra_types={"Number": parse_number})
     assert parser.parse("value:42") is not None
 
 
@@ -89,7 +89,7 @@ def test_parser_parse_evaluate_result_false():
     assert match is not None
     # Should be a Match object, not ParseResult
     result = match.evaluate_result()
-    assert result.named['name'] == "World"
+    assert result.named["name"] == "World"
 
 
 def test_parser_search_basic():
@@ -97,7 +97,7 @@ def test_parser_search_basic():
     parser = compile("age: {age:d}")
     result = parser.search("Name: Alice, age: 30, City: NYC")
     assert result is not None
-    assert result.named['age'] == 30
+    assert result.named["age"] == 30
 
 
 def test_parser_search_no_match():
@@ -113,30 +113,30 @@ def test_parser_search_case_sensitive():
     # Case-sensitive (default True for search)
     result = parser.search("Age: 30", case_sensitive=True)
     assert result is None
-    
+
     result = parser.search("Age: 30", case_sensitive=False)
     assert result is not None
-    assert result.named['age'] == 30
+    assert result.named["age"] == 30
 
 
 def test_parser_reuse():
     """Test reusing the same parser instance with multiple strings"""
     parser = compile("{name}: {age:d}")
-    
+
     result1 = parser.parse("Alice: 30")
     assert result1 is not None
-    assert result1.named['name'] == "Alice"
-    assert result1.named['age'] == 30
-    
+    assert result1.named["name"] == "Alice"
+    assert result1.named["age"] == 30
+
     result2 = parser.parse("Bob: 25")
     assert result2 is not None
-    assert result2.named['name'] == "Bob"
-    assert result2.named['age'] == 25
-    
+    assert result2.named["name"] == "Bob"
+    assert result2.named["age"] == 25
+
     result3 = parser.parse("Charlie: 35")
     assert result3 is not None
-    assert result3.named['name'] == "Charlie"
-    assert result3.named['age'] == 35
+    assert result3.named["name"] == "Charlie"
+    assert result3.named["age"] == 35
 
 
 def test_parser_expression_property():
@@ -187,19 +187,19 @@ def test_parser_format_property():
 def test_parser_pickling():
     """Test that parser can be pickled and unpickled"""
     parser = compile("{name}: {age:d}")
-    
+
     # Pickle the parser
     try:
         pickled = pickle.dumps(parser)
-        
+
         # Unpickle it
         unpickled = pickle.loads(pickled)
-        
+
         # Verify it still works
         result = unpickled.parse("Alice: 30")
         assert result is not None
-        assert result.named['name'] == "Alice"
-        assert result.named['age'] == 30
+        assert result.named["name"] == "Alice"
+        assert result.named["age"] == 30
     except TypeError:
         # Pickling might not be fully supported yet
         pytest.skip("Pickling not fully supported")
@@ -208,38 +208,38 @@ def test_parser_pickling():
 def test_parser_with_stored_extra_types():
     """Test parser with extra_types passed to parse()"""
     from formatparse import with_pattern
-    
-    @with_pattern(r'\d+')
+
+    @with_pattern(r"\d+")
     def parse_number(text):
         return int(text)
-    
+
     # compile() doesn't store extra_types - need to pass when parsing
     # Pattern needs to include literal prefix
     parser = compile("value: {value:Number}")
     # Pass extra_types when parsing
     result = parser.parse("value: 42", extra_types={"Number": parse_number})
     assert result is not None
-    assert result.named['value'] == 42
+    assert result.named["value"] == 42
 
 
 def test_parser_extra_types_override():
     """Test that provided extra_types are used when parsing"""
     from formatparse import with_pattern
-    
-    @with_pattern(r'\d+')
+
+    @with_pattern(r"\d+")
     def parse_number(text):
         return int(text)
-    
-    @with_pattern(r'\d+')
+
+    @with_pattern(r"\d+")
     def parse_number_alt(text):
         return int(text) * 2  # Different behavior
-    
+
     # Pattern needs to include literal prefix
     parser = compile("value: {value:Number}")
     # Use different converter - extra_types passed to parse() are used
     result = parser.parse("value: 42", extra_types={"Number": parse_number_alt})
     assert result is not None
-    assert result.named['value'] == 84  # Should use the provided converter
+    assert result.named["value"] == 84  # Should use the provided converter
 
 
 def test_parser_repeated_name_error():
@@ -254,9 +254,9 @@ def test_parser_complex_pattern():
     parser = compile("{name} is {age:d} years old and lives in {city}")
     result = parser.parse("Alice is 30 years old and lives in NYC")
     assert result is not None
-    assert result.named['name'] == "Alice"
-    assert result.named['age'] == 30
-    assert result.named['city'] == "NYC"
+    assert result.named["name"] == "Alice"
+    assert result.named["age"] == 30
+    assert result.named["city"] == "NYC"
 
 
 def test_parser_positional_fields():
@@ -272,7 +272,7 @@ def test_parser_mixed_fields():
     parser = compile("{name}, {} years old")
     result = parser.parse("Alice, 30 years old")
     assert result is not None
-    assert result.named['name'] == "Alice"
+    assert result.named["name"] == "Alice"
     assert result.fixed[0] == "30"
 
 
@@ -280,15 +280,15 @@ def test_parser_multiple_searches():
     """Test multiple searches with same parser"""
     parser = compile("age: {age:d}")
     text = "Name: Alice, age: 30, Name: Bob, age: 25"
-    
+
     result1 = parser.search(text)
     assert result1 is not None
-    assert result1.named['age'] == 30
-    
+    assert result1.named["age"] == 30
+
     # Search again from same position should find same match
     result2 = parser.search(text)
     assert result2 is not None
-    assert result2.named['age'] == 30
+    assert result2.named["age"] == 30
 
 
 def test_parser_empty_pattern():
@@ -313,6 +313,5 @@ def test_parser_unicode_pattern():
     parser = compile("{name} says {message}")
     result = parser.parse("Alice says Hello, 世界")
     assert result is not None
-    assert result.named['name'] == "Alice"
-    assert "世界" in result.named['message']
-
+    assert result.named["name"] == "Alice"
+    assert "世界" in result.named["message"]
