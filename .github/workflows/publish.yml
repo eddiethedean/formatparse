@@ -12,6 +12,92 @@ env:
   MATURIN_PROFILE: release
 
 jobs:
+  build-linux-wheels:
+    name: Build Linux manylinux wheels (${{ matrix.architecture }} / py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux manylinux2014 x86-64 (GLIBC 2.17+, compatible with most Linux systems)
+          - python: "3.9"
+            architecture: x86-64
+            manylinux: "manylinux2014"
+          - python: "3.10"
+            architecture: x86-64
+            manylinux: "manylinux2014"
+          - python: "3.11"
+            architecture: x86-64
+            manylinux: "manylinux2014"
+          - python: "3.12"
+            architecture: x86-64
+            manylinux: "manylinux2014"
+          - python: "3.13"
+            architecture: x86-64
+            manylinux: "manylinux2014"
+    container:
+      image: quay.io/pypa/${{ matrix.manylinux }}_${{ matrix.architecture }}:latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          source $HOME/.cargo/env
+          rustc --version
+
+      - name: Install maturin
+        run: |
+          source $HOME/.cargo/env
+          # Convert Python version (e.g., "3.9" -> "39") for manylinux paths
+          PY_VER=$(echo "${{ matrix.python }}" | tr -d '.')
+          # Python 3.9+ uses cp<VERSION>-cp<VERSION>, older versions may use cp<VERSION>-cp<VERSION>m
+          if [ -f "/opt/python/cp${PY_VER}-cp${PY_VER}/bin/pip" ]; then
+            /opt/python/cp${PY_VER}-cp${PY_VER}/bin/pip install maturin
+          elif [ -f "/opt/python/cp${PY_VER}-cp${PY_VER}m/bin/pip" ]; then
+            /opt/python/cp${PY_VER}-cp${PY_VER}m/bin/pip install maturin
+          else
+            echo "Error: Could not find Python ${{ matrix.python }} (cp${PY_VER}) in container"
+            ls -la /opt/python/
+            exit 1
+          fi
+
+      - name: Build wheel
+        env:
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: ${{ matrix.python == '3.13' && '1' || '' }}
+          PATH: $HOME/.cargo/bin:$PATH
+        run: |
+          source $HOME/.cargo/env
+          # Convert Python version (e.g., "3.9" -> "39") for manylinux paths
+          PY_VER=$(echo "${{ matrix.python }}" | tr -d '.')
+          # Determine Python path
+          if [ -f "/opt/python/cp${PY_VER}-cp${PY_VER}/bin/python" ]; then
+            PYTHON="/opt/python/cp${PY_VER}-cp${PY_VER}/bin/python"
+          elif [ -f "/opt/python/cp${PY_VER}-cp${PY_VER}m/bin/python" ]; then
+            PYTHON="/opt/python/cp${PY_VER}-cp${PY_VER}m/bin/python"
+          else
+            echo "Error: Could not find Python ${{ matrix.python }} (cp${PY_VER}) in container"
+            ls -la /opt/python/
+            exit 1
+          fi
+          $PYTHON -m maturin build \
+            --manifest-path formatparse-pyo3/Cargo.toml \
+            --out dist \
+            --strip \
+            --release \
+            --manylinux ${{ matrix.manylinux }}
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-linux-${{ matrix.architecture }}-py${{ matrix.python }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 7
+
   build-wheels:
     name: Build wheels (${{ matrix.os }} / ${{ matrix.architecture }} / py${{ matrix.python }})
     runs-on: ${{ matrix.os }}
@@ -21,22 +107,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Ubuntu x86-64
-          - os: ubuntu-latest
-            python: "3.9"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python: "3.10"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python: "3.11"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python: "3.12"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python: "3.13"
-            architecture: x86-64
           # macOS latest (typically arm64/Apple Silicon)
           - os: macos-latest
             python: "3.9"
@@ -192,7 +262,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: [build-wheels, build-sdist, security-check]
+    needs: [build-linux-wheels, build-wheels, build-sdist, security-check]
     runs-on: ubuntu-latest
     permissions:
       contents: read
