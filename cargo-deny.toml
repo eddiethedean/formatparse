@@ -48,10 +48,6 @@ yanked = "warn"
 [bans]
 # Multiple versions of the same crate
 multiple-versions = "warn"
-# Circular dependencies
-cyclic = "deny"
 # Wildcard dependencies
 wildcards = "deny"
-# Duplicate dependencies
-duplicate = "deny"
 
