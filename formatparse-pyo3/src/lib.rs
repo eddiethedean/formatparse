@@ -110,7 +110,12 @@ fn parse(
     }
     
     // Use cached parser if available
-    match get_or_create_parser(pattern, extra_types.clone()) {
+    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+        extra_types.as_ref().map(|et| {
+            et.iter().map(|(k, v)| (k.clone(), v.clone_ref(py).into())).collect()
+        })
+    });
+    match get_or_create_parser(pattern, extra_types_cloned) {
         Ok(parser) => parser.parse_internal(string, case_sensitive, extra_types, evaluate_result),
         Err(e) => {
             let err_msg = e.to_string();
@@ -168,7 +173,12 @@ fn search(
         return Err(pyo3::exceptions::PyValueError::new_err("Input string contains null byte"));
     }
     
-    let parser = get_or_create_parser(pattern, extra_types.clone())?;
+    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+        extra_types.as_ref().map(|et| {
+            et.iter().map(|(k, v)| (k.clone(), v.clone_ref(py).into())).collect()
+        })
+    });
+    let parser = get_or_create_parser(pattern, extra_types_cloned)?;
     let search_string = &string[pos..end];
     
     if let Some(result) = parser.search_pattern(search_string, case_sensitive, extra_types, evaluate_result)? {
@@ -178,7 +188,7 @@ fn search(
                 let result_value = parse_result.borrow();
                 let adjusted = result_value.clone().with_offset(pos);
                 // Py::new() is already optimized when GIL is held
-                Ok(Some(Py::new(py, adjusted)?.to_object(py)))
+                Ok(Some(Py::new(py, adjusted)?.into_py(py)))
             } else {
                 // It's a Match object - we need to adjust its span
                 // For now, just return it as-is (Match spans are relative to search start)
@@ -214,7 +224,12 @@ fn findall(
         return Err(pyo3::exceptions::PyValueError::new_err("Input string contains null byte"));
     }
     
-    let parser = get_or_create_parser(pattern, extra_types.clone())?;
+    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+        extra_types.as_ref().map(|et| {
+            et.iter().map(|(k, v)| (k.clone(), v.clone_ref(py).into())).collect()
+        })
+    });
+    let parser = get_or_create_parser(pattern, extra_types_cloned)?;
     
     // Fast path: if no custom converters and evaluate_result=True, use raw matching
     // This defers all Python object creation until the end (batch conversion)
@@ -264,17 +279,21 @@ fn findall(
         // The Results object is lightweight - just stores raw data
         return Python::with_gil(|py| -> PyResult<PyObject> {
             let results = Results::new(raw_results);
-            Ok(Py::new(py, results)?.to_object(py))
+            Ok(Py::new(py, results)?.into_py(py))
         });
     }
     
-    // Fallback: use Python path (for custom converters or evaluate_result=False)
-    // Optimized: Collect results first, then create PyList with items directly
+        // Fallback: use Python path (for custom converters or evaluate_result=False)
+        // Optimized: Collect results first, then create PyList with items directly
     Python::with_gil(|py| -> PyResult<PyObject> {
         let search_regex = parser.get_search_regex(case_sensitive);
         let mut results = Vec::new();
         let mut last_end = 0;
-        let extra_types_for_matching = extra_types.as_ref().map(|et| et.clone()).unwrap_or_default();
+        let extra_types_for_matching = if let Some(ref et) = extra_types {
+            et
+        } else {
+            &HashMap::new()
+        };
         
         for captures in search_regex.captures_iter(string) {
             let full_match = captures.get(0).unwrap();
@@ -311,12 +330,12 @@ fn findall(
         }
         
         // Create PyList with items directly (more efficient than empty + append)
-        // Convert PyObject to Bound<PyAny> for PyList::new_bound
+        // Convert PyObject to Bound<PyAny> for PyList::new
         let items: Vec<_> = results.iter()
             .map(|obj| obj.bind(py))
             .collect();
-        let results_list = PyList::new_bound(py, items);
-        Ok(results_list.to_object(py))
+        let results_list = PyList::new(py, items)?;
+        Ok(results_list.into())
     })
 }
 
@@ -417,7 +436,7 @@ fn extract_format(
     
     // Build result dictionary
     Python::with_gil(|py| {
-        let result = PyDict::new_bound(py);
+        let result = PyDict::new(py);
         result.set_item("type", type_str)?;
         
         // Extract width
@@ -445,7 +464,7 @@ fn extract_format(
             result.set_item("zero", true)?;
         }
         
-        Ok(result.into())
+        Ok(result.into_py(py))
     })
 }
 

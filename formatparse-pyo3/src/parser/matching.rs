@@ -65,13 +65,13 @@ pub fn get_nested_dict_value(
     
     if path.len() == 1 {
         // Simple case - just get directly
-        return Ok(named.get(&path[0]).cloned());
+        return Ok(named.get(&path[0]).map(|obj| obj.clone_ref(py).into()));
     }
     
     // Navigate through nested dicts
     let first_key = &path[0];
-    let mut current_obj = match named.get(first_key) {
-        Some(v) => v.clone(),
+    let mut current_obj: PyObject = match named.get(first_key) {
+        Some(v) => v.clone_ref(py).into(),
         None => return Ok(None),
     };
     
@@ -84,7 +84,7 @@ pub fn get_nested_dict_value(
         match current_dict.get_item(key.as_str())? {
             Some(v) => {
                 // Get the PyObject to continue navigation
-                current_obj = v.to_object(py);
+                current_obj = v.into();
             },
             None => return Ok(None), // Path doesn't exist
         }
@@ -121,13 +121,15 @@ pub fn insert_nested_dict(
         } else {
             // It's not a dict, we can't nest - this is an error case
             // For now, just replace it (this shouldn't happen in practice)
-            let new_dict = PyDict::new_bound(py);
-            named.insert(first_key.clone(), new_dict.to_object(py));
+            let new_dict = PyDict::new(py);
+            let new_dict_obj = new_dict.clone().into_py(py);
+            named.insert(first_key.clone(), new_dict_obj);
             new_dict
         }
     } else {
-        let new_dict = PyDict::new_bound(py);
-        named.insert(first_key.clone(), new_dict.to_object(py));
+        let new_dict = PyDict::new(py);
+        let new_dict_obj = new_dict.clone().into_py(py);
+        named.insert(first_key.clone(), new_dict_obj);
         new_dict
     };
     
@@ -139,13 +141,15 @@ pub fn insert_nested_dict(
                 dict.clone()
             } else {
                 // Not a dict, replace it
-                let new_dict = PyDict::new_bound(py);
-                current_dict.set_item(key.as_str(), new_dict.to_object(py))?;
+                let new_dict = PyDict::new(py);
+                let new_dict_obj = new_dict.clone().into_py(py);
+                current_dict.set_item(key.as_str(), new_dict_obj)?;
                 new_dict
             }
         } else {
-            let new_dict = PyDict::new_bound(py);
-            current_dict.set_item(key.as_str(), new_dict.to_object(py))?;
+            let new_dict = PyDict::new(py);
+            let new_dict_obj = new_dict.clone().into_py(py);
+            current_dict.set_item(key.as_str(), new_dict_obj)?;
             new_dict
         };
         current_dict = nested_dict;
@@ -431,9 +435,9 @@ pub fn match_with_captures(
                         if let Some(existing_value) = get_nested_dict_value(&named, &path, py)? {
                             // Compare values using Python's equality (batch GIL operation)
                             let are_equal: bool = {
-                                let existing_obj = existing_value.to_object(py);
-                                let converted_obj = converted.to_object(py);
-                                existing_obj.bind(py).eq(converted_obj.bind(py)).unwrap_or(false)
+                                let existing_obj = existing_value.bind(py);
+                                let converted_obj = converted.bind(py);
+                                existing_obj.eq(converted_obj).unwrap_or(false)
                             };
                             if !are_equal {
                                 // Values don't match for repeated name
@@ -596,9 +600,9 @@ pub fn match_with_regex(
                             if let Some(existing_value) = get_nested_dict_value(&named, &path, py)? {
                                 // Compare values using Python's equality (batch GIL operation)
                                 let are_equal: bool = {
-                                    let existing_obj = existing_value.to_object(py);
-                                    let converted_obj = converted.to_object(py);
-                                    existing_obj.bind(py).eq(converted_obj.bind(py)).unwrap_or(false)
+                                    let existing_obj = existing_value.bind(py);
+                                    let converted_obj = converted.bind(py);
+                                    existing_obj.eq(converted_obj).unwrap_or(false)
                                 };
                                 if !are_equal {
                                     // Values don't match for repeated name

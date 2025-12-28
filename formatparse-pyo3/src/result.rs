@@ -3,13 +3,25 @@ use pyo3::types::{PyTuple, PySlice};
 use std::collections::HashMap;
 
 #[pyclass]
-#[derive(Clone)]
 pub struct ParseResult {
     fixed: Vec<PyObject>,
     #[pyo3(get)]
     pub named: HashMap<String, PyObject>,
     pub span: (usize, usize),
     pub field_spans: HashMap<String, (usize, usize)>,  // Maps field index/name to (start, end)
+}
+
+impl Clone for ParseResult {
+    fn clone(&self) -> Self {
+        Python::with_gil(|py| {
+            Self {
+                fixed: self.fixed.iter().map(|obj| obj.clone_ref(py).into()).collect(),
+                named: self.named.iter().map(|(k, v)| (k.clone(), v.clone_ref(py).into())).collect(),
+                span: self.span,
+                field_spans: self.field_spans.clone(),
+            }
+        })
+    }
 }
 
 impl ParseResult {
@@ -58,8 +70,9 @@ impl ParseResult {
     #[getter]
     fn fixed(&self) -> PyResult<PyObject> {
         Python::with_gil(|py| {
-            let tuple = PyTuple::new_bound(py, &self.fixed);
-            Ok(tuple.to_object(py))
+            let items: Vec<_> = self.fixed.iter().map(|obj| obj.bind(py)).collect();
+            let tuple = PyTuple::new(py, items)?;
+            Ok(tuple.into())
         })
     }
 
@@ -90,29 +103,29 @@ impl ParseResult {
         Python::with_gil(|py| {
             // Try to extract as slice first
             if let Ok(slice) = key.downcast::<PySlice>() {
-                let len = self.fixed.len() as std::os::raw::c_long;
+                let len = self.fixed.len() as isize;
                 let indices = slice.indices(len)?;
                 
                 let mut result = Vec::new();
                 let mut idx = indices.start;
                 for _ in 0..indices.slicelength {
                     if idx >= 0 && (idx as usize) < self.fixed.len() {
-                        result.push(self.fixed[idx as usize].clone_ref(py));
+                        result.push(self.fixed[idx as usize].bind(py));
                     }
                     idx += indices.step;
                 }
                 
-                let tuple = PyTuple::new_bound(py, &result);
-                Ok(tuple.to_object(py))
+                let tuple = PyTuple::new(py, result)?;
+                Ok(tuple.into())
             } else if let Ok(idx) = key.extract::<usize>() {
                 self.fixed
                     .get(idx)
-                    .cloned()
+                    .map(|obj| obj.clone_ref(py).into())
                     .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyIndexError, _>("Index out of range"))
             } else if let Ok(name) = key.extract::<String>() {
                 self.named
                     .get(&name)
-                    .cloned()
+                    .map(|obj| obj.clone_ref(py).into())
                     .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>(format!("Key '{}' not found", name)))
             } else {
                 Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>("Key must be int, str, or slice"))
@@ -135,17 +148,17 @@ impl ParseResult {
     #[getter]
     fn spans(&self) -> PyResult<PyObject> {
         Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new_bound(py);
+            let dict = pyo3::types::PyDict::new(py);
             for (key, value) in &self.field_spans {
                 let py_key: PyObject = if let Ok(idx) = key.parse::<usize>() {
-                    idx.to_object(py)
+                    idx.into_py(py)
                 } else {
-                    key.to_object(py)
+                    key.clone().into_py(py)
                 };
-                let py_value = PyTuple::new_bound(py, &[value.0, value.1]);
-                dict.set_item(py_key, py_value)?;
+                let py_value = PyTuple::new(py, [value.0, value.1])?;
+                dict.set_item(py_key.bind(py), py_value)?;
             }
-            Ok(dict.to_object(py))
+            Ok(dict.into_py(py))
         })
     }
 }

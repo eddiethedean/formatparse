@@ -8,7 +8,6 @@ use regex::Regex;
 use std::collections::HashMap;
 
 #[pyclass(module = "_formatparse")]
-#[derive(Clone)]
 pub struct FormatParser {
     #[pyo3(get)]
     // Note: This field is actually used in __getstate__, format getter, and accessed from Python.
@@ -144,7 +143,11 @@ impl FormatParser {
         
         Python::with_gil(|py| {
             if search_regex.captures(string).is_some() {
-                let extra_types_ref = &extra_types.as_ref().map(|et| et.clone()).unwrap_or_default();
+                let extra_types_ref = if let Some(ref et) = extra_types {
+                    et
+                } else {
+                    &HashMap::new()
+                };
                 return crate::parser::matching::match_with_regex(
                     search_regex,
                     string,
@@ -176,7 +179,11 @@ impl FormatParser {
                 self.regex_case_insensitive.as_ref().unwrap_or(&self.regex)
             };
 
-            let extra_types_ref = &extra_types.as_ref().map(|et| et.clone()).unwrap_or_default();
+            let extra_types_ref = if let Some(ref et) = extra_types {
+                et
+            } else {
+                &HashMap::new()
+            };
             crate::parser::matching::match_with_regex(
                 regex,
                 string,
@@ -271,10 +278,14 @@ impl FormatParser {
         }
         // Merge stored extra_types with provided extra_types (provided takes precedence)
         let merged_extra_types = Python::with_gil(|py| -> PyResult<Option<HashMap<String, PyObject>>> {
-            let mut merged = self.stored_extra_types.clone().unwrap_or_default();
+            let mut merged = if let Some(ref stored) = self.stored_extra_types {
+                stored.iter().map(|(k, v)| (k.clone(), v.clone_ref(py).into())).collect()
+            } else {
+                HashMap::new()
+            };
             if let Some(ref provided) = extra_types {
                 for (k, v) in provided {
-                    merged.insert(k.clone(), v.clone_ref(py));
+                    merged.insert(k.clone(), v.clone_ref(py).into());
                 }
             }
             Ok(Some(merged))
@@ -359,9 +370,9 @@ impl FormatParser {
     /// Get state for pickling
     fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
         use pyo3::types::PyDict;
-        let state = PyDict::new_bound(py);
+        let state = PyDict::new(py);
         state.set_item("pattern", &self.pattern)?;
-        Ok(state.into())
+        Ok(state.into_py(py))
     }
 
     /// Set state from pickle - reconstructs the parser
