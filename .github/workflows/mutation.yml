@@ -54,10 +54,11 @@ jobs:
         run: |
           source .venv/bin/activate
           # Run mutation testing with a timeout
+          export MUTMUT_CONFIG=mutmut_config.py
           timeout 3600 mutmut run || true
           
-          # Show results
-          mutmut show --dict
+          # Show results summary
+          mutmut results || echo "No mutation results available"
 
       - name: Upload mutation results
         uses: actions/upload-artifact@v4

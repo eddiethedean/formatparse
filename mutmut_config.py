@@ -9,11 +9,9 @@ paths_to_mutate = [
     "formatparse/",
 ]
 
-# Tests to run for each mutation
-tests_dir = "tests"
-
 # Command to run tests
-test_command = "pytest {tests_dir} -x"
+# Note: Do not define tests_dir - mutmut will infer it from test_command
+test_command = "python -m pytest tests -x"
 
 # Timeout for test runs (in seconds)
 test_timeout = 300

@@ -59,3 +59,7 @@ exclude_lines = [
     "raise NotImplementedError",
 ]
 
+[tool.mutmut]
+paths_to_mutate = ["formatparse/"]
+test_command = "python -m pytest tests -x"
+
