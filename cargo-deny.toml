@@ -3,6 +3,7 @@
 
 [licenses]
 # Allow common permissive licenses
+# Any license not in this list will be denied
 allow = [
     "MIT",
     "Apache-2.0",
@@ -14,28 +15,12 @@ allow = [
     "Unlicense",
     "CC0-1.0",
 ]
-# Deny GPL licenses (too restrictive)
-deny = [
-    "GPL-2.0",
-    "GPL-3.0",
-    "AGPL-1.0",
-    "AGPL-3.0",
-    "LGPL-2.0",
-    "LGPL-2.1",
-    "LGPL-3.0",
-]
-# Don't allow any unlicensed code
-default = "deny"
-# Copy-left licenses are denied by default
-copyleft = "deny"
 
 [advisories]
 # Vulnerability database
 db-path = "~/.cargo/advisory-db"
 # Vulnerabilities that haven't been patched yet
 vulnerability = "deny"
-# Notices for vulnerabilities
-notice = "warn"
 # Unmaintained crates - check all dependencies
 unmaintained = "all"
 # Unsound crates

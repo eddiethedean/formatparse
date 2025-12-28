@@ -14,7 +14,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 formatparse-core = { path = "../formatparse-core" }
-pyo3 = { version = "0.21", features = ["extension-module"] }
+pyo3 = { version = "0.24", features = ["extension-module"] }
 regex = "1.10"
 serde = { version = "1.0", features = ["derive"] }
 lru = "0.12"
