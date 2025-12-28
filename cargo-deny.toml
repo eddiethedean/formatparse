@@ -33,4 +33,10 @@ yanked = "warn"
 multiple-versions = "warn"
 # Wildcard dependencies
 wildcards = "deny"
+# Allow path dependencies (local workspace dependencies)
+allow-wildcard-paths = true
+# Skip wildcard check for workspace crates that use path dependencies
+skip-tree = [
+    { name = "formatparse-pyo3", reason = "workspace crate using path dependency" },
+]
 
