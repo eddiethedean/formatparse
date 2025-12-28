@@ -19,12 +19,8 @@ allow = [
 [advisories]
 # Vulnerability database
 db-path = "~/.cargo/advisory-db"
-# Vulnerabilities that haven't been patched yet
-vulnerability = "deny"
 # Unmaintained crates - check all dependencies
 unmaintained = "all"
-# Unsound crates
-unsound = "deny"
 # Yanked crates
 yanked = "warn"
 # Ignore specific advisories (use sparingly)
