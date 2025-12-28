@@ -12,56 +12,6 @@ env:
   MATURIN_PROFILE: release
 
 jobs:
-  build-linux-wheels:
-    name: Build Linux manylinux wheels (${{ matrix.architecture }} / py${{ matrix.python }})
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Linux manylinux2014 x86-64 (GLIBC 2.17+, compatible with most Linux systems)
-          - python: "3.9"
-            architecture: x86-64
-            manylinux: "manylinux2014"
-          - python: "3.10"
-            architecture: x86-64
-            manylinux: "manylinux2014"
-          - python: "3.11"
-            architecture: x86-64
-            manylinux: "manylinux2014"
-          - python: "3.12"
-            architecture: x86-64
-            manylinux: "manylinux2014"
-          - python: "3.13"
-            architecture: x86-64
-            manylinux: "manylinux2014"
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Build manylinux wheel
-        env:
-          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: ${{ matrix.python == '3.13' && '1' || '' }}
-        run: |
-          # Convert Python version (e.g., "3.9" -> "39") for manylinux paths
-          PY_VER=$(echo "${{ matrix.python }}" | tr -d '.')
-          # Try pulling image without :latest tag first
-          docker pull quay.io/pypa/${{ matrix.manylinux }}_${{ matrix.architecture }} || true
-          docker run --rm -v "${{ github.workspace }}:/io" \
-            -e PYO3_USE_ABI3_FORWARD_COMPATIBILITY="${{ matrix.python == '3.13' && '1' || '' }}" \
-            quay.io/pypa/${{ matrix.manylinux }}_${{ matrix.architecture }} \
-            /bin/bash -c "cd /io && /opt/python/cp${PY_VER}-cp${PY_VER}/bin/pip install maturin && /opt/python/cp${PY_VER}-cp${PY_VER}/bin/python -m maturin build --manifest-path formatparse-pyo3/Cargo.toml --out dist --strip --release --manylinux ${{ matrix.manylinux }}"
-
-      - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheel-linux-${{ matrix.architecture }}-py${{ matrix.python }}
-          path: dist/*.whl
-          if-no-files-found: error
-          retention-days: 7
-
   build-wheels:
     name: Build wheels (${{ matrix.os }} / ${{ matrix.architecture }} / py${{ matrix.python }})
     runs-on: ${{ matrix.os }}
@@ -227,7 +177,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: [build-linux-wheels, build-wheels, build-sdist, security-check]
+    needs: [build-wheels, build-sdist, security-check]
     runs-on: ubuntu-latest
     permissions:
       contents: read
