@@ -16,7 +16,7 @@ fi
 # Check if cargo-deny is installed
 if ! command -v cargo-deny &> /dev/null; then
     echo "Installing cargo-deny..."
-    cargo install cargo-deny --version 0.14.3
+    cargo install cargo-deny
 fi
 
 # Check if pip-audit is installed
