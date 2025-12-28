@@ -7,6 +7,7 @@ module-name = "_formatparse"
 python-source = "."
 bindings = "pyo3"
 compatibility = "linux"
+manifest-path = "formatparse-pyo3/Cargo.toml"
 
 [project]
 name = "formatparse"
