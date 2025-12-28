@@ -21,6 +21,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Ubuntu x86-64
+          - os: ubuntu-latest
+            python: "3.9"
+            architecture: x86-64
+          - os: ubuntu-latest
+            python: "3.10"
+            architecture: x86-64
+          - os: ubuntu-latest
+            python: "3.11"
+            architecture: x86-64
+          - os: ubuntu-latest
+            python: "3.12"
+            architecture: x86-64
+          - os: ubuntu-latest
+            python: "3.13"
+            architecture: x86-64
           # macOS latest (typically arm64/Apple Silicon)
           - os: macos-latest
             python: "3.9"
