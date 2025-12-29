@@ -200,14 +200,14 @@ jobs:
       id-token: write  # Required for trusted publishing
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: wheel-*
           merge-multiple: true
           path: artifacts/wheels
 
       - name: Download sdist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: sdist
           merge-multiple: true
