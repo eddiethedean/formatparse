@@ -5,7 +5,7 @@ This is a Rust-backed implementation of the parse library for better performance
 """
 
 from datetime import timedelta, tzinfo
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import re
 
 # Import from the Rust extension module
@@ -428,7 +428,7 @@ class BidirectionalPattern:
         # Parse pattern to extract field constraints for validation
         self._field_constraints = self._parse_constraints(pattern)
 
-    def _parse_constraints(self, pattern: str) -> list[dict]:
+    def _parse_constraints(self, pattern: str) -> List[Dict]:
         """Parse pattern string to extract field constraints for validation"""
         constraints = []
         # Match field patterns: {name:format} or {name} or {}
@@ -561,7 +561,7 @@ class BidirectionalPattern:
 
     def validate(
         self, values: Union[dict, tuple, ParseResult]
-    ) -> tuple[bool, list[str]]:
+    ) -> Tuple[bool, List[str]]:
         """
         Validate values against format constraints.
 
@@ -674,11 +674,11 @@ class BidirectionalResult:
         }
 
     @property
-    def named(self) -> dict[str, Any]:
+    def named(self) -> Dict[str, Any]:
         """Mutable named fields dictionary.
         
         :returns: Dictionary of named fields (can be modified)
-        :rtype: dict[str, Any]
+        :rtype: Dict[str, Any]
         
         Example::
         
@@ -691,11 +691,11 @@ class BidirectionalResult:
         return self._values["named"]  # type: ignore[return-value]
 
     @property
-    def fixed(self) -> list[Any]:
+    def fixed(self) -> List[Any]:
         """Mutable fixed (positional) fields list.
         
         :returns: List of positional fields (can be modified)
-        :rtype: list[Any]
+        :rtype: List[Any]
         
         Example::
         
@@ -729,14 +729,14 @@ class BidirectionalResult:
         else:
             return self._pattern.format(tuple(self._values["fixed"]))
 
-    def validate(self) -> tuple[bool, list[str]]:
+    def validate(self) -> Tuple[bool, List[str]]:
         """Validate current values against format constraints.
 
         Checks if the current (potentially modified) values conform to the
         pattern's constraints (type, width, precision).
         
         :returns: Tuple of (is_valid, list_of_errors)
-        :rtype: tuple[bool, list[str]]
+        :rtype: Tuple[bool, List[str]]
         
         Example::
         

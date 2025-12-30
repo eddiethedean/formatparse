@@ -20,6 +20,9 @@ jobs:
         include:
           # Ubuntu x86-64
           - os: ubuntu-latest
+            python-version: "3.8"
+            architecture: x86-64
+          - os: ubuntu-latest
             python-version: "3.9"
             architecture: x86-64
           - os: ubuntu-latest
