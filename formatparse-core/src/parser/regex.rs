@@ -3,7 +3,7 @@ use regex::Regex;
 use std::time::Instant;
 
 /// Maximum time allowed for regex compilation (in milliseconds)
-const MAX_REGEX_COMPILATION_TIME_MS: u128 = 100;
+const MAX_REGEX_COMPILATION_TIME_MS: u128 = 200;
 
 /// Build a regex from a pattern string with DOTALL flag
 /// Includes timeout protection against ReDoS attacks

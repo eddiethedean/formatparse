@@ -73,7 +73,7 @@ The library implements the following security limits:
 - Maximum input string length: 10,000,000 characters (10MB)
 - Maximum number of fields: 100
 - Maximum field name length: 200 characters
-- Regex compilation timeout: 100ms
+- Regex compilation timeout: 200ms
 
 If you encounter these limits and need to adjust them for your use case, please open an issue to discuss.
 

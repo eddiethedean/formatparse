@@ -48,7 +48,7 @@ The library includes built-in limits to help protect against malicious patterns:
 - Maximum pattern length: 10,000 characters
 - Maximum input length: 10MB
 - Maximum fields: 100
-- Regex compilation timeout: 100ms
+- Regex compilation timeout: 200ms
 
 Regular Expression Denial of Service (ReDoS)
 ---------------------------------------------
@@ -90,7 +90,7 @@ The library enforces the following limits:
 - **Input length**: 10,000,000 characters (10MB) maximum
 - **Field count**: 100 fields maximum
 - **Field name length**: 200 characters maximum
-- **Regex compilation timeout**: 100ms maximum
+- **Regex compilation timeout**: 200ms maximum
 
 If you need different limits for your use case, consider:
 - Pre-validating inputs in your application
