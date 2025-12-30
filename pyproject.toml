@@ -8,6 +8,7 @@ python-source = "."
 bindings = "pyo3"
 compatibility = "linux"
 manifest-path = "formatparse-pyo3/Cargo.toml"
+include = ["formatparse/**/*.py"]
 
 [project]
 name = "formatparse"
