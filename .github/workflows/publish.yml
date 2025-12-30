@@ -182,12 +182,13 @@ jobs:
           maturin sdist --manifest-path formatparse-pyo3/Cargo.toml --out dist
           # Extract sdist, add LICENSE, and repackage
           cd dist
-          tar -xzf formatparse-*.tar.gz
-          cd formatparse-*/
-          cp ../../LICENSE .
-          cd ..
-          tar -czf formatparse-*.tar.gz formatparse-*/
-          rm -rf formatparse-*/
+          SDIST_NAME=$(ls formatparse-*.tar.gz | head -1)
+          EXTRACT_DIR=$(echo "$SDIST_NAME" | sed 's/\.tar\.gz$//')
+          tar -xzf "$SDIST_NAME"
+          cp ../LICENSE "$EXTRACT_DIR/"
+          rm "$SDIST_NAME"
+          tar -czf "$SDIST_NAME" "$EXTRACT_DIR"
+          rm -rf "$EXTRACT_DIR"
 
       - name: Upload sdist artifact
         uses: actions/upload-artifact@v4
