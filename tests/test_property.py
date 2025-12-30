@@ -114,8 +114,15 @@ def test_round_trip_float_named_field(value, name):
 def test_round_trip_integer_with_width(value, name):
     """Property: format -> parse works with width specifiers"""
     # Use width that can accommodate the value
+    # For negative numbers, use '=' alignment to put sign before padding
+    # For positive numbers, right-aligned zero-padding works fine
     width = max(len(str(abs(value))), 5)
-    pattern = f"{{name}}: {{value:0>{width}d}}"
+    if value < 0:
+        # Use '=' alignment for negative numbers to put sign before padding
+        pattern = f"{{name}}: {{value:=0{width}d}}"
+    else:
+        # Right-aligned zero-padding works for positive numbers
+        pattern = f"{{name}}: {{value:0>{width}d}}"
     formatter = BidirectionalPattern(pattern)
     
     # Format with original values
