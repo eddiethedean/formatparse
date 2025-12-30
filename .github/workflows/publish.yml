@@ -178,7 +178,16 @@ jobs:
           pip install maturin
 
       - name: Build sdist
-        run: maturin sdist --manifest-path formatparse-pyo3/Cargo.toml --out dist
+        run: |
+          maturin sdist --manifest-path formatparse-pyo3/Cargo.toml --out dist
+          # Extract sdist, add LICENSE, and repackage
+          cd dist
+          tar -xzf formatparse-*.tar.gz
+          cd formatparse-*/
+          cp ../../LICENSE .
+          cd ..
+          tar -czf formatparse-*.tar.gz formatparse-*/
+          rm -rf formatparse-*/
 
       - name: Upload sdist artifact
         uses: actions/upload-artifact@v4
