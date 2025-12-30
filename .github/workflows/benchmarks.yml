@@ -53,7 +53,7 @@ jobs:
       - name: Store benchmark results
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: benchmark-results
           path: benchmark_results.json

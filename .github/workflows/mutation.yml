@@ -61,7 +61,7 @@ jobs:
           mutmut results || echo "No mutation results available"
 
       - name: Upload mutation results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: mutation-results
           path: .mutmut-cache/
