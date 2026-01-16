@@ -8,7 +8,7 @@ python-source = "."
 bindings = "pyo3"
 compatibility = "linux"
 manifest-path = "formatparse-pyo3/Cargo.toml"
-include = ["formatparse/**/*.py"]
+include = ["formatparse/**/*.py", "formatparse/py.typed"]
 
 [project]
 name = "formatparse"
@@ -17,6 +17,7 @@ classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
+    "Typing :: Typed",
 ]
 dynamic = ["version"]
 description = "Parse strings using a specification based on the Python format() syntax (Rust implementation)"

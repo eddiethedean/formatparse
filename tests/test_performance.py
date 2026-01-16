@@ -94,10 +94,10 @@ def test_compiled_parser_parse(benchmark):
     pattern = "{name}: {age:d}"
     parser = compile(pattern)
     text = "Alice: 30"
-    
+
     def run_parse():
         return parser.parse(text)
-    
+
     result = benchmark(run_parse)
     assert result is not None
     assert result.named["name"] == "Alice"
@@ -166,4 +166,3 @@ def test_float_type_conversion(benchmark):
     assert result is not None
     assert result.named["value"] == 3.14159
     assert isinstance(result.named["value"], float)
-

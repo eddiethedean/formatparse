@@ -4,8 +4,20 @@ Parse strings using a specification based on the Python format() syntax.
 This is a Rust-backed implementation of the parse library for better performance.
 """
 
-from datetime import timedelta, tzinfo
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from __future__ import annotations
+
+from datetime import datetime, timedelta, tzinfo
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    TypedDict,
+    Union,
+)
 import re
 
 # Import from the Rust extension module
@@ -17,21 +29,48 @@ from _formatparse import (  # type: ignore[import-not-found]
     ParseResult,
     FormatParser,
     FixedTzOffset as _FixedTzOffset,
+    Results,
 )
+
+
+# Type definitions for custom converters
+class ConverterProtocol(Protocol):
+    """Protocol for custom type converter functions."""
+
+    pattern: str
+    regex_group_count: int
+
+    def __call__(self, text: str) -> Any:
+        """Convert a text string to a value."""
+        ...
+
+
+# Type alias for extra_types parameter
+ExtraTypes = Dict[str, ConverterProtocol]
+
+
+# TypedDict for field constraints
+class FieldConstraint(TypedDict, total=False):
+    """Type for field constraint dictionaries."""
+
+    name: Optional[str]
+    type: str
+    width: Optional[int]
+    precision: Optional[int]
 
 
 # Define RepeatedNameError exception (matches original parse library)
 class RepeatedNameError(ValueError):
     """Exception raised when a repeated field name has mismatched types.
-    
+
     This exception is raised when a format pattern contains the same field name
     multiple times with different type specifications (e.g., ``"{age:d}"`` and
     ``"{age:f}"`` in the same pattern).
-    
+
     :raises RepeatedNameError: When a repeated field name has mismatched types
-    
+
     Example::
-    
+
         >>> from formatparse import compile, RepeatedNameError
         >>> try:
         ...     compile("{age:d} years and {age:f} months")
@@ -43,22 +82,24 @@ class RepeatedNameError(ValueError):
 
 
 # Wrap compile to catch RepeatedNameError
-def compile(pattern: str):
+def compile(pattern: str, extra_types: Optional[ExtraTypes] = None) -> FormatParser:
     """Compile a pattern into a FormatParser for repeated use.
-    
+
     Compiling a pattern allows you to reuse the same pattern multiple times
     without recompiling the regex, which improves performance for repeated
     parsing operations.
-    
+
     :param pattern: Format specification pattern (e.g., ``"{name}: {age:d}"``)
     :type pattern: str
+    :param extra_types: Optional dictionary of custom type converters
+    :type extra_types: dict, optional
     :returns: FormatParser object that can be used to parse strings
     :rtype: FormatParser
     :raises RepeatedNameError: If a repeated field name has mismatched types
     :raises ValueError: If pattern is invalid
-    
+
     Example::
-    
+
         >>> parser = compile("{name}: {age:d}")
         >>> result = parser.parse("Alice: 30")
         >>> result.named['name']
@@ -72,7 +113,7 @@ def compile(pattern: str):
         25
     """
     try:
-        return _compile(pattern)
+        return _compile(pattern, extra_types)
     except ValueError as e:
         if "Repeated name" in str(e) and "mismatched types" in str(e):
             raise RepeatedNameError(str(e)) from e
@@ -83,16 +124,16 @@ def compile(pattern: str):
 def parse(
     pattern: str,
     string: str,
-    extra_types=None,
-    case_sensitive=False,
-    evaluate_result=True,
-):
+    extra_types: Optional[ExtraTypes] = None,
+    case_sensitive: bool = False,
+    evaluate_result: bool = True,
+) -> Optional[ParseResult]:
     """Parse a string using a format specification.
-    
+
     This function parses a string according to a format pattern and extracts
     named or positional fields from it. The pattern syntax is based on Python's
     format() function syntax.
-    
+
     :param pattern: Format specification pattern (e.g., ``"{name}: {age:d}"``)
     :type pattern: str
     :param string: String to parse
@@ -106,9 +147,9 @@ def parse(
     :returns: ParseResult object if match found, None otherwise
     :rtype: ParseResult or None
     :raises ValueError: If pattern is invalid
-    
+
     Example::
-    
+
         >>> result = parse("{name}: {age:d}", "Alice: 30")
         >>> result.named['name']
         'Alice'
@@ -124,17 +165,17 @@ def parse(
 def search(
     pattern: str,
     string: str,
-    pos=0,
-    endpos=None,
-    extra_types=None,
-    case_sensitive=True,
-    evaluate_result=True,
-):
+    pos: int = 0,
+    endpos: Optional[int] = None,
+    extra_types: Optional[ExtraTypes] = None,
+    case_sensitive: bool = True,
+    evaluate_result: bool = True,
+) -> Optional[ParseResult]:
     """Search for a pattern anywhere in a string.
-    
+
     Unlike parse(), which matches the entire string, search() finds the first
     occurrence of the pattern anywhere within the string.
-    
+
     :param pattern: Format specification pattern
     :type pattern: str
     :param string: String to search
@@ -152,9 +193,9 @@ def search(
     :returns: ParseResult object if match found, None otherwise
     :rtype: ParseResult or None
     :raises ValueError: If pattern is invalid
-    
+
     Example::
-    
+
         >>> result = search("age: {age:d}", "Name: Alice, age: 30, City: NYC")
         >>> result.named['age']
         30
@@ -185,15 +226,15 @@ def search(
 def findall(
     pattern: str,
     string: str,
-    extra_types=None,
-    case_sensitive=False,
-    evaluate_result=True,
-):
+    extra_types: Optional[ExtraTypes] = None,
+    case_sensitive: bool = False,
+    evaluate_result: bool = True,
+) -> Results:
     """Find all matches of a pattern in a string.
-    
+
     Searches for all non-overlapping occurrences of the pattern in the string
     and returns a list-like Results object containing all matches.
-    
+
     :param pattern: Format specification pattern
     :type pattern: str
     :param string: String to search
@@ -206,9 +247,9 @@ def findall(
     :type evaluate_result: bool
     :returns: Results object (list-like) containing ParseResult objects
     :rtype: Results
-    
+
     Example::
-    
+
         >>> results = findall("ID:{id:d}", "ID:1 ID:2 ID:3")
         >>> len(results)
         3
@@ -230,18 +271,18 @@ def findall(
 # Create a tzinfo-compatible wrapper for FixedTzOffset
 class FixedTzOffset(tzinfo):
     """Fixed timezone offset compatible with datetime.tzinfo.
-    
+
     This class provides a fixed timezone offset implementation that is compatible
     with Python's datetime.tzinfo interface. It's used internally for datetime
     parsing when timezone information is present.
-    
+
     :param offset_minutes: Timezone offset in minutes from UTC
     :type offset_minutes: int
     :param name: Timezone name (e.g., "EST", "PST")
     :type name: str
-    
+
     Example::
-    
+
         >>> from formatparse import FixedTzOffset
         >>> from datetime import datetime
         >>> tz = FixedTzOffset(300, "EST")  # UTC-5
@@ -254,25 +295,25 @@ class FixedTzOffset(tzinfo):
         'EST'
     """
 
-    def __init__(self, offset_minutes, name):
+    def __init__(self, offset_minutes: int, name: str) -> None:
         """Initialize a fixed timezone offset.
-        
+
         :param offset_minutes: Timezone offset in minutes from UTC
         :type offset_minutes: int
         :param name: Timezone name (e.g., "EST", "PST")
         :type name: str
         """
-        self._rust_tz = _FixedTzOffset(offset_minutes, name)
-        self._offset_minutes = offset_minutes
-        self._name = name
+        self._rust_tz: _FixedTzOffset = _FixedTzOffset(offset_minutes, name)
+        self._offset_minutes: int = offset_minutes
+        self._name: str = name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self._rust_tz)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self._rust_tz)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, FixedTzOffset):
             return self._rust_tz == other._rust_tz
         elif (
@@ -282,12 +323,12 @@ class FixedTzOffset(tzinfo):
             return self._rust_tz == other
         return False
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    def utcoffset(self, dt):
+    def utcoffset(self, dt: Optional[datetime]) -> timedelta:
         """Return the timezone offset from UTC.
-        
+
         :param dt: Datetime object (unused, kept for compatibility)
         :type dt: datetime.datetime
         :returns: Timezone offset as timedelta
@@ -295,9 +336,9 @@ class FixedTzOffset(tzinfo):
         """
         return timedelta(minutes=self._offset_minutes)
 
-    def dst(self, dt):
+    def dst(self, dt: Optional[datetime]) -> None:
         """Return daylight saving time adjustment (always None for fixed offsets).
-        
+
         :param dt: Datetime object (unused, kept for compatibility)
         :type dt: datetime.datetime
         :returns: Always None for fixed timezone offsets
@@ -305,9 +346,9 @@ class FixedTzOffset(tzinfo):
         """
         return None
 
-    def tzname(self, dt):
+    def tzname(self, dt: Optional[datetime]) -> str:
         """Return the timezone name.
-        
+
         :param dt: Datetime object (unused, kept for compatibility)
         :type dt: datetime.datetime
         :returns: Timezone name
@@ -322,7 +363,7 @@ Parser = FormatParser
 
 # Module attribute for compatibility with original parse library
 # Maps strftime format codes to their regex patterns
-dt_format_to_regex = {
+dt_format_to_regex: Dict[str, str] = {
     "%Y": r"\d{4}",  # Year with century
     "%y": r"\d{2}",  # Year without century
     "%m": r"\d{1,2}",  # Month (1-12 or 01-12) - flexible
@@ -346,7 +387,9 @@ dt_format_to_regex = {
 }
 
 
-def with_pattern(pattern: str, regex_group_count: int = 0):
+def with_pattern(
+    pattern: str, regex_group_count: int = 0
+) -> Callable[[Callable[[str], Any]], Callable[[str], Any]]:
     """Decorator to create a custom type converter with a regex pattern.
 
     This decorator adds a ``pattern`` attribute to the converter function,
@@ -360,7 +403,7 @@ def with_pattern(pattern: str, regex_group_count: int = 0):
     :rtype: Callable
 
     Example::
-    
+
         >>> @with_pattern(r'\\d+')
         ... def parse_number(text):
         ...     return int(text)
@@ -369,7 +412,7 @@ def with_pattern(pattern: str, regex_group_count: int = 0):
         42
         >>> type(result.fixed[0])
         <class 'int'>
-        
+
         >>> @with_pattern(r'[A-Z]{2,3}')
         ... def parse_code(text):
         ...     return text.upper()
@@ -378,7 +421,7 @@ def with_pattern(pattern: str, regex_group_count: int = 0):
         'ABC'
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[[str], Any]) -> Callable[[str], Any]:
         func.pattern = pattern  # type: ignore[attr-defined]
         func.regex_group_count = regex_group_count  # type: ignore[attr-defined]
         return func
@@ -393,14 +436,14 @@ class BidirectionalPattern:
     This class combines parsing and formatting capabilities, allowing you to parse
     a string, modify the extracted values, and format them back while maintaining
     the original format constraints.
-    
+
     :param pattern: Format string pattern (e.g., ``"{name:>10}: {value:05d}"``)
     :type pattern: str
     :param extra_types: Optional dictionary of custom type converters
     :type extra_types: dict, optional
 
     Example::
-    
+
         >>> formatter = BidirectionalPattern("{name:>10}: {value:05d}")
         >>> result = formatter.parse("      John: 00042")
         >>> result.named['name']
@@ -414,7 +457,7 @@ class BidirectionalPattern:
         '      John: 00100'
     """
 
-    def __init__(self, pattern: str, extra_types=None):
+    def __init__(self, pattern: str, extra_types: Optional[ExtraTypes] = None) -> None:
         """Initialize a bidirectional pattern.
 
         :param pattern: Format string pattern (e.g., ``"{name:>10}: {value:05d}"``)
@@ -422,13 +465,15 @@ class BidirectionalPattern:
         :param extra_types: Optional dictionary of custom type converters
         :type extra_types: dict, optional
         """
-        self._parser = compile(pattern)
-        self._pattern = pattern
-        self._extra_types = extra_types
+        self._parser: FormatParser = compile(pattern)
+        self._pattern: str = pattern
+        self._extra_types: Optional[ExtraTypes] = extra_types
         # Parse pattern to extract field constraints for validation
-        self._field_constraints = self._parse_constraints(pattern)
+        self._field_constraints: List[FieldConstraint] = self._parse_constraints(
+            pattern
+        )
 
-    def _parse_constraints(self, pattern: str) -> List[Dict]:
+    def _parse_constraints(self, pattern: str) -> List[FieldConstraint]:
         """Parse pattern string to extract field constraints for validation"""
         constraints = []
         # Match field patterns: {name:format} or {name} or {}
@@ -436,11 +481,16 @@ class BidirectionalPattern:
 
         for match in re.finditer(field_pattern, pattern):
             field_spec = match.group(1)
+            constraint: FieldConstraint
             if not field_spec:
                 # Positional field with no spec
-                constraints.append(
-                    {"name": None, "type": "s", "width": None, "precision": None}
-                )
+                constraint = {
+                    "name": None,
+                    "type": "s",
+                    "width": None,
+                    "precision": None,
+                }
+                constraints.append(constraint)
                 continue
 
             # Parse field name and format spec
@@ -449,7 +499,12 @@ class BidirectionalPattern:
             format_spec = parts[1] if len(parts) > 1 else ""
 
             # Parse format spec (e.g., ">10", "05d", ".2f", ">10.5s")
-            constraint = {"name": name, "type": "s", "width": None, "precision": None}
+            constraint = {
+                "name": name,
+                "type": "s",
+                "width": None,
+                "precision": None,
+            }
 
             # Extract type character (last letter if present)
             type_match = re.search(r"([a-zA-Z%])$", format_spec)
@@ -504,9 +559,9 @@ class BidirectionalPattern:
         :type evaluate_result: bool
         :returns: BidirectionalResult if match found, None otherwise
         :rtype: BidirectionalResult or None
-        
+
         Example::
-        
+
             >>> formatter = BidirectionalPattern("{name:>10}: {value:05d}")
             >>> result = formatter.parse("      John: 00042")
             >>> result.named['name']
@@ -529,14 +584,14 @@ class BidirectionalPattern:
 
         Formats the provided values according to the pattern specification,
         maintaining format constraints like width, precision, and alignment.
-        
+
         :param values: Dictionary (for named fields), tuple (for positional), or ParseResult
         :type values: dict, tuple, or ParseResult
         :returns: Formatted string matching the pattern
         :rtype: str
-        
+
         Example::
-        
+
             >>> formatter = BidirectionalPattern("{name:>10}: {value:05d}")
             >>> formatter.format({"name": "John", "value": 42})
             '      John: 00042'
@@ -645,9 +700,9 @@ class BidirectionalResult:
     and validate against the original pattern constraints. Unlike ParseResult, this
     class allows you to modify the extracted values and format them back while
     maintaining the original format constraints.
-    
+
     Example::
-    
+
         >>> formatter = BidirectionalPattern("{name:>10}: {value:05d}")
         >>> result = formatter.parse("      John: 00042")
         >>> result.named['value'] = 100
@@ -657,7 +712,7 @@ class BidirectionalResult:
         (True, [])
     """
 
-    def __init__(self, pattern: BidirectionalPattern, result: ParseResult):
+    def __init__(self, pattern: BidirectionalPattern, result: ParseResult) -> None:
         """Initialize a bidirectional result.
 
         :param pattern: The BidirectionalPattern that created this result
@@ -665,10 +720,10 @@ class BidirectionalResult:
         :param result: The ParseResult from parsing
         :type result: ParseResult
         """
-        self._pattern = pattern
-        self._result = result
+        self._pattern: BidirectionalPattern = pattern
+        self._result: ParseResult = result
         # Store values in mutable dict/list
-        self._values = {
+        self._values: Dict[str, Union[Dict[str, Any], List[Any]]] = {
             "named": dict(result.named) if result.named else {},
             "fixed": list(result.fixed) if result.fixed else [],
         }
@@ -676,12 +731,12 @@ class BidirectionalResult:
     @property
     def named(self) -> Dict[str, Any]:
         """Mutable named fields dictionary.
-        
+
         :returns: Dictionary of named fields (can be modified)
         :rtype: Dict[str, Any]
-        
+
         Example::
-        
+
             >>> formatter = BidirectionalPattern("{name}: {age:d}")
             >>> result = formatter.parse("Alice: 30")
             >>> result.named['age'] = 31
@@ -693,12 +748,12 @@ class BidirectionalResult:
     @property
     def fixed(self) -> List[Any]:
         """Mutable fixed (positional) fields list.
-        
+
         :returns: List of positional fields (can be modified)
         :rtype: List[Any]
-        
+
         Example::
-        
+
             >>> formatter = BidirectionalPattern("{}, {}")
             >>> result = formatter.parse("Hello, World")
             >>> result.fixed[1] = "Python"
@@ -712,12 +767,12 @@ class BidirectionalResult:
 
         Formats the current (potentially modified) values according to the
         original pattern specification.
-        
+
         :returns: Formatted string matching the original pattern
         :rtype: str
-        
+
         Example::
-        
+
             >>> formatter = BidirectionalPattern("{name:>10}: {value:05d}")
             >>> result = formatter.parse("      John: 00042")
             >>> result.named['value'] = 100
@@ -734,12 +789,12 @@ class BidirectionalResult:
 
         Checks if the current (potentially modified) values conform to the
         pattern's constraints (type, width, precision).
-        
+
         :returns: Tuple of (is_valid, list_of_errors)
         :rtype: Tuple[bool, List[str]]
-        
+
         Example::
-        
+
             >>> formatter = BidirectionalPattern("{name:>10}: {value:05d}")
             >>> result = formatter.parse("      John: 00042")
             >>> result.validate()

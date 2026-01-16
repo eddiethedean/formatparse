@@ -1,6 +1,5 @@
 """Comprehensive tests for type conversion"""
 
-import pytest
 from formatparse import parse, with_pattern
 import math
 
@@ -254,11 +253,11 @@ def test_general_format_uppercase():
 # Boolean tests
 # Note: :b is for binary numbers, not boolean
 # We use custom type converters to parse boolean values
-@with_pattern(r'True|False|true|false|1|0')
+@with_pattern(r"True|False|true|false|1|0")
 def parse_bool(text):
     """Parse boolean values from strings"""
     text_lower = text.lower()
-    return text_lower in ('true', '1', 'yes', 'on')
+    return text_lower in ("true", "1", "yes", "on")
 
 
 def test_boolean_true():
