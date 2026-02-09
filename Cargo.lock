@@ -117,7 +117,7 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "formatparse-core"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "once_cell",
  "proptest",
@@ -126,7 +126,7 @@ dependencies = [
 
 [[package]]
 name = "formatparse-pyo3"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "formatparse-core",
  "lru",
@@ -413,9 +413,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.12.2"
+version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "843bc0191f75f3e22651ae5f1e72939ab2f72a4bc30fa80a066bd66edefc24d4"
+checksum = "e10754a14b9137dd7b1e3e5b0493cc9171fdd105e0ab477f51b72e7f3ac0e276"
 dependencies = [
  "aho-corasick",
  "memchr",
