@@ -117,7 +117,7 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "formatparse-core"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "once_cell",
  "proptest",
@@ -126,7 +126,7 @@ dependencies = [
 
 [[package]]
 name = "formatparse-pyo3"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "formatparse-core",
  "lru",
@@ -222,9 +222,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.21.3"
+version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "portable-atomic"
