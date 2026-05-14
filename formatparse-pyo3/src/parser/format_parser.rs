@@ -300,21 +300,6 @@ impl FormatParser {
         })
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn get_field_specs(&self) -> &Vec<FieldSpec> {
-        &self.field_specs
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn get_field_names(&self) -> &Vec<Option<String>> {
-        &self.field_names
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn get_normalized_names(&self) -> &Vec<Option<String>> {
-        &self.normalized_names
-    }
-
     /// Get the search regex for a given case sensitivity
     pub(crate) fn get_search_regex(&self, case_sensitive: bool) -> &Regex {
         if case_sensitive {
@@ -774,7 +759,11 @@ impl FindallIter {
                 let Some(caps) = search_regex.captures_at(&slf.haystack, slf.search_pos) else {
                     return Ok(None);
                 };
-                let m0 = caps.get(0).unwrap();
+                let Some(m0) = caps.get(0) else {
+                    return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                        "regex match missing capture group 0",
+                    ));
+                };
                 let match_start = m0.start();
                 let match_end = m0.end();
 
@@ -818,7 +807,11 @@ impl FindallIter {
             let Some(caps) = search_regex.captures_at(&slf.haystack, slf.search_pos) else {
                 return Ok(None);
             };
-            let m0 = caps.get(0).unwrap();
+            let Some(m0) = caps.get(0) else {
+                return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                    "regex match missing capture group 0",
+                ));
+            };
             let match_start = m0.start();
             let match_end = m0.end();
 

@@ -15,6 +15,7 @@ Always validate and sanitize user input before passing it to formatparse:
    
    # Validate pattern length
    def safe_parse(pattern, text):
+       # Stricter than the library maximum (10,000 characters for patterns); defense in depth.
        if len(pattern) > 1000:  # Set your own limit
            raise ValueError("Pattern too long")
        if len(text) > 1_000_000:  # Set your own limit

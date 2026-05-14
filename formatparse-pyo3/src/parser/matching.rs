@@ -345,7 +345,9 @@ pub fn match_with_captures_raw(
     let custom_type_groups = fields.custom_type_groups;
     let has_nested_dict_fields = fields.has_nested_dict_fields;
 
-    let full_match = captures.get(0).unwrap();
+    let full_match = captures.get(0).ok_or_else(|| {
+        "regex match missing capture group 0".to_string()
+    })?;
     let start = full_match.start();
     let end = full_match.end();
 
@@ -451,7 +453,9 @@ pub fn match_with_captures(
     let custom_converters = ctx.custom_converters;
     let evaluate_result = ctx.evaluate_result;
 
-    let full_match = captures.get(0).unwrap();
+    let full_match = captures.get(0).ok_or_else(|| {
+        pyo3::exceptions::PyRuntimeError::new_err("regex match missing capture group 0")
+    })?;
     let start = full_match.start(); // Already absolute position in full string
     let end = full_match.end(); // Already absolute position in full string
 
@@ -734,7 +738,9 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
         let mut captures_vec = Vec::with_capacity(field_count); // For Match object when evaluate_result=False
         let mut named_captures = HashMap::with_capacity(field_count); // For Match object when evaluate_result=False
 
-        let full_match = captures.get(0).unwrap();
+        let full_match = captures.get(0).ok_or_else(|| {
+            pyo3::exceptions::PyRuntimeError::new_err("regex match missing capture group 0")
+        })?;
         let start = full_match.start();
         let end = full_match.end();
 

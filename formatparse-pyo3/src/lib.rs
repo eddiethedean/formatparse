@@ -41,6 +41,15 @@ pub use match_rs::Match;
 static PATTERN_CACHE: Lazy<Mutex<LruCache<u64, Arc<FormatParser>>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(1000).unwrap())));
 
+fn lock_pattern_cache(
+) -> Result<std::sync::MutexGuard<'static, LruCache<u64, Arc<FormatParser>>>, PyErr> {
+    PATTERN_CACHE.lock().map_err(|_| {
+        pyo3::exceptions::PyRuntimeError::new_err(
+            "formatparse pattern cache mutex was poisoned",
+        )
+    })
+}
+
 /// Create a cache key hash from pattern and `extra_types`.
 ///
 /// Must match what affects compilation in [`FormatParser::new_with_extra_types`]:
@@ -97,7 +106,7 @@ fn get_or_create_parser(
 
     // Try to get from cache (minimize lock scope)
     let cached = {
-        let mut cache = PATTERN_CACHE.lock().unwrap();
+        let mut cache = lock_pattern_cache()?;
         cache.get(&cache_key).cloned()
     };
 
@@ -113,7 +122,7 @@ fn get_or_create_parser(
 
     // Store in cache (minimize lock scope)
     {
-        let mut cache = PATTERN_CACHE.lock().unwrap();
+        let mut cache = lock_pattern_cache()?;
         cache.put(cache_key, parser.clone());
     }
 
@@ -363,7 +372,11 @@ fn findall(
         // Collect all raw matches OUTSIDE GIL (no Python objects created yet)
         // This is the key optimization: all CPU work happens without GIL
         for captures in search_regex.captures_iter(string) {
-            let full_match = captures.get(0).unwrap();
+            let Some(full_match) = captures.get(0) else {
+                return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                    "regex match missing capture group 0",
+                ));
+            };
             let match_start = full_match.start();
             let match_end = full_match.end();
 
@@ -372,7 +385,7 @@ fn findall(
             }
 
             // Try raw matching (no Python objects, no GIL needed)
-            if let Ok(Some(raw_data)) = crate::parser::matching::match_with_captures_raw(
+            match crate::parser::matching::match_with_captures_raw(
                 &captures,
                 string,
                 match_start,
@@ -385,11 +398,17 @@ fn findall(
                     nested_parsers: &parser.nested_parsers,
                 },
             ) {
-                raw_results.push(raw_data);
-                last_end = match_end;
+                Ok(Some(raw_data)) => {
+                    raw_results.push(raw_data);
+                    last_end = match_end;
 
-                if match_start == match_end {
-                    last_end += 1;
+                    if match_start == match_end {
+                        last_end += 1;
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    return Err(pyo3::exceptions::PyRuntimeError::new_err(e));
                 }
             }
         }
@@ -416,7 +435,11 @@ fn findall(
         };
 
         for captures in search_regex.captures_iter(string) {
-            let full_match = captures.get(0).unwrap();
+            let Some(full_match) = captures.get(0) else {
+                return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                    "regex match missing capture group 0",
+                ));
+            };
             let match_start = full_match.start();
             let match_end = full_match.end();
 

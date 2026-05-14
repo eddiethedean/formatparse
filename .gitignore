@@ -30,8 +30,7 @@ mutants/
 target/
 **/*.rs.bk
 *.pdb
-# Cargo.lock - typically ignored for libraries, committed for applications
-# Note: For this workspace, Cargo.lock is not committed (standard for libraries)
+# Cargo.lock is committed for reproducible Rust CI and maturin builds (PyO3 workspace).
 
 # Maturin / PyO3
 wheels/

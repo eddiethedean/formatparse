@@ -123,8 +123,8 @@ For detailed contribution guidelines, including testing requirements and develop
 
 The project includes comprehensive test coverage:
 
-- **Unit Tests**: ~436 Python tests + 50 Rust tests
-- **Property-Based Tests**: 32 Hypothesis-based tests
+- **Unit tests**: 691 Python tests collected (`pytest tests/ --collect-only`) and 133 Rust tests (`cargo test --workspace`, formatparse-core + formatparse-pyo3)
+- **Property-based tests**: Hypothesis in `tests/test_property.py` and `tests/test_fuzz.py`
 - **Performance Benchmarks**: Automated regression testing
 - **Stress Tests**: Large input and scalability testing
 - **Fuzz Tests**: Crash-free input testing

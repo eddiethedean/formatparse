@@ -43,6 +43,30 @@ unicode_strings = st.text(
     min_size=1, max_size=50, alphabet=st.characters(blacklist_characters="{}")
 )
 
+# UTF-8-safe text: no lone surrogates (Cs), no NUL (rejected by the library).
+_UNICODE_SAFE_ALPHABET = st.characters(
+    blacklist_characters="\x00{}",
+    blacklist_categories=("Cs",),
+)
+unicode_non_surrogate_strings = st.text(
+    alphabet=_UNICODE_SAFE_ALPHABET,
+    min_size=1,
+    max_size=50,
+)
+
+# Lowercase Greek (U+03B1–U+03C9): contiguous assigned letters, safe for Rust
+# named captures and stable in `named` keys.
+_GREEK_LETTERS = st.characters(
+    min_codepoint=0x3B1,
+    max_codepoint=0x3C9,
+    blacklist_categories=("Cs",),
+)
+unicode_field_name_strings = st.text(
+    alphabet=_GREEK_LETTERS,
+    min_size=1,
+    max_size=20,
+)
+
 
 # ============================================================================
 # Round-Trip Properties for BidirectionalPattern
@@ -631,102 +655,53 @@ def test_search_only_finds_first_match(text_parts, value):
 
 @settings(max_examples=100)
 @given(
-    name=unicode_strings.filter(lambda s: len(s) > 0 and len(s) < 30), value=integers
+    name=unicode_non_surrogate_strings.filter(lambda s: 0 < len(s) < 30),
+    value=integers,
 )
 def test_unicode_round_trip(name, value):
     """Property: Unicode strings should work in round-trip parsing"""
-    # Filter out null bytes - they're now rejected for security
-    if "\0" in name:
-        pytest.skip("Null bytes are now rejected for security reasons")
-
-    # Filter out surrogate characters that can't be encoded in UTF-8
-    try:
-        name.encode("utf-8")
-    except UnicodeEncodeError:
-        pytest.skip("Name contains characters that can't be encoded in UTF-8")
-
     pattern = "{name}: {value:d}"
     formatter = BidirectionalPattern(pattern)
 
-    try:
-        formatted = formatter.format({"name": name, "value": value})
-        result = formatter.parse(formatted)
-
-        if result is not None:
-            assert result.named["name"] == name
-            assert result.named["value"] == value
-    except ValueError as e:
-        # ValueError for null bytes or other validation errors is acceptable
-        if "contains null byte" in str(e):
-            pytest.skip(
-                "Formatted string contains null byte (now rejected for security)"
-            )
-        raise
-    except UnicodeEncodeError:
-        # Some Unicode characters might cause encoding issues
-        pytest.skip("Unicode encoding issue in format/parse")
+    formatted = formatter.format({"name": name, "value": value})
+    result = formatter.parse(formatted)
+    assert result is not None, f"parse failed for formatted={formatted!r}"
+    assert result.named["name"] == name
+    assert result.named["value"] == value
 
 
 @settings(max_examples=100)
 @given(
-    text=unicode_strings.filter(
+    text=unicode_non_surrogate_strings.filter(
         lambda s: (
             len(s) > 0
             and len(s) < 50
             and not any(c.isdigit() for c in s)
-            and "\x00" not in s
         )
     ),
     value=integers,
 )
 def test_unicode_search(text, value):
     """Property: search() should work with Unicode text"""
-    # Filter out surrogate characters that can't be encoded in UTF-8
-    # Surrogates are in the range U+D800 to U+DFFF
-    try:
-        # Check if the text contains valid UTF-8 encodable characters
-        text.encode("utf-8")
-    except UnicodeEncodeError:
-        pytest.skip("Text contains characters that can't be encoded in UTF-8")
-
     pattern = "ID: {value:d}"
-    # Insert value somewhere in the Unicode text
-    try:
-        test_text = f"{text[: len(text) // 2]} ID: {value} {text[len(text) // 2 :]}"
-    except UnicodeEncodeError:
-        pytest.skip("Cannot construct test text with given Unicode characters")
-
-    try:
-        result = search(pattern, test_text)
-        if result is not None:
-            assert result.named["value"] == value
-    except (UnicodeEncodeError, ValueError) as e:
-        # Some Unicode characters might cause encoding issues in the search function
-        # ValueError is raised for null bytes, which is expected behavior
-        if "null byte" in str(e).lower():
-            pytest.skip("Text contains null byte (rejected by implementation)")
-        pytest.skip(f"Unicode encoding issue in search: {e}")
+    test_text = f"{text[: len(text) // 2]} ID: {value} {text[len(text) // 2 :]}"
+    result = search(pattern, test_text)
+    assert result is not None, f"search found no match in {test_text!r}"
+    assert result.named["value"] == value
 
 
 @settings(max_examples=50)
 @given(
-    field_name=unicode_strings.filter(
-        lambda s: len(s) > 0 and len(s) < 20 and not any(c in s for c in "{}[]")
-    ),
+    field_name=unicode_field_name_strings.filter(lambda s: 0 < len(s) < 20),
     value=integers,
 )
 def test_unicode_field_names(field_name, value):
-    """Property: Unicode characters in field names should work"""
-    try:
-        pattern = f"{{{field_name}:d}}"
-        text = f"{value}"
-
-        result = parse(pattern, text)
-        if result is not None:
-            assert result.named[field_name] == value
-    except (KeyError, ValueError):
-        # Some Unicode characters might not be valid in field names
-        pass
+    """Property: Unicode (lowercase Greek) field names work in `{name:d}` patterns."""
+    pattern = f"{{{field_name}:d}}"
+    text = f"{value}"
+    result = parse(pattern, text)
+    assert result is not None, f"parse returned None for pattern={pattern!r} text={text!r}"
+    assert result.named[field_name] == value
 
 
 # ============================================================================

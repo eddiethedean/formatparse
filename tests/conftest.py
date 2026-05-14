@@ -10,27 +10,20 @@ _INDENT_BLOCK_SKIP_REASON = (
 
 
 def _native_indent_block_capable() -> bool:
-    """True when the extension implements :blk and multiline validation (issue #69)."""
+    """True when the native extension implements :blk (issue #69).
+
+    Single probe: compile a minimal :blk pattern and parse fixed sample text.
+    """
     try:
         from formatparse import compile
     except ImportError:
         return False
     try:
-        compile("{x:+blk}")
-    except ValueError as e:
-        msg = str(e).lower()
-        if "blk" not in msg and "multiline" not in msg:
-            return False
-    except Exception:
-        return False
-    else:
-        return False
-    try:
         p = compile("{x:blk}")
         r = p.parse("\n  hi\n  there")
-        return r is not None and r.named.get("x") == "hi\nthere"
     except Exception:
         return False
+    return r is not None and r.named.get("x") == "hi\nthere"
 
 
 def pytest_collection_modifyitems(config, items):
