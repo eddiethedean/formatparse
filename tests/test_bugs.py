@@ -120,7 +120,9 @@ def test_pickle_formatparser_does_not_restore_extra_types():
     del called[:]
     q = pickle.loads(pickle.dumps(p))
     q.parse("42")
-    assert called == [], "unpickled parser must not invoke original extra_types converter"
+    assert called == [], (
+        "unpickled parser must not invoke original extra_types converter"
+    )
 
 
 def test_unused_centered_alignment_bug():
