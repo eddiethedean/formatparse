@@ -17,7 +17,7 @@ The documentation includes:
 - **User Guides** - Comprehensive guides on patterns, datetime parsing, custom types, and bidirectional patterns
 - **API Reference** - Complete API documentation for all functions and classes
 - **Examples & Cookbook** - Practical examples and common use cases
-- **Changelog** - Release history in [CHANGELOG.md](CHANGELOG.md) in the repository
+- **Changelog** - Release history in [CHANGELOG.md](https://github.com/eddiethedean/formatparse/blob/main/CHANGELOG.md) in the repository
 
 ## Features
 
@@ -96,7 +96,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-For detailed contribution guidelines, including testing requirements and development setup, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For detailed contribution guidelines, including testing requirements and development setup, see [CONTRIBUTING.md](https://github.com/eddiethedean/formatparse/blob/main/CONTRIBUTING.md).
 
 ## Testing
 
@@ -121,11 +121,11 @@ pytest tests/ --cov=formatparse --cov-report=html
 pytest tests/test_performance.py --benchmark-only
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for more testing information.
+See [CONTRIBUTING.md](https://github.com/eddiethedean/formatparse/blob/main/CONTRIBUTING.md) for more testing information.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
+MIT License - see [LICENSE](https://github.com/eddiethedean/formatparse/blob/main/LICENSE) file for details
 
 ## Credits
 
