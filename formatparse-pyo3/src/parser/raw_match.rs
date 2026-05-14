@@ -295,8 +295,9 @@ mod tests {
     fn test_raw_match_data_with_capacity() {
         let data = RawMatchData::with_capacity(10);
         assert_eq!(data.fixed.capacity(), 10);
-        assert_eq!(data.named.capacity(), 10);
-        assert_eq!(data.field_spans.capacity(), 10);
+        // HashMap capacity is a lower bound; exact bucket capacity is implementation-defined.
+        assert!(data.named.capacity() >= 10);
+        assert!(data.field_spans.capacity() >= 10);
     }
 
     #[test]
