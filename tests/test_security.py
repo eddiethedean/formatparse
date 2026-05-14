@@ -238,7 +238,9 @@ def test_error_message_sanitization():
         error_msg = str(e)
         # Should not contain the full pattern
         assert len(error_msg) < 500, "Error message too long, may contain full pattern"
-        assert "a" * 80 not in error_msg, "Error message may contain a large slice of the pattern"
+        assert "a" * 80 not in error_msg, (
+            "Error message may contain a large slice of the pattern"
+        )
         lower = error_msg.lower()
         assert "target/debug" not in lower, "Error message may contain build path"
         assert ".rs:" not in lower, "Error message may contain Rust source path"

@@ -104,6 +104,13 @@ def compile(pattern: str, extra_types: Optional[ExtraTypes] = None) -> FormatPar
     without recompiling the regex, which improves performance for repeated
     parsing operations.
 
+    Repeated ``compile`` calls with the same *pattern* and equivalent
+    ``extra_types`` (same converter ``pattern`` and ``regex_group_count`` per
+    name) share the same internal compiled-regex cache as :func:`parse`,
+    :func:`search`, and :func:`findall`, so hot loops that call ``compile`` do
+    not pay full pattern-to-regex compilation on every iteration (see
+    `issue #29 <https://github.com/eddiethedean/formatparse/issues/29>`_).
+
     :param pattern: Format specification pattern (e.g., ``"{name}: {age:d}"``)
     :type pattern: str
     :param extra_types: Optional dictionary of custom type converters
