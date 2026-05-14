@@ -9,9 +9,9 @@ edition.workspace = true
 description = "Core Rust library for parsing strings using Python format() syntax (no Python bindings)"
 
 [dependencies]
-regex = "1.10"
-once_cell = "1.19"
+regex = "1.12.3"
+once_cell = "1.21.4"
 
 [dev-dependencies]
-proptest = "1.0"
+proptest = "1.10.0"
 
