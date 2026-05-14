@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **String fields with alignment + precision before a fixed-width integer** (e.g. ``"{n:>10.10}{x:02d}"``): leading fill in the regex is non-greedy so the slice for ``.{precision}`` is left for the following digit field (#88; related `parse#218 <https://github.com/r1chardj0n3s/parse/issues/218>`_).
 - **Default string fields next to literals** (e.g. ``"/{name}"``): an empty capture is allowed when it matches ``str.format`` output such as ``"/"`` for ``name=""`` (#83; upstream `parse#136 <https://github.com/r1chardj0n3s/parse/issues/136>`_). Applies to full-string **parse** / **compile().parse**; **search** / **findall** still use ``.+?`` for those segments so unanchored matching does not stop early.
 - **Integer `d`**: leading spaces and tabs before decimal digits are accepted (e.g. ``parse("{a:d}", "    0")``) for parity with padded ``str.format`` output (#81; upstream `parse#133 <https://github.com/r1chardj0n3s/parse/issues/133>`_).
 
