@@ -5,6 +5,7 @@ use crate::result::ParseResult;
 use formatparse_core::{count_capturing_groups, FieldSpec, FieldType};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use pyo3::IntoPyObjectExt;
 use regex::{Captures, Regex};
 use std::collections::HashMap;
 
@@ -108,13 +109,13 @@ pub fn insert_nested_dict(
             // It's not a dict, we can't nest - this is an error case
             // For now, just replace it (this shouldn't happen in practice)
             let new_dict = PyDict::new(py);
-            let new_dict_obj = new_dict.clone().into_py(py);
+            let new_dict_obj = new_dict.clone().into_py_any(py)?;
             named.insert(first_key.clone(), new_dict_obj);
             new_dict
         }
     } else {
         let new_dict = PyDict::new(py);
-        let new_dict_obj = new_dict.clone().into_py(py);
+        let new_dict_obj = new_dict.clone().into_py_any(py)?;
         named.insert(first_key.clone(), new_dict_obj);
         new_dict
     };
@@ -128,13 +129,13 @@ pub fn insert_nested_dict(
             } else {
                 // Not a dict, replace it
                 let new_dict = PyDict::new(py);
-                let new_dict_obj = new_dict.clone().into_py(py);
+                let new_dict_obj = new_dict.clone().into_py_any(py)?;
                 current_dict.set_item(key.as_str(), new_dict_obj)?;
                 new_dict
             }
         } else {
             let new_dict = PyDict::new(py);
-            let new_dict_obj = new_dict.clone().into_py(py);
+            let new_dict_obj = new_dict.clone().into_py_any(py)?;
             current_dict.set_item(key.as_str(), new_dict_obj)?;
             new_dict
         };
@@ -545,8 +546,8 @@ pub fn match_with_captures(
                             match named.get(original_name) {
                                 Some(existing_value) => {
                                     let are_equal: bool = {
-                                        let existing_obj = existing_value.to_object(py);
-                                        let converted_obj = converted.to_object(py);
+                                        let existing_obj = existing_value.clone_ref(py);
+                                        let converted_obj = converted.clone_ref(py);
                                         existing_obj
                                             .bind(py)
                                             .eq(converted_obj.bind(py))
@@ -602,8 +603,8 @@ pub fn match_with_captures(
                                 Some(existing_value) => {
                                     // Field exists - check if values match (repeated name case)
                                     let are_equal: bool = {
-                                        let existing_obj = existing_value.to_object(py);
-                                        let converted_obj = converted.to_object(py);
+                                        let existing_obj = existing_value.clone_ref(py);
+                                        let converted_obj = converted.clone_ref(py);
                                         existing_obj
                                             .bind(py)
                                             .eq(converted_obj.bind(py))
@@ -645,7 +646,7 @@ pub fn match_with_captures(
     if evaluate_result {
         let parse_result = ParseResult::new_with_spans(fixed, named, (start, end), field_spans);
         // Py::new() is already optimized when GIL is held
-        Ok(Some(Py::new(py, parse_result)?.to_object(py)))
+        Ok(Some(Py::new(py, parse_result)?.into_py_any(py)?))
     } else {
         // Create Match object with raw captures
         // Note: pattern is static, but Match needs owned String - this is acceptable
@@ -660,7 +661,7 @@ pub fn match_with_captures(
             span: (start, end),
             field_spans,
         });
-        Ok(Some(Py::new(py, match_obj)?.to_object(py)))
+        Ok(Some(Py::new(py, match_obj)?.into_py_any(py)?))
     }
 }
 
@@ -799,8 +800,8 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                                 match named.get(original_name) {
                                     Some(existing_value) => {
                                         let are_equal: bool = {
-                                            let existing_obj = existing_value.to_object(py);
-                                            let converted_obj = converted.to_object(py);
+                                            let existing_obj = existing_value.clone_ref(py);
+                                            let converted_obj = converted.clone_ref(py);
                                             existing_obj
                                                 .bind(py)
                                                 .eq(converted_obj.bind(py))
@@ -866,8 +867,8 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                                         // Field exists - check if values match (repeated name case)
                                         // Compare values using Python's equality (batch GIL operation)
                                         let are_equal: bool = {
-                                            let existing_obj = existing_value.to_object(py);
-                                            let converted_obj = converted.to_object(py);
+                                            let existing_obj = existing_value.clone_ref(py);
+                                            let converted_obj = converted.clone_ref(py);
                                             existing_obj
                                                 .bind(py)
                                                 .eq(converted_obj.bind(py))
@@ -928,7 +929,7 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
         if evaluate_result {
             let parse_result = ParseResult::new_with_spans(fixed, named, (start, end), field_spans);
             // Py::new() is already optimized when GIL is held
-            Ok(Some(Py::new(py, parse_result)?.to_object(py)))
+            Ok(Some(Py::new(py, parse_result)?.into_py_any(py)?))
         } else {
             // Create Match object with raw captures
             let match_obj = Match::new(MatchInit {
@@ -943,7 +944,7 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
             });
             // Use Py::new_bound for better performance
             // Py::new() is already optimized when GIL is held
-            Ok(Some(Py::new(py, match_obj)?.to_object(py)))
+            Ok(Some(Py::new(py, match_obj)?.into_py_any(py)?))
         }
     } else {
         Ok(None)
@@ -1013,8 +1014,8 @@ pub fn match_empty_default_string_parse(
                     match named.get(original_name) {
                         Some(existing_value) => {
                             let are_equal: bool = {
-                                let existing_obj = existing_value.to_object(py);
-                                let converted_obj = converted.to_object(py);
+                                let existing_obj = existing_value.clone_ref(py);
+                                let converted_obj = converted.clone_ref(py);
                                 existing_obj
                                     .bind(py)
                                     .eq(converted_obj.bind(py))
@@ -1048,7 +1049,7 @@ pub fn match_empty_default_string_parse(
 
     if evaluate_result {
         let parse_result = ParseResult::new_with_spans(fixed, named, (start, end), field_spans);
-        Ok(Some(Py::new(py, parse_result)?.to_object(py)))
+        Ok(Some(Py::new(py, parse_result)?.into_py_any(py)?))
     } else {
         let match_obj = Match::new(MatchInit {
             pattern: pattern.to_string(),
@@ -1060,6 +1061,6 @@ pub fn match_empty_default_string_parse(
             span: (start, end),
             field_spans,
         });
-        Ok(Some(Py::new(py, match_obj)?.to_object(py)))
+        Ok(Some(Py::new(py, match_obj)?.into_py_any(py)?))
     }
 }

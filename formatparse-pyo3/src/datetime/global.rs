@@ -1,6 +1,7 @@
 use crate::datetime::common::{get_month_map, parse_timezone, RE_TZ_IN_STRING};
 use once_cell::sync::Lazy;
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use regex::Regex;
 
 // Cached regex patterns for global datetime parsing
@@ -54,7 +55,7 @@ pub fn parse_global_datetime(py: Python, value: &str) -> PyResult<PyObject> {
                     let (h, m, s) = parse_time_with_ampm(time_only)?;
                     let tzinfo = parse_tz(tz_str)?;
                     let dt = datetime_class.call1((year, month, day, h, m, s, 0, tzinfo))?;
-                    return Ok(dt.to_object(py));
+                    return dt.into_py_any(py);
                 } else {
                     parse_time_with_ampm(time_str)?
                 }
@@ -64,7 +65,7 @@ pub fn parse_global_datetime(py: Python, value: &str) -> PyResult<PyObject> {
 
             let dt =
                 datetime_class.call1((year, month, day, hour, minute, second, 0, py.None()))?;
-            return Ok(dt.to_object(py));
+            return dt.into_py_any(py);
         }
     }
 
@@ -106,7 +107,7 @@ pub fn parse_global_datetime(py: Python, value: &str) -> PyResult<PyObject> {
             };
 
             let dt = datetime_class.call1((year, month, day, hour, minute, second, 0, tzinfo))?;
-            return Ok(dt.to_object(py));
+            return dt.into_py_any(py);
         }
     }
 

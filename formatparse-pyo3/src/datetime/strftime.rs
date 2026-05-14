@@ -1,6 +1,7 @@
 use crate::datetime::common::get_month_map;
 use crate::error::regex_error;
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use regex::Regex;
 
 /// Check if a PyErr is a regex group redefinition error from strptime
@@ -196,14 +197,14 @@ fn parse_strftime_fallback(py: Python, value: &str, format_str: &str) -> PyResul
             second.unwrap_or(0),
             microsecond.unwrap_or(0),
         ))?;
-        Ok(time_obj.to_object(py))
+        Ok(time_obj.into_py_any(py)?)
     } else if has_date && !has_time {
         // Date only
         let year_val = year.unwrap_or(1970);
         let month_val = month.unwrap_or(1);
         let day_val = day.unwrap_or(1);
         let date = date_class.call1((year_val, month_val, day_val))?;
-        Ok(date.to_object(py))
+        Ok(date.into_py_any(py)?)
     } else {
         // Both date and time (or neither - default to datetime)
         let year_val = year.unwrap_or(1970);
@@ -219,7 +220,7 @@ fn parse_strftime_fallback(py: Python, value: &str, format_str: &str) -> PyResul
             microsecond.unwrap_or(0),
             py.None(),
         ))?;
-        Ok(dt.to_object(py))
+        Ok(dt.into_py_any(py)?)
     }
 }
 
@@ -301,7 +302,7 @@ pub fn parse_strftime_datetime(py: Python, value: &str, format_str: &str) -> PyR
                 let second: u8 = dt.getattr("second")?.extract().unwrap_or(0);
                 let microsecond: u32 = dt.getattr("microsecond")?.extract().unwrap_or(0);
                 let time_obj = time_class.call1((hour, minute, second, microsecond))?;
-                Ok(time_obj.to_object(py))
+                Ok(time_obj.into_py_any(py)?)
             }
             Err(e) => {
                 // Check if this is a regex group redefinition error
@@ -332,7 +333,7 @@ pub fn parse_strftime_datetime(py: Python, value: &str, format_str: &str) -> PyR
                     let days = timedelta.call1((day_of_year as i32 - 1,))?;
                     let add_method = jan1.getattr("__add__")?;
                     let result_date = add_method.call1((days,))?;
-                    return Ok(result_date.to_object(py));
+                    return result_date.into_py_any(py);
                 }
             }
             // Handle %j without year (use current year)
@@ -348,7 +349,7 @@ pub fn parse_strftime_datetime(py: Python, value: &str, format_str: &str) -> PyR
                     let days = timedelta.call1((day_of_year as i32 - 1,))?;
                     let add_method = jan1.getattr("__add__")?;
                     let result_date = add_method.call1((days,))?;
-                    return Ok(result_date.to_object(py));
+                    return result_date.into_py_any(py);
                 }
             }
         }
@@ -363,7 +364,7 @@ pub fn parse_strftime_datetime(py: Python, value: &str, format_str: &str) -> PyR
                 let month: u8 = dt.getattr("month")?.extract()?;
                 let day: u8 = dt.getattr("day")?.extract()?;
                 let date = date_class.call1((year, month, day))?;
-                Ok(date.to_object(py))
+                Ok(date.into_py_any(py)?)
             }
             Err(e) => {
                 // Check if this is a regex group redefinition error
@@ -406,7 +407,7 @@ pub fn parse_strftime_datetime(py: Python, value: &str, format_str: &str) -> PyR
                                 PyErr::new::<pyo3::exceptions::PyValueError, _>("Invalid day")
                             })?;
                             let date = date_class.call1((year, month, day))?;
-                            return Ok(date.to_object(py));
+                            return date.into_py_any(py);
                         }
                     }
                 }
@@ -421,7 +422,7 @@ pub fn parse_strftime_datetime(py: Python, value: &str, format_str: &str) -> PyR
         // Both date and time: return datetime
         let strptime = datetime_class.getattr("strptime")?;
         match strptime.call1((value, format_str)) {
-            Ok(dt) => Ok(dt.to_object(py)),
+            Ok(dt) => Ok(dt.into_py_any(py)?),
             Err(e) => {
                 // Check if this is a regex group redefinition error
                 if is_regex_group_redefinition_error(&e) {

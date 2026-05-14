@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use regex::Regex;
 use std::collections::HashMap;
 
@@ -76,7 +77,7 @@ pub fn create_fixed_tz(py: Python, offset_minutes: i32, name: &str) -> PyResult<
     let fixed_tz_module = py.import("formatparse")?;
     let fixed_tz_class = fixed_tz_module.getattr("FixedTzOffset")?;
     let tz = fixed_tz_class.call1((offset_minutes, name.to_string()))?;
-    Ok(tz.to_object(py))
+    tz.into_py_any(py)
 }
 
 /// Parse timezone string into FixedTzOffset

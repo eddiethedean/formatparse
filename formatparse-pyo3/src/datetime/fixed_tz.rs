@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 
 /// Fixed timezone offset for datetime parsing
 #[pyclass]
@@ -62,7 +63,7 @@ impl FixedTzOffset {
         let timedelta_class = datetime_module.getattr("timedelta")?;
         // timedelta(seconds=offset_seconds)
         let delta = timedelta_class.call1((0, 0, self.offset_seconds))?;
-        Ok(delta.to_object(py))
+        delta.into_py_any(py)
     }
 
     /// tzinfo.dst() - returns None (no DST)

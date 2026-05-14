@@ -1,6 +1,7 @@
 use crate::datetime::common::{create_fixed_tz, get_abbreviated_month_map};
 use once_cell::sync::Lazy;
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use regex::Regex;
 
 // Cached regex patterns for RFC2822 datetime parsing
@@ -88,7 +89,7 @@ pub fn parse_rfc2822_datetime(py: Python, value: &str) -> PyResult<PyObject> {
             let tzinfo = create_fixed_tz(py, offset_minutes, "")?;
 
             let dt = datetime_class.call1((year, month, day, hour, minute, second, 0, tzinfo))?;
-            return Ok(dt.to_object(py));
+            return dt.into_py_any(py);
         }
     }
 
@@ -155,7 +156,7 @@ pub fn parse_rfc2822_datetime(py: Python, value: &str) -> PyResult<PyObject> {
             let tzinfo = create_fixed_tz(py, offset_minutes, "")?;
 
             let dt = datetime_class.call1((year, month, day, hour, minute, second, 0, tzinfo))?;
-            return Ok(dt.to_object(py));
+            return dt.into_py_any(py);
         }
     }
 
@@ -222,7 +223,7 @@ pub fn parse_rfc2822_datetime(py: Python, value: &str) -> PyResult<PyObject> {
             let tzinfo = create_fixed_tz(py, offset_minutes, "")?;
 
             let dt = datetime_class.call1((year, month, day, hour, minute, second, 0, tzinfo))?;
-            return Ok(dt.to_object(py));
+            return dt.into_py_any(py);
         }
     }
 

@@ -1,6 +1,7 @@
 use crate::datetime::common::{create_fixed_tz, parse_time_with_ampm, RE_TZ_COLON};
 use once_cell::sync::Lazy;
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use regex::Regex;
 
 // Cached regex pattern for timezone in time string
@@ -41,5 +42,5 @@ pub fn parse_time(py: Python, value: &str) -> PyResult<PyObject> {
     let (hour, minute, second) = parse_time_with_ampm(time_str)?;
 
     let time_obj = time_class.call1((hour, minute, second, 0, tzinfo))?;
-    Ok(time_obj.to_object(py))
+    time_obj.into_py_any(py)
 }

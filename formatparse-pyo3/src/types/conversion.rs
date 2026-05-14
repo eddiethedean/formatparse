@@ -2,6 +2,7 @@ use crate::datetime;
 use crate::error;
 use formatparse_core::{FieldSpec, FieldType};
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
 
 /// Validate alignment+precision constraints for string fields
@@ -180,7 +181,7 @@ pub fn convert_value(
         FieldType::String => {
             // Fast path: no alignment means no trimming needed
             if spec.alignment.is_none() {
-                Ok(value.to_object(py))
+                Ok(value.into_py_any(py)?)
             } else {
                 // Strip fill characters and whitespace based on alignment
                 let trimmed = match spec.alignment {
@@ -219,7 +220,7 @@ pub fn convert_value(
                     }
                     _ => value, // No alignment: keep as-is
                 };
-                Ok(trimmed.to_object(py))
+                Ok(trimmed.into_py_any(py)?)
             }
         }
         FieldType::Integer => {
@@ -230,7 +231,7 @@ pub fn convert_value(
             {
                 // Try parsing directly first (most common case)
                 if let Ok(n) = value.trim().parse::<i64>() {
-                    return Ok(n.to_object(py));
+                    return n.into_py_any(py);
                 }
             }
 
@@ -313,19 +314,19 @@ pub fn convert_value(
                 result.map(|n| if is_negative { -n } else { n })
             };
             match v {
-                Ok(n) => Ok(n.to_object(py)),
+                Ok(n) => Ok(n.into_py_any(py)?),
                 Err(_) => Err(error::conversion_error(value, "integer")),
             }
         }
         FieldType::Float => {
             // Fast path: try parsing directly first (most floats don't have leading/trailing spaces)
             match value.parse::<f64>() {
-                Ok(n) => Ok(n.to_object(py)),
+                Ok(n) => Ok(n.into_py_any(py)?),
                 Err(_) => {
                     // Fallback: strip whitespace and try again
                     let trimmed = value.trim();
                     match trimmed.parse::<f64>() {
-                        Ok(n) => Ok(n.to_object(py)),
+                        Ok(n) => Ok(n.into_py_any(py)?),
                         Err(_) => Err(error::conversion_error(value, "float")),
                     }
                 }
@@ -344,19 +345,19 @@ pub fn convert_value(
                     matches!(lower.as_str(), "true" | "1" | "yes" | "on")
                 }
             };
-            Ok(b.to_object(py))
+            Ok(b.into_py_any(py)?)
         }
-        FieldType::Letters => Ok(value.to_object(py)), // Letters are just strings
-        FieldType::Word => Ok(value.to_object(py)),    // Words are just strings
-        FieldType::NonLetters => Ok(value.to_object(py)), // Non-letters are just strings
-        FieldType::NonWhitespace => Ok(value.to_object(py)), // Non-whitespace are just strings
-        FieldType::NonDigits => Ok(value.to_object(py)), // Non-digits are just strings
+        FieldType::Letters => Ok(value.into_py_any(py)?), // Letters are just strings
+        FieldType::Word => Ok(value.into_py_any(py)?),    // Words are just strings
+        FieldType::NonLetters => Ok(value.into_py_any(py)?), // Non-letters are just strings
+        FieldType::NonWhitespace => Ok(value.into_py_any(py)?), // Non-whitespace are just strings
+        FieldType::NonDigits => Ok(value.into_py_any(py)?), // Non-digits are just strings
         FieldType::NumberWithThousands => {
             // Strip thousands separators (comma or dot) and parse as integer
             let trimmed = value.trim();
             let cleaned = trimmed.replace(",", "").replace(".", "");
             match cleaned.parse::<i64>() {
-                Ok(n) => Ok(n.to_object(py)),
+                Ok(n) => Ok(n.into_py_any(py)?),
                 Err(_) => Err(error::conversion_error(value, "number with thousands")),
             }
         }
@@ -364,7 +365,7 @@ pub fn convert_value(
             // Parse as float (supports scientific notation)
             let trimmed = value.trim();
             match trimmed.parse::<f64>() {
-                Ok(n) => Ok(n.to_object(py)),
+                Ok(n) => Ok(n.into_py_any(py)?),
                 Err(_) => Err(error::conversion_error(value, "scientific notation")),
             }
         }
@@ -374,17 +375,17 @@ pub fn convert_value(
             let lower = trimmed.to_lowercase();
             // Check for nan/inf first
             if lower == "nan" {
-                Ok(f64::NAN.to_object(py))
+                Ok(f64::NAN.into_py_any(py)?)
             } else if lower == "inf" || lower == "+inf" {
-                Ok(f64::INFINITY.to_object(py))
+                Ok(f64::INFINITY.into_py_any(py)?)
             } else if lower == "-inf" {
-                Ok(f64::NEG_INFINITY.to_object(py))
+                Ok(f64::NEG_INFINITY.into_py_any(py)?)
             } else {
                 // Try int first
                 if let Ok(n) = trimmed.parse::<i64>() {
-                    Ok(n.to_object(py))
+                    Ok(n.into_py_any(py)?)
                 } else if let Ok(n) = trimmed.parse::<f64>() {
-                    Ok(n.to_object(py))
+                    Ok(n.into_py_any(py)?)
                 } else {
                     Err(error::conversion_error(value, "number"))
                 }
@@ -395,7 +396,7 @@ pub fn convert_value(
             let trimmed = value.trim();
             let num_str = trimmed.trim_end_matches('%');
             match num_str.parse::<f64>() {
-                Ok(n) => Ok((n / 100.0).to_object(py)),
+                Ok(n) => Ok((n / 100.0).into_py_any(py)?),
                 Err(_) => Err(error::conversion_error(value, "percentage")),
             }
         }
@@ -411,13 +412,13 @@ pub fn convert_value(
             if let Some(fmt) = &spec.strftime_format {
                 datetime::parse_strftime_datetime(py, value, fmt)
             } else {
-                Ok(value.to_object(py))
+                Ok(value.into_py_any(py)?)
             }
         }
-        FieldType::BracedContent => Ok(value.to_object(py)),
+        FieldType::BracedContent => Ok(value.into_py_any(py)?),
         FieldType::Custom(_) => {
             // Already handled above
-            Ok(value.to_object(py))
+            Ok(value.into_py_any(py)?)
         }
     }
 }

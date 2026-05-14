@@ -2,6 +2,7 @@ use crate::parser::raw_match::RawMatchData;
 use pyo3::exceptions::{PyIndexError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
+use pyo3::IntoPyObjectExt;
 
 /// Results container that stores raw match data and lazily converts to ParseResult
 /// This avoids creating all ParseResult objects upfront, improving performance
@@ -30,12 +31,12 @@ impl Results {
         let mut py_results: Vec<PyObject> = Vec::with_capacity(self.raw_data.len());
         for raw_data in &self.raw_data {
             let parse_result = raw_data.to_parse_result(py)?;
-            py_results.push(parse_result.to_object(py));
+            py_results.push(parse_result.into_py_any(py)?);
         }
 
         let items: Vec<_> = py_results.iter().map(|obj| obj.bind(py)).collect();
-        let results_list = PyList::new_bound(py, items);
-        let list_obj = results_list.to_object(py);
+        let results_list = PyList::new(py, items)?;
+        let list_obj = results_list.into_py_any(py)?;
 
         // Cache the result
         self.cached_results = Some(list_obj.clone_ref(py));
@@ -50,7 +51,7 @@ impl Results {
 
         let raw_data = &self.raw_data[index];
         let parse_result = raw_data.to_parse_result(py)?;
-        Ok(parse_result.to_object(py))
+        parse_result.into_py_any(py)
     }
 }
 
@@ -92,7 +93,7 @@ impl Results {
             // Use Python's __getitem__ to handle the slice
             let list_bound = list.bind(py);
             let slice_result = list_bound.get_item(key)?;
-            Ok(slice_result.to_object(py))
+            Ok(slice_result.into_py_any(py)?)
         } else {
             Err(PyTypeError::new_err(
                 "list indices must be integers or slices",
@@ -147,7 +148,7 @@ impl ResultsIterator {
             let results = self.results.bind(py);
             // Convert all items in a single batch (one GIL block)
             let list = results.call_method0("to_list")?;
-            self.cached_list = Some(list.to_object(py));
+            self.cached_list = Some(list.into_py_any(py)?);
         }
 
         // Now iterate over the cached list (no FFI overhead)
@@ -165,6 +166,6 @@ impl ResultsIterator {
 
         let item = list_bound.get_item(self.index)?;
         self.index += 1;
-        Ok(Some(item.to_object(py)))
+        Ok(Some(item.into_py_any(py)?))
     }
 }
