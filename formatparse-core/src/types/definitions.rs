@@ -6,24 +6,24 @@ pub enum FieldType {
     Integer,
     Float,
     Boolean,
-    Letters,      // 'l' - matches only letters
-    Word,         // 'w' - matches word characters (letters, digits, underscore)
-    NonLetters,   // 'W' - matches non-letter characters
-    NonWhitespace,// 'S' - matches non-whitespace characters
-    NonDigits,    // 'D' - matches non-digit characters
+    Letters,             // 'l' - matches only letters
+    Word,                // 'w' - matches word characters (letters, digits, underscore)
+    NonLetters,          // 'W' - matches non-letter characters
+    NonWhitespace,       // 'S' - matches non-whitespace characters
+    NonDigits,           // 'D' - matches non-digit characters
     NumberWithThousands, // 'n' - numbers with thousands separators
-    Scientific,   // 'e' - scientific notation
-    GeneralNumber,// 'g' - general number (int or float)
-    Percentage,   // '%' - percentage
-    DateTimeISO,  // 'ti' - ISO 8601 datetime format
-    DateTimeRFC2822, // 'te' - RFC2822 email format
-    DateTimeGlobal, // 'tg' - Global (day/month) format
-    DateTimeUS,   // 'ta' - US (month/day) format
-    DateTimeCtime, // 'tc' - ctime() format
-    DateTimeHTTP, // 'th' - HTTP log format
-    DateTimeTime, // 'tt' - Time format
-    DateTimeSystem, // 'ts' - Linux system log format
-    DateTimeStrftime, // For %Y-%m-%d style patterns
+    Scientific,          // 'e' - scientific notation
+    GeneralNumber,       // 'g' - general number (int or float)
+    Percentage,          // '%' - percentage
+    DateTimeISO,         // 'ti' - ISO 8601 datetime format
+    DateTimeRFC2822,     // 'te' - RFC2822 email format
+    DateTimeGlobal,      // 'tg' - Global (day/month) format
+    DateTimeUS,          // 'ta' - US (month/day) format
+    DateTimeCtime,       // 'tc' - ctime() format
+    DateTimeHTTP,        // 'th' - HTTP log format
+    DateTimeTime,        // 'tt' - Time format
+    DateTimeSystem,      // 'ts' - Linux system log format
+    DateTimeStrftime,    // For %Y-%m-%d style patterns
     Custom(String),
 }
 
@@ -94,13 +94,13 @@ mod tests {
         let t1 = FieldType::String;
         let t2 = FieldType::String;
         let t3 = FieldType::Integer;
-        
+
         // Test pattern matching (since FieldType doesn't implement Eq)
         match (&t1, &t2) {
             (FieldType::String, FieldType::String) => (),
             _ => panic!("Should match"),
         }
-        
+
         match (&t1, &t3) {
             (FieldType::String, FieldType::Integer) => (),
             _ => panic!("Should be different"),
@@ -148,4 +148,3 @@ mod tests {
         assert_eq!(cloned.width, spec.width);
     }
 }
-

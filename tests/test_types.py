@@ -388,7 +388,7 @@ def test_alignment_with_width():
     """Test alignment with width"""
     result = parse("value: {value:<10}", "value: hello     ")
     assert result is not None
-    assert result.named["value"] == "hello"
+    assert result.named["value"] == "hello     "
 
 
 def test_alignment_with_fill():

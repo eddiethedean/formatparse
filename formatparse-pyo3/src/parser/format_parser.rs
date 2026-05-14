@@ -1,8 +1,8 @@
 use crate::error;
+use formatparse_core::parser::{validate_input_length, validate_pattern_length, MAX_FIELDS};
 use formatparse_core::FieldSpec;
-use formatparse_core::parser::{validate_pattern_length, validate_input_length, MAX_FIELDS};
-use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use pyo3::types::{PyString, PyTuple};
 use regex::Regex;
 use std::collections::HashMap;
@@ -14,19 +14,19 @@ pub struct FormatParser {
     // The dead_code warning is a false positive - the compiler doesn't recognize PyO3 getter usage.
     pub pattern: String,
     regex: Regex,
-    regex_str: String,  // Store the regex string for _expression property
+    regex_str: String, // Store the regex string for _expression property
     regex_case_insensitive: Option<Regex>,
-    search_regex: Regex,  // Pre-compiled search regex (case-sensitive, no anchors)
-    search_regex_case_insensitive: Option<Regex>,  // Pre-compiled search regex (case-insensitive, no anchors)
+    search_regex: Regex, // Pre-compiled search regex (case-sensitive, no anchors)
+    search_regex_case_insensitive: Option<Regex>, // Pre-compiled search regex (case-insensitive, no anchors)
     pub(crate) field_specs: Vec<FieldSpec>,
-    pub(crate) field_names: Vec<Option<String>>,  // Original field names (with hyphens/dots)
-    pub(crate) normalized_names: Vec<Option<String>>,  // Normalized names for regex groups (hyphens->underscores)
+    pub(crate) field_names: Vec<Option<String>>, // Original field names (with hyphens/dots)
+    pub(crate) normalized_names: Vec<Option<String>>, // Normalized names for regex groups (hyphens->underscores)
     #[allow(dead_code)]
-    name_mapping: std::collections::HashMap<String, String>,  // Map normalized -> original
-    stored_extra_types: Option<HashMap<String, PyObject>>,  // Store extra_types for use during conversion
-    pub(crate) custom_type_groups: Vec<usize>,  // Cached pattern_groups per field (for custom types)
-    pub(crate) field_count: usize,  // Cached field count for fast path optimizations
-    pub(crate) has_nested_dict_fields: Vec<bool>,  // Cached flags: does field name contain '[' (nested dict)?
+    name_mapping: std::collections::HashMap<String, String>, // Map normalized -> original
+    stored_extra_types: Option<HashMap<String, PyObject>>, // Store extra_types for use during conversion
+    pub(crate) custom_type_groups: Vec<usize>, // Cached pattern_groups per field (for custom types)
+    pub(crate) field_count: usize,             // Cached field count for fast path optimizations
+    pub(crate) has_nested_dict_fields: Vec<bool>, // Cached flags: does field name contain '[' (nested dict)?
 }
 
 impl FormatParser {
@@ -34,16 +34,18 @@ impl FormatParser {
         Self::new_with_extra_types(pattern, None)
     }
 
-    pub fn new_with_extra_types(pattern: &str, extra_types: Option<HashMap<String, PyObject>>) -> PyResult<Self> {
+    pub fn new_with_extra_types(
+        pattern: &str,
+        extra_types: Option<HashMap<String, PyObject>>,
+    ) -> PyResult<Self> {
         // Validate pattern length
-        validate_pattern_length(pattern)
-            .map_err(|e| PyValueError::new_err(e))?;
-        
+        validate_pattern_length(pattern).map_err(PyValueError::new_err)?;
+
         // Check for null bytes in pattern
         if pattern.contains('\0') {
             return Err(PyValueError::new_err("Pattern contains null byte"));
         }
-        
+
         // Extract patterns from converter functions and build custom_patterns map
         let custom_patterns = Python::with_gil(|py| -> PyResult<HashMap<String, String>> {
             let mut patterns = HashMap::new();
@@ -60,9 +62,16 @@ impl FormatParser {
             }
             Ok(patterns)
         })?;
-        
-        let (regex_str_with_anchors, regex_str, field_specs, field_names, normalized_names, name_mapping) = crate::parser::pattern::parse_pattern(pattern, extra_types.as_ref(), &custom_patterns)?;
-        
+
+        let (
+            regex_str_with_anchors,
+            regex_str,
+            field_specs,
+            field_names,
+            normalized_names,
+            name_mapping,
+        ) = crate::parser::pattern::parse_pattern(pattern, extra_types.as_ref(), &custom_patterns)?;
+
         // Validate field count
         if field_specs.len() > MAX_FIELDS {
             return Err(PyValueError::new_err(format!(
@@ -71,17 +80,24 @@ impl FormatParser {
                 MAX_FIELDS
             )));
         }
-        
+
         // Pre-compute custom type validation results (pattern_groups per field)
         // This avoids calling validate_custom_type_pattern for every match
         let custom_type_groups = Python::with_gil(|py| -> PyResult<Vec<usize>> {
             let mut groups = Vec::with_capacity(field_specs.len());
             let empty_map = std::collections::HashMap::new();
-            let custom_converters = extra_types.as_ref().map(|et| et as &HashMap<String, PyObject>).unwrap_or(&empty_map);
-            
+            let custom_converters = extra_types
+                .as_ref()
+                .map(|et| et as &HashMap<String, PyObject>)
+                .unwrap_or(&empty_map);
+
             for spec in &field_specs {
                 if !custom_converters.is_empty() {
-                    let pattern_groups = crate::parser::matching::validate_custom_type_pattern(spec, custom_converters, py)?;
+                    let pattern_groups = crate::parser::matching::validate_custom_type_pattern(
+                        spec,
+                        custom_converters,
+                        py,
+                    )?;
                     groups.push(pattern_groups);
                 } else {
                     groups.push(0);
@@ -89,25 +105,27 @@ impl FormatParser {
             }
             Ok(groups)
         })?;
-        
+
         // Pre-compute which fields have nested dict names (contain '[')
         // This avoids checking original_name.contains('[') in the hot path
-        let has_nested_dict_fields: Vec<bool> = field_names.iter()
+        let has_nested_dict_fields: Vec<bool> = field_names
+            .iter()
             .map(|name_opt| name_opt.as_ref().map(|n| n.contains('[')).unwrap_or(false))
             .collect();
-        
+
         // Build regex with DOTALL flag
         let regex = formatparse_core::build_regex(&regex_str_with_anchors)
-            .map_err(|e| crate::error::core_error_to_py_err(e))?;
+            .map_err(crate::error::core_error_to_py_err)?;
 
         // Build case-insensitive regex
-        let regex_case_insensitive = formatparse_core::build_case_insensitive_regex(&regex_str_with_anchors);
+        let regex_case_insensitive =
+            formatparse_core::build_case_insensitive_regex(&regex_str_with_anchors);
 
         // Pre-compile search regex variants (without anchors)
         let search_regex = formatparse_core::build_search_regex(regex.as_str(), true)
-            .map_err(|e| crate::error::core_error_to_py_err(e))?;
-        let search_regex_case_insensitive = formatparse_core::build_search_regex(regex.as_str(), false)
-            .ok();
+            .map_err(crate::error::core_error_to_py_err)?;
+        let search_regex_case_insensitive =
+            formatparse_core::build_search_regex(regex.as_str(), false).ok();
 
         Ok(Self {
             pattern: pattern.to_string(),
@@ -122,8 +140,8 @@ impl FormatParser {
             name_mapping,
             stored_extra_types: extra_types,
             custom_type_groups,
-            field_count: field_specs.len(),  // Cache field count for fast path
-            has_nested_dict_fields,  // Cache nested dict flags
+            field_count: field_specs.len(), // Cache field count for fast path
+            has_nested_dict_fields,         // Cache nested dict flags
         })
     }
 
@@ -138,9 +156,11 @@ impl FormatParser {
         let search_regex = if case_sensitive {
             &self.search_regex
         } else {
-            self.search_regex_case_insensitive.as_ref().unwrap_or(&self.search_regex)
+            self.search_regex_case_insensitive
+                .as_ref()
+                .unwrap_or(&self.search_regex)
         };
-        
+
         Python::with_gil(|py| {
             if search_regex.captures(string).is_some() {
                 let extra_types_ref = if let Some(ref et) = extra_types {
@@ -197,28 +217,30 @@ impl FormatParser {
             )
         })
     }
-    
+
     #[allow(dead_code)]
     pub(crate) fn get_field_specs(&self) -> &Vec<FieldSpec> {
         &self.field_specs
     }
-    
+
     #[allow(dead_code)]
     pub(crate) fn get_field_names(&self) -> &Vec<Option<String>> {
         &self.field_names
     }
-    
+
     #[allow(dead_code)]
     pub(crate) fn get_normalized_names(&self) -> &Vec<Option<String>> {
         &self.normalized_names
     }
-    
+
     /// Get the search regex for a given case sensitivity
     pub(crate) fn get_search_regex(&self, case_sensitive: bool) -> &Regex {
         if case_sensitive {
             &self.search_regex
         } else {
-            self.search_regex_case_insensitive.as_ref().unwrap_or(&self.search_regex)
+            self.search_regex_case_insensitive
+                .as_ref()
+                .unwrap_or(&self.search_regex)
         }
     }
 }
@@ -227,18 +249,22 @@ impl FormatParser {
 impl FormatParser {
     #[new]
     #[pyo3(signature = (pattern=None, extra_types=None))]
-    fn new_py(pattern: Option<&str>, extra_types: Option<HashMap<String, PyObject>>) -> PyResult<Self> {
+    fn new_py(
+        pattern: Option<&str>,
+        extra_types: Option<HashMap<String, PyObject>>,
+    ) -> PyResult<Self> {
         match pattern {
             Some(p) => {
                 // Validate pattern length if provided
-                validate_pattern_length(p)
-                    .map_err(|e| PyValueError::new_err(e))?;
+                validate_pattern_length(p).map_err(PyValueError::new_err)?;
                 Self::new_with_extra_types(p, extra_types)
-            },
+            }
             None => {
                 // Create a dummy instance for unpickling - __setstate__ will initialize it properly
                 // We need to create a valid but minimal instance
-                let empty_regex = Regex::new("^$").map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid regex: {}", e)))?;
+                let empty_regex = Regex::new("^$").map_err(|e| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid regex: {}", e))
+                })?;
                 Ok(Self {
                     pattern: String::new(),
                     regex: empty_regex.clone(),
@@ -269,27 +295,30 @@ impl FormatParser {
         evaluate_result: bool,
     ) -> PyResult<Option<PyObject>> {
         // Validate input length
-        validate_input_length(string)
-            .map_err(|e| PyValueError::new_err(e))?;
-        
+        validate_input_length(string).map_err(PyValueError::new_err)?;
+
         // Check for null bytes
         if string.contains('\0') {
             return Err(PyValueError::new_err("Input string contains null byte"));
         }
         // Merge stored extra_types with provided extra_types (provided takes precedence)
-        let merged_extra_types = Python::with_gil(|py| -> PyResult<Option<HashMap<String, PyObject>>> {
-            let mut merged = if let Some(ref stored) = self.stored_extra_types {
-                stored.iter().map(|(k, v)| (k.clone(), v.clone_ref(py).into())).collect()
-            } else {
-                HashMap::new()
-            };
-            if let Some(ref provided) = extra_types {
-                for (k, v) in provided {
-                    merged.insert(k.clone(), v.clone_ref(py).into());
+        let merged_extra_types =
+            Python::with_gil(|py| -> PyResult<Option<HashMap<String, PyObject>>> {
+                let mut merged = if let Some(ref stored) = self.stored_extra_types {
+                    stored
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                        .collect()
+                } else {
+                    HashMap::new()
+                };
+                if let Some(ref provided) = extra_types {
+                    for (k, v) in provided {
+                        merged.insert(k.clone(), v.clone_ref(py));
+                    }
                 }
-            }
-            Ok(Some(merged))
-        })?;
+                Ok(Some(merged))
+            })?;
         self.parse_internal(string, case_sensitive, merged_extra_types, evaluate_result)
     }
 
@@ -297,7 +326,8 @@ impl FormatParser {
     #[getter]
     fn named_fields(&self) -> Vec<String> {
         // Return normalized names (without hyphens/dots) for compatibility with original parse library
-        self.normalized_names.iter()
+        self.normalized_names
+            .iter()
             .filter_map(|n| n.clone())
             .collect()
     }
@@ -307,34 +337,34 @@ impl FormatParser {
     #[getter]
     fn _expression(&self) -> String {
         let mut result = self.regex_str.clone();
-        
+
         // Replace \s+ between capturing groups with literal spaces for canonical format
         // This matches the original parse library's _expression format
         result = result.replace(r")\s+(", ") (");
         // Also replace )\s*( with ) ( for backward compatibility
         result = result.replace(r")\s*(", ") (");
-        
+
         // Simplify float patterns to match expected format
         // Our pattern: ([+-]?(?:\d+\.\d+|\.\d+|\d+\.)(?:[eE][+-]?\d+)?)
         // Expected: ([-+ ]?\d*\.\d+)
         // Replace the complex float pattern with the simpler one
         result = result.replace(
             r"([+-]?(?:\d+\.\d+|\.\d+|\d+\.)(?:[eE][+-]?\d+)?)",
-            r"([-+ ]?\d*\.\d+)"
+            r"([-+ ]?\d*\.\d+)",
         );
-        
+
         // For alignment patterns like {:>} that produce "( *(.+?))", we need to unwrap
         // the outer capturing group to get " *(.+?)" (no outer wrapper)
         // Only do this for patterns that start with "(" and end with ")" and contain nested groups
         if result.starts_with("(") && result.ends_with(")") {
-            let inner = &result[1..result.len()-1];
+            let inner = &result[1..result.len() - 1];
             // Check if inner already starts with a space and contains a capturing group
             if inner.starts_with(" *(") && inner.ends_with(")") {
                 // This is a simple wrapper, unwrap it
                 result = inner.to_string();
             }
         }
-        
+
         result
     }
 
@@ -356,21 +386,20 @@ impl FormatParser {
         evaluate_result: bool,
     ) -> PyResult<Option<PyObject>> {
         // Validate input length
-        validate_input_length(string)
-            .map_err(|e| PyValueError::new_err(e))?;
-        
+        validate_input_length(string).map_err(PyValueError::new_err)?;
+
         // Check for null bytes
         if string.contains('\0') {
             return Err(PyValueError::new_err("Input string contains null byte"));
         }
-        
+
         self.search_pattern(string, case_sensitive, extra_types, evaluate_result)
     }
 
     /// Pickle support: rebuild with `compile(pattern)` so unpickling never relies on
     /// `FormatParser.__new__` argument conventions across PyO3 / pickle versions.
     fn __reduce__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let m = py.import_bound("_formatparse")?;
+        let m = py.import("_formatparse")?;
         let compile_fn = m.getattr("compile")?;
         let args = PyTuple::new_bound(py, [&self.pattern]);
         Ok(PyTuple::new_bound(py, [compile_fn.as_any(), args.as_any()]).into_py(py))
@@ -388,11 +417,14 @@ impl FormatParser {
     fn __setstate__(&mut self, _py: Python, state: &Bound<'_, PyAny>) -> PyResult<()> {
         use pyo3::types::PyDict;
         let dict = state.downcast::<PyDict>()?;
-        let pattern: String = dict.get_item("pattern")?.ok_or_else(|| error::missing_field_error("pattern"))?.extract()?;
-        
+        let pattern: String = dict
+            .get_item("pattern")?
+            .ok_or_else(|| error::missing_field_error("pattern"))?
+            .extract()?;
+
         // Reconstruct the parser from the pattern
         let reconstructed = Self::new_with_extra_types(&pattern, None)?;
-        
+
         // Copy all fields from reconstructed parser
         self.pattern = reconstructed.pattern;
         self.regex_str = reconstructed.regex_str;
@@ -425,7 +457,7 @@ impl Format {
         // Use Python's string format method to format values into the pattern
         let pattern_obj = PyString::new_bound(py, &self.pattern);
         let format_method = pattern_obj.getattr("format")?;
-        
+
         // Call format with the args (can be a single value, tuple, or *args)
         let result = if let Ok(tuple) = args.downcast::<PyTuple>() {
             format_method.call1(tuple)?
@@ -436,4 +468,3 @@ impl Format {
         result.extract()
     }
 }
-

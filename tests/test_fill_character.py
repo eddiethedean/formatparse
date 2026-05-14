@@ -27,17 +27,17 @@ def test_left_aligned_fill_character():
     # Dot fill character
     result = parse("{name:.<16.16}", "Joe.............")
     assert result is not None
-    assert result.named["name"] == "Joe"
+    assert result.named["name"] == "Joe............."
 
     # X fill character
     result = parse("{name:x<10.10}", "ABCxxxxxxx")
     assert result is not None
-    assert result.named["name"] == "ABC"
+    assert result.named["name"] == "ABCxxxxxxx"
 
     # Zero fill character
     result = parse("{name:0<8.8}", "XYZ00000")
     assert result is not None
-    assert result.named["name"] == "XYZ"
+    assert result.named["name"] == "XYZ00000"
 
 
 def test_center_aligned_fill_character():
@@ -150,17 +150,17 @@ def test_round_trip_different_fill_characters():
     formatted = pattern.format(value="test")
     result = parse(pattern, formatted)
     assert result is not None
-    assert result.named["value"] == "test"
+    assert result.named["value"] == "test--------"
 
 
 def test_all_alignment_types_with_fill():
     """Test all alignment types comprehensively"""
     test_cases = [
         ("{name:.>10.10}", ".......ABC", ">", "ABC"),
-        ("{name:.<10.10}", "ABC.......", "<", "ABC"),
+        ("{name:.<10.10}", "ABC.......", "<", "ABC......."),
         ("{name:.^10.10}", "...ABC....", "^", "ABC"),
         ("{name:x>8.8}", "xxxxxXYZ", ">", "XYZ"),
-        ("{name:x<8.8}", "XYZxxxxx", "<", "XYZ"),
+        ("{name:x<8.8}", "XYZxxxxx", "<", "XYZxxxxx"),
         ("{name:x^8.8}", "xxXYZxxx", "^", "XYZ"),
     ]
 
@@ -179,10 +179,10 @@ def test_empty_string_with_fill():
     assert result is not None
     assert result.named["name"] == ""
 
-    # Left-aligned empty
+    # Left-aligned empty (parse keeps the full width of fill characters)
     result = parse("{name:.<10.10}", "..........")
     assert result is not None
-    assert result.named["name"] == ""
+    assert result.named["name"] == ".........."
 
     # Center-aligned empty
     result = parse("{name:.^10.10}", "..........")

@@ -1,5 +1,5 @@
-use formatparse_core::{FieldSpec, FieldType};
 use crate::error;
+use formatparse_core::{FieldSpec, FieldType};
 use pyo3::prelude::*;
 use regex;
 use std::collections::HashMap;
@@ -9,15 +9,22 @@ pub fn parse_pattern(
     pattern: &str,
     extra_types: Option<&HashMap<String, PyObject>>,
     custom_patterns: &HashMap<String, String>,
-) -> PyResult<(String, String, Vec<FieldSpec>, Vec<Option<String>>, Vec<Option<String>>, HashMap<String, String>)> {
+) -> PyResult<(
+    String,
+    String,
+    Vec<FieldSpec>,
+    Vec<Option<String>>,
+    Vec<Option<String>>,
+    HashMap<String, String>,
+)> {
     // Pre-allocate with estimated capacity based on pattern length
     let estimated_fields = pattern.matches('{').count();
     let mut regex_parts = Vec::with_capacity(estimated_fields * 2);
     let mut field_specs = Vec::with_capacity(estimated_fields);
-    let mut field_names = Vec::with_capacity(estimated_fields);  // Original names
-    let mut normalized_names = Vec::with_capacity(estimated_fields);  // Normalized for regex
-    let mut name_mapping = HashMap::with_capacity(estimated_fields);  // normalized -> original
-    let mut field_name_types = HashMap::with_capacity(estimated_fields);  // Track field name -> FieldType for validation
+    let mut field_names = Vec::with_capacity(estimated_fields); // Original names
+    let mut normalized_names = Vec::with_capacity(estimated_fields); // Normalized for regex
+    let mut name_mapping = HashMap::with_capacity(estimated_fields); // normalized -> original
+    let mut field_name_types = HashMap::with_capacity(estimated_fields); // Track field name -> FieldType for validation
     let mut chars: std::iter::Peekable<std::str::Chars> = pattern.chars().peekable();
     let mut literal = String::new();
 
@@ -52,7 +59,7 @@ pub fn parse_pattern(
 
                 // Parse field specification
                 let (spec, name) = parse_field(&mut chars, extra_types)?;
-                
+
                 // Check if the next field (if any) is empty {} (non-greedy)
                 // This affects width-only string patterns: exact when followed by {}, greedy otherwise
                 let mut peek_chars = chars.clone();
@@ -63,7 +70,7 @@ pub fn parse_pattern(
                         if ch.is_whitespace() {
                             peek_chars.next();
                         } else if ch == '}' {
-                            peek_chars.next();  // Consume the closing brace
+                            peek_chars.next(); // Consume the closing brace
                             found_closing = true;
                             break;
                         } else {
@@ -71,7 +78,7 @@ pub fn parse_pattern(
                         }
                     }
                     if !found_closing {
-                        break None;  // No more fields
+                        break None; // No more fields
                     }
                     // Skip any whitespace after the closing brace
                     while let Some(&ch) = peek_chars.peek() {
@@ -87,7 +94,7 @@ pub fn parse_pattern(
                         // Check if it's escaped
                         if peek_chars.peek() == Some(&'{') {
                             peek_chars.next();
-                            continue;  // Escaped brace, continue
+                            continue; // Escaped brace, continue
                         }
                         // Found a field - check if it's empty {} or has precision
                         if peek_chars.peek() == Some(&'}') {
@@ -127,9 +134,9 @@ pub fn parse_pattern(
                         break None;
                     }
                 };
-                
+
                 let pattern = spec.to_regex_pattern(custom_patterns, next_field_is_greedy);
-                
+
                 // Validate repeated field names have same type
                 if let Some(ref original_name) = name {
                     if let Some(existing_type) = field_name_types.get(original_name) {
@@ -141,26 +148,30 @@ pub fn parse_pattern(
                         field_name_types.insert(original_name.clone(), spec.field_type.clone());
                     }
                 }
-                
+
                 // Handle name normalization for regex groups
                 if let Some(ref original_name) = name {
                     // Check if field name is numeric (numbered field like {0}, {1}) - these should be positional
                     let is_numeric = original_name.chars().all(|c| c.is_ascii_digit());
-                    
+
                     if is_numeric {
                         // Numbered fields are positional (unnamed groups), not named groups
                         let group_pattern = format!("({})", pattern);
                         regex_parts.push(group_pattern);
-                        field_names.push(None);  // Store as None (positional)
+                        field_names.push(None); // Store as None (positional)
                         normalized_names.push(None);
                     } else {
                         // Normalize name: replace hyphens/dots with underscores, handle collisions
-                        let normalized = normalize_field_name(original_name, &mut name_mapping, &normalized_names);
+                        let normalized = normalize_field_name(
+                            original_name,
+                            &mut name_mapping,
+                            &normalized_names,
+                        );
                         let group_pattern = format!("(?P<{}>{})", normalized, pattern);
                         regex_parts.push(group_pattern);
-                        field_names.push(Some(original_name.clone()));  // Store original
-                        normalized_names.push(Some(normalized.clone()));  // Store normalized
-                        name_mapping.insert(normalized, original_name.clone());  // Map normalized -> original
+                        field_names.push(Some(original_name.clone())); // Store original
+                        normalized_names.push(Some(normalized.clone())); // Store normalized
+                        name_mapping.insert(normalized, original_name.clone()); // Map normalized -> original
                     }
                 } else {
                     let group_pattern = format!("({})", pattern);
@@ -172,7 +183,9 @@ pub fn parse_pattern(
 
                 // Expect closing brace
                 if chars.next() != Some('}') {
-                    return Err(error::pattern_error("Expected '}' after field specification"));
+                    return Err(error::pattern_error(
+                        "Expected '}' after field specification",
+                    ));
                 }
             }
             '}' => {
@@ -206,23 +219,40 @@ pub fn parse_pattern(
 
     let regex_str = regex_parts.join("");
     let regex_str_with_anchors = format!("^{}$", regex_str);
-    Ok((regex_str_with_anchors, regex_str, field_specs, field_names, normalized_names, name_mapping))
+    Ok((
+        regex_str_with_anchors,
+        regex_str,
+        field_specs,
+        field_names,
+        normalized_names,
+        name_mapping,
+    ))
 }
 
 /// Normalize field name (hyphens/dots -> underscores) and handle collisions
-pub fn normalize_field_name(name: &str, _name_mapping: &mut HashMap<String, String>, existing_normalized: &[Option<String>]) -> String {
+pub fn normalize_field_name(
+    name: &str,
+    _name_mapping: &mut HashMap<String, String>,
+    existing_normalized: &[Option<String>],
+) -> String {
     // Normalize: replace hyphens and dots with underscores
-    let base_normalized: String = name.chars().map(|c| if c == '-' || c == '.' { '_' } else { c }).collect();
-    
+    let base_normalized: String = name
+        .chars()
+        .map(|c| if c == '-' || c == '.' { '_' } else { c })
+        .collect();
+
     // Check for collisions with existing normalized names
     let mut normalized = base_normalized.clone();
-    
+
     // Find the position of the first underscore to insert additional underscores there
     let underscore_pos = normalized.find('_');
-    
+
     // Check if this exact normalized name already exists
     let mut collision_count = 0;
-    while existing_normalized.iter().any(|n| n.as_ref().map(|s| s == &normalized).unwrap_or(false)) {
+    while existing_normalized
+        .iter()
+        .any(|n| n.as_ref().map(|s| s == &normalized).unwrap_or(false))
+    {
         collision_count += 1;
         // Insert additional underscores at the first underscore position
         // For "a_b", collisions become "a__b", "a___b", etc.
@@ -236,7 +266,7 @@ pub fn normalize_field_name(name: &str, _name_mapping: &mut HashMap<String, Stri
             normalized = format!("{}{}", base_normalized, "_".repeat(collision_count));
         }
     }
-    
+
     normalized
 }
 
@@ -251,7 +281,7 @@ pub fn parse_field_path(field_name: &str) -> Vec<String> {
     let mut path = Vec::new();
     let mut current = String::new();
     let mut in_brackets = false;
-    
+
     for ch in field_name.chars() {
         match ch {
             '[' => {
@@ -277,16 +307,19 @@ pub fn parse_field_path(field_name: &str) -> Vec<String> {
             }
         }
     }
-    
+
     if !current.is_empty() {
         path.push(current);
     }
-    
+
     path
 }
 
 /// Parse a single field specification from the pattern
-pub fn parse_field(chars: &mut std::iter::Peekable<std::str::Chars>, extra_types: Option<&HashMap<String, PyObject>>) -> PyResult<(FieldSpec, Option<String>)> {
+pub fn parse_field(
+    chars: &mut std::iter::Peekable<std::str::Chars>,
+    extra_types: Option<&HashMap<String, PyObject>>,
+) -> PyResult<(FieldSpec, Option<String>)> {
     let mut spec = FieldSpec::new();
     let mut field_name = String::new();
     let mut format_spec = String::new();
@@ -369,12 +402,16 @@ pub fn parse_field(chars: &mut std::iter::Peekable<std::str::Chars>, extra_types
 }
 
 /// Parse format specifier string into FieldSpec
-pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec, _extra_types: Option<&HashMap<String, PyObject>>) {
+pub fn parse_format_spec(
+    format_spec: &str,
+    spec: &mut FieldSpec,
+    _extra_types: Option<&HashMap<String, PyObject>>,
+) {
     // Format spec: [[fill]align][sign][#][0][width][,][.precision][type]
     // Examples: "<10", ">", "^5.2f", "+d", "03d", ".2f"
-    
+
     let mut chars = format_spec.chars().peekable();
-    
+
     // Parse fill and align (optional)
     // align can be: '<', '>', '^', '='
     if let Some(&ch) = chars.peek() {
@@ -395,7 +432,7 @@ pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec, _extra_types: 
             }
         }
     }
-    
+
     // Parse sign (optional): '+', '-', ' '
     if let Some(&ch) = chars.peek() {
         if ch == '+' || ch == '-' || ch == ' ' {
@@ -403,18 +440,18 @@ pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec, _extra_types: 
             chars.next();
         }
     }
-    
+
     // Parse # (alternate form) - skip for now
     if chars.peek() == Some(&'#') {
         chars.next();
     }
-    
+
     // Parse 0 (zero padding)
     if chars.peek() == Some(&'0') {
         spec.zero_pad = true;
         chars.next();
     }
-    
+
     // Parse width (digits)
     let mut width_str = String::new();
     while let Some(&ch) = chars.peek() {
@@ -428,12 +465,12 @@ pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec, _extra_types: 
     if !width_str.is_empty() {
         spec.width = width_str.parse::<usize>().ok();
     }
-    
+
     // Parse comma (thousands separator) - skip for now
     if chars.peek() == Some(&',') {
         chars.next();
     }
-    
+
     // Parse precision (.digits)
     if chars.peek() == Some(&'.') {
         chars.next();
@@ -450,14 +487,14 @@ pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec, _extra_types: 
             spec.precision = precision_str.parse::<usize>().ok();
         }
     }
-    
+
     // Parse type (all alphabetic characters at the end, plus %)
     // Collect all remaining characters as the type string
     let mut type_str = String::new();
     for ch in chars {
         type_str.push(ch);
     }
-    
+
     // Handle % specially (it's not alphabetic)
     if type_str == "%" {
         spec.field_type = FieldType::Percentage;
@@ -468,7 +505,7 @@ pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec, _extra_types: 
     } else {
         // Extract type name (alphabetic characters only)
         let type_name: String = type_str.chars().filter(|c| c.is_alphabetic()).collect();
-        
+
         // If type_str is empty, default to String
         // Multi-character names are always custom types
         // Single character names can be built-in or custom (checked in convert_value)
@@ -515,4 +552,3 @@ pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec, _extra_types: 
         };
     }
 }
-
