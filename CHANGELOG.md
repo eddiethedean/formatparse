@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Default string fields next to literals** (e.g. ``"/{name}"``): an empty capture is allowed when it matches ``str.format`` output such as ``"/"`` for ``name=""`` (#83; upstream `parse#136 <https://github.com/r1chardj0n3s/parse/issues/136>`_). Applies to full-string **parse** / **compile().parse**; **search** / **findall** still use ``.+?`` for those segments so unanchored matching does not stop early.
 - **Integer `d`**: leading spaces and tabs before decimal digits are accepted (e.g. ``parse("{a:d}", "    0")``) for parity with padded ``str.format`` output (#81; upstream `parse#133 <https://github.com/r1chardj0n3s/parse/issues/133>`_).
 
 ## [0.8.0] - 2026-05-15
