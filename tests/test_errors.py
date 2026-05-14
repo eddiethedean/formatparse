@@ -248,6 +248,33 @@ def test_compile_invalid_pattern():
         compile("{unclosed")
 
 
+def test_pattern_parse_mismatch_subclass_of_valueerror():
+    """PatternParseMismatch is a ValueError subclass (compile / except ValueError)."""
+    from formatparse import PatternParseMismatch
+
+    with pytest.raises(PatternParseMismatch) as exc_info:
+        compile("{unclosed")
+    assert isinstance(exc_info.value, ValueError)
+
+
+def test_parse_returns_none_for_pattern_parse_mismatch():
+    """Malformed pattern that raises PatternParseMismatch on compile yields None from parse."""
+    assert parse("{unclosed", "text") is None
+
+
+def test_parse_batch_returns_nones_for_pattern_parse_mismatch():
+    from formatparse import parse_batch
+
+    out = parse_batch("{unclosed", ["a", "b"])
+    assert out == [None, None]
+
+
+def test_parse_propagates_not_implemented_for_unsupported_pattern():
+    """Unsupported pattern features still raise NotImplementedError from parse()."""
+    with pytest.raises(NotImplementedError):
+        parse("{['x]:d}", "1")
+
+
 def test_compile_empty_pattern():
     """Test compiling empty pattern"""
     parser = compile("")

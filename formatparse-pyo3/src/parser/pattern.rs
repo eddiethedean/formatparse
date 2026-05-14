@@ -409,7 +409,7 @@ pub fn parse_pattern(
 
                 // Expect closing brace
                 if chars.next() != Some('}') {
-                    return Err(error::pattern_error(
+                    return Err(error::pattern_error_parse_mismatch(
                         "Expected '}' after field specification",
                     ));
                 }

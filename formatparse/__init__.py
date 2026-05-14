@@ -127,6 +127,7 @@ from _formatparse import (  # type: ignore[import-not-found, import-untyped]
     FormatParser,
     FindallIter,
     FixedTzOffset as _FixedTzOffset,
+    PatternParseMismatch,
     Results,
 )
 
@@ -601,7 +602,9 @@ def compile(pattern: str, extra_types: Optional[ExtraTypes] = None) -> FormatPar
     :returns: FormatParser object that can be used to parse strings
     :rtype: FormatParser
     :raises RepeatedNameError: If a repeated field name has mismatched types
-    :raises ValueError: If pattern is invalid
+    :raises PatternParseMismatch: For some malformed patterns (missing ``}`` after a field);
+        subclass of :exc:`ValueError`. :func:`parse` returns ``None`` for the same pattern.
+    :raises ValueError: For other invalid patterns or internal errors
 
     **Pickling:** A :class:`FormatParser` only round-trips the pattern string.
     If you compiled with ``extra_types``, unpickling yields a parser **without**
@@ -667,7 +670,13 @@ def parse(
     :param validation_mode: ``\"strict\"``, ``\"collect\"``, or ``\"lenient\"`` for validation.
     :returns: ParseResult object if match found, None otherwise
     :rtype: ParseResult or None
-    :raises ValueError: If pattern is invalid, or both ``validators`` and ``pipeline`` are set
+    :raises ValueError: If the pattern is invalid in a way that still raises from the native
+        compiler (for example some unclosed nested format specs), or if both ``validators``
+        and ``pipeline`` are set. For a narrow class of malformed patterns (missing ``}`` after
+        a field), this function returns ``None`` while :func:`compile` raises
+        :exc:`PatternParseMismatch`, which is a :exc:`ValueError` subclass (same split as the
+        original ``parse`` library).
+    :raises NotImplementedError: For unsupported pattern features (for example quoted dict keys).
     :raises ValidationError: If validation fails in strict mode
     :raises MultipleValidationErrors: If ``validation_mode='collect'`` and any validator fails
 
@@ -804,6 +813,9 @@ def parse_batch(
     :param case_sensitive: Same as :func:`parse`
     :param evaluate_result: Same as :func:`parse`
     :returns: List of :class:`ParseResult` or ``None`` per input string
+    :raises ValueError: Same pattern-compile rules as :func:`parse`; if the pattern is in the
+        narrow class where :func:`parse` returns ``None``, this function returns a list of
+        ``None`` with one entry per input string.
 
     Example::
 
@@ -1574,6 +1586,7 @@ class BidirectionalResult:
 
 __all__ = [
     "__version__",
+    "PatternParseMismatch",
     "parse",
     "parse_with_validation",
     "parse_batch",

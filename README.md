@@ -75,6 +75,10 @@ for result in results:
 
 For more examples and detailed usage, see the [documentation](https://formatparse.readthedocs.io/).
 
+### Malformed patterns: `parse` vs `compile`
+
+For some invalid patterns (for example a missing `}` after a field), [`parse`](https://formatparse.readthedocs.io/en/latest/api/core_functions.html#formatparse.parse) returns `None` while [`compile`](https://formatparse.readthedocs.io/en/latest/api/core_functions.html#formatparse.compile) raises [`PatternParseMismatch`](https://formatparse.readthedocs.io/en/latest/api/core_functions.html#formatparse.PatternParseMismatch), a subclass of `ValueError`. Other syntax errors may still raise plain `ValueError` from both APIs. This matches the behavior of the original `parse` package.
+
 ## Custom types (`extra_types`)
 
 Map format-specifier names in your pattern to Python callables with the `@with_pattern` decorator. The type name after the colon in the field (for example `Number` in `{:Number}`) must match a key in the `extra_types` dict.

@@ -1,5 +1,4 @@
 # coding: utf-8
-import sys
 from datetime import date
 from datetime import datetime
 from datetime import time
@@ -392,9 +391,6 @@ def test_datetime_with_various_subsecond_precision():
     assert r.named["dt"] == datetime(2023, 11, 21, 13, 23, 27, 0)
 
 
-@pytest.mark.skipif(
-    sys.version_info[0] < 3, reason="Python 3+ required for timezone support"
-)
 def test_flexible_datetime_with_timezone():
     from datetime import timezone
 
@@ -402,9 +398,6 @@ def test_flexible_datetime_with_timezone():
     assert r.named["dt"] == datetime(2023, 11, 21, 13, 23, 27, tzinfo=timezone.utc)
 
 
-@pytest.mark.skipif(
-    sys.version_info[0] < 3, reason="Python 3+ required for timezone support"
-)
 def test_flexible_datetime_with_timezone_that_has_colons():
     from datetime import timezone
 
@@ -730,16 +723,11 @@ def test_mixed_type_variant():
     assert r.fixed[21] == "spam"
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 5),
-    reason="Python 3.5 removed the limit of 100 named groups in a regular expression",
-)
-def test_too_many_fields():
-    # Python 3.5 removed the limit of 100 named groups in a regular expression,
-    # so only test for the exception if the limit exists.
-    p = parse.compile("{:ti}" * 15)
-    with pytest.raises(parse.TooManyFields):
-        p.parse("")
+def test_too_many_fields_rejected_at_compile():
+    """Patterns with more than MAX_FIELDS (100) fields are rejected at compile time."""
+    pattern = "".join(f"{{{i}:d}}" for i in range(101))
+    with pytest.raises(ValueError, match="exceeds the maximum"):
+        parse.compile(pattern)
 
 
 def test_letters():

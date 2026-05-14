@@ -4,6 +4,7 @@
 
 use lru::LruCache;
 use once_cell::sync::Lazy;
+use pyo3::exceptions::PyNotImplementedError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::IntoPyObjectExt;
@@ -33,6 +34,8 @@ pub use types::conversion::*;
 pub use formatparse_core::strftime_to_regex;
 pub use formatparse_core::{FieldSpec, FieldType};
 pub use match_rs::Match;
+
+pub use error::PatternParseMismatch;
 
 // Pattern cache for compiled FormatParser instances
 // Cache size: 1000 patterns
@@ -165,19 +168,15 @@ fn parse(
             extra_types.as_ref(),
             evaluate_result,
         ),
-        Err(e) => {
-            let err_msg = e.to_string();
-            // Propagate NotImplementedError (for unsupported features like quoted keys)
-            if err_msg.contains("not supported") {
+        Err(e) => Python::with_gil(|py| {
+            if e.is_instance_of::<PyNotImplementedError>(py) {
                 return Err(e);
             }
-            // If it's an "Expected '}'" error, return None instead of raising
-            if err_msg.contains("Expected '}'") {
-                Ok(None)
-            } else {
-                Err(e)
+            if e.is_instance_of::<crate::error::PatternParseMismatch>(py) {
+                return Ok(None);
             }
-        }
+            Err(e)
+        }),
     }
 }
 
@@ -216,22 +215,21 @@ fn parse_batch(
     let parser = match get_or_create_parser(pattern, extra_types_cloned) {
         Ok(p) => p,
         Err(e) => {
-            let err_msg = e.to_string();
-            if err_msg.contains("not supported") {
-                return Err(e);
-            }
-            if err_msg.contains("Expected '}'") {
-                return Python::with_gil(|py| -> PyResult<PyObject> {
+            return Python::with_gil(|py| -> PyResult<PyObject> {
+                if e.is_instance_of::<PyNotImplementedError>(py) {
+                    return Err(e);
+                }
+                if e.is_instance_of::<crate::error::PatternParseMismatch>(py) {
                     let none_obj = py.None().into_py_any(py)?;
                     let mut out: Vec<PyObject> = Vec::with_capacity(strings.len());
                     for _ in 0..strings.len() {
                         out.push(none_obj.clone_ref(py));
                     }
                     let items: Vec<_> = out.iter().map(|o| o.bind(py)).collect();
-                    PyList::new(py, items)?.into_py_any(py)
-                });
-            }
-            return Err(e);
+                    return PyList::new(py, items)?.into_py_any(py);
+                }
+                Err(e)
+            });
         }
     };
 
@@ -674,7 +672,11 @@ fn extract_format(
 
 /// Python module definition
 #[pymodule]
-fn _formatparse(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _formatparse(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add(
+        "PatternParseMismatch",
+        py.get_type::<crate::error::PatternParseMismatch>(),
+    )?;
     m.add_function(wrap_pyfunction!(parse, m)?)?;
     m.add_function(wrap_pyfunction!(parse_batch, m)?)?;
     m.add_function(wrap_pyfunction!(search, m)?)?;

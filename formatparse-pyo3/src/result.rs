@@ -90,7 +90,9 @@ impl ParseResult {
 
         let mut named_parts = Vec::new();
         for k in keys.iter().take(MAX_KEYS) {
-            let v = self.named.get(k).expect("key from sorted vec");
+            let Some(v) = self.named.get(k) else {
+                continue;
+            };
             // Use Python `repr(key)` so dict-style output matches CPython (single-quoted keys),
             // not Rust `Debug` / `{:?}` which uses double quotes.
             let key_repr: String = PyString::new(py, k.as_str()).repr()?.extract()?;

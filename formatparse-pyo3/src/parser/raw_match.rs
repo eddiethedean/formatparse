@@ -215,13 +215,13 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
 
 /// Convert RawValue to PyObject (batch conversion)
 impl RawValue {
-    pub fn to_py_object(&self, py: Python) -> PyObject {
+    pub fn to_py_object(&self, py: Python) -> PyResult<PyObject> {
         match self {
-            RawValue::String(s) => s.into_py_any(py).unwrap(),
-            RawValue::Integer(n) => n.into_py_any(py).unwrap(),
-            RawValue::Float(f) => f.into_py_any(py).unwrap(),
-            RawValue::Boolean(b) => b.into_py_any(py).unwrap(),
-            RawValue::None => py.None(),
+            RawValue::String(s) => s.into_py_any(py),
+            RawValue::Integer(n) => n.into_py_any(py),
+            RawValue::Float(f) => f.into_py_any(py),
+            RawValue::Boolean(b) => b.into_py_any(py),
+            RawValue::None => Ok(py.None()),
         }
     }
 }
@@ -232,12 +232,16 @@ impl RawMatchData {
         use crate::result::ParseResult;
 
         // Pre-allocate vectors with known capacity for better performance
-        let fixed: Vec<PyObject> = self.fixed.iter().map(|v| v.to_py_object(py)).collect();
+        let fixed: Vec<PyObject> = self
+            .fixed
+            .iter()
+            .map(|v| v.to_py_object(py))
+            .collect::<PyResult<_>>()?;
 
         // Pre-allocate HashMap with known capacity
         let mut named: HashMap<String, PyObject> = HashMap::with_capacity(self.named.len());
         for (k, v) in &self.named {
-            named.insert(k.clone(), v.to_py_object(py));
+            named.insert(k.clone(), v.to_py_object(py)?);
         }
 
         let parse_result =
@@ -497,26 +501,26 @@ mod tests {
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
             let string_val = RawValue::String("hello".to_string());
-            let py_obj = string_val.to_py_object(py);
+            let py_obj = string_val.to_py_object(py).unwrap();
             assert_eq!(py_obj.extract::<String>(py).unwrap(), "hello");
 
             let int_val = RawValue::Integer(42);
-            let py_obj = int_val.to_py_object(py);
+            let py_obj = int_val.to_py_object(py).unwrap();
             assert_eq!(py_obj.extract::<i64>(py).unwrap(), 42);
 
             let float_val = RawValue::Float("3.14".parse().unwrap());
-            let py_obj = float_val.to_py_object(py);
+            let py_obj = float_val.to_py_object(py).unwrap();
             assert_eq!(
                 py_obj.extract::<f64>(py).unwrap(),
                 "3.14".parse::<f64>().unwrap()
             );
 
             let bool_val = RawValue::Boolean(true);
-            let py_obj = bool_val.to_py_object(py);
+            let py_obj = bool_val.to_py_object(py).unwrap();
             assert!(py_obj.extract::<bool>(py).unwrap());
 
             let none_val = RawValue::None;
-            let py_obj = none_val.to_py_object(py);
+            let py_obj = none_val.to_py_object(py).unwrap();
             assert!(py_obj.is_none(py));
         });
     }

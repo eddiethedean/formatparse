@@ -1,25 +1,28 @@
 # formatparse-core
 
-Pure Rust library for parsing strings using Python format() syntax.
+Pure Rust library for parsing strings using Python `format()`-style patterns.
 
-This crate contains the core logic for pattern parsing, regex generation, and type definitions. It has **no dependencies on Python or PyO3**, making it suitable for:
+This crate holds the **language-agnostic** logic: field specifications, regex construction from those specs, datetime microsecond helpers, input normalization (line continuations, indent stripping), and safety limits. It has **no dependency on Python or PyO3**, so it is suitable for:
 
-- Testing without Python installed
-- Use in pure Rust projects
-- Integration into other language bindings
+- Running `cargo test` without a Python install
+- Embedding in other Rust projects
+- Building non-Python bindings on top of the same engine
 
-## Status
+## Modules (public surface)
 
-This crate is a work in progress. Currently extracted modules:
+The crate root re-exports the main building blocks; see [`src/lib.rs`](src/lib.rs) for the full list. Highlights:
 
-- ✅ `types` - FieldType and FieldSpec definitions
-- ✅ `types::regex` - Regex pattern generation
-- ✅ `parser::regex` - Regex building utilities
-- ✅ `error` - Pure Rust error types
+| Module | Role |
+|--------|------|
+| `types` | `FieldType`, `FieldSpec`, and regex fragments for each field kind |
+| `types::regex` | Helpers such as `strftime_to_regex` |
+| `parser` | Length/name validation, `build_regex` / search-regex helpers (`parser::regex`) |
+| `datetime` | Microsecond digit parsing shared with bindings |
+| `error` | `FormatParseError` and related messages |
+| `indent_block` | Strip common leading indent from captured block text |
+| `input_line_continuations` | Normalize backslash line continuations in input |
 
 ## Testing
-
-All tests can run without Python:
 
 ```bash
 cargo test --package formatparse-core
@@ -27,10 +30,10 @@ cargo test --package formatparse-core
 
 ## Usage
 
-This crate is primarily intended for use by the `formatparse-pyo3` crate, which provides Python bindings. However, you can use it directly in Rust projects:
+The primary consumer is the [`formatparse-pyo3`](../formatparse-pyo3) crate (Python extension). You can also use `formatparse-core` directly:
 
 ```rust
-use formatparse_core::{FieldType, FieldSpec};
+use formatparse_core::{FieldSpec, FieldType};
 
 let spec = FieldSpec {
     name: Some("age".to_string()),
@@ -43,6 +46,9 @@ let spec = FieldSpec {
     zero_pad: false,
     strftime_format: None,
     original_type_char: None,
+    nested_subpattern: None,
+    nested_regex_body: None,
 };
 ```
 
+Or use `FieldSpec::default()` / `FieldSpec::new()` and mutate the fields you need.
