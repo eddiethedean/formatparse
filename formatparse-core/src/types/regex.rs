@@ -222,10 +222,16 @@ impl FieldSpec {
                 // Width is mainly for formatting, but we need to handle it in parsing
                 // When width is specified, there may be leading/trailing spaces
                 if let Some(prec) = self.precision {
-                    // Precision specified - must match exact precision after decimal
-                    // Allow no leading zero before decimal (e.g., ".31415")
-                    // Also allow negative sign
-                    if self.width.is_some() {
+                    // Precision specified — digits after the decimal when a decimal point appears.
+                    // For prec == 0, str.format often emits no '.' (e.g. "{:02.0f}" → "20"); accept
+                    // integer-looking text as well as "12." / ".5" forms (issue #84 / parse#159).
+                    if prec == 0 {
+                        let width_prefix = if self.width.is_some() { r"\s*" } else { "" };
+                        format!(
+                            r"{}{}(?:\d+(?:\.0*)?|\d*\.\d{{{}}}|\.\d{{{}}})(?:[eE][+-]?\d+)?",
+                            width_prefix, sign, prec, prec
+                        )
+                    } else if self.width.is_some() {
                         // Width specified - allow optional leading spaces
                         format!(
                             r"\s*{}(?:\d*\.\d{{{}}}|\.\d{{{}}})(?:[eE][+-]?\d+)?",
@@ -377,6 +383,7 @@ impl FieldSpec {
 mod tests {
     use super::*;
     use crate::types::definitions::{FieldSpec, FieldType};
+    use regex::Regex;
 
     #[test]
     fn test_strftime_to_regex_year() {
@@ -618,6 +625,19 @@ mod tests {
         spec.precision = Some(2);
         let pattern = spec.to_regex_pattern(&HashMap::new(), None);
         assert!(pattern.contains(r"\.\d{2}"));
+    }
+
+    #[test]
+    fn test_field_spec_float_precision_zero_accepts_integer_like_text() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Float;
+        spec.precision = Some(0);
+        spec.width = Some(2);
+        let p = spec.to_regex_pattern(&HashMap::new(), None);
+        let re = Regex::new(&format!("^{}$", p)).unwrap();
+        assert!(re.is_match("20"));
+        assert!(re.is_match(" 20"));
+        assert!(re.is_match("20.000"));
     }
 
     #[test]
