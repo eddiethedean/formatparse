@@ -16,10 +16,10 @@ def test_right_aligned_fill_character():
     assert result is not None
     assert result.named["name"] == "ABC"
 
-    # Zero fill character
+    # Zero fill character — width==precision==len: match parse (full padded capture, issue #40)
     result = parse("{name:0>8.8}", "00000XYZ")
     assert result is not None
-    assert result.named["name"] == "XYZ"
+    assert result.named["name"] == "00000XYZ"
 
 
 def test_left_aligned_fill_character():
@@ -136,7 +136,7 @@ def test_round_trip_different_fill_characters():
     formatted = pattern.format(id="123")
     result = parse(pattern, formatted)
     assert result is not None
-    assert result.named["id"] == "123"
+    assert result.named["id"] == "00000123"
 
     # X fill
     pattern = "Code: {code:x>10.10}"
