@@ -1,5 +1,6 @@
 use crate::error;
 use crate::match_rs::{Match, MatchInit};
+use crate::parser::format_parser::FormatParser;
 use crate::parser::raw_match::{RawMatchData, RawValue};
 use crate::result::ParseResult;
 use formatparse_core::{count_capturing_groups, FieldSpec, FieldType};
@@ -8,6 +9,7 @@ use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
 use regex::{Captures, Regex};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// String stored on `Match` when `evaluate_result` is false: fold input continuations for `:ml` / `:blk`.
 fn capture_string_for_match_storage(spec: &FieldSpec, raw: &str) -> String {
@@ -28,6 +30,7 @@ pub struct FieldCaptureSlices<'a> {
     pub normalized_names: &'a [Option<String>],
     pub custom_type_groups: &'a [usize],
     pub has_nested_dict_fields: &'a [bool],
+    pub nested_parsers: &'a [Option<Arc<FormatParser>>],
 }
 
 /// Pattern, field layout, and Python conversion context for [`match_with_captures`].
@@ -46,6 +49,7 @@ pub struct RegexMatchContext<'a> {
     pub field_specs: &'a [FieldSpec],
     pub field_names: &'a [Option<String>],
     pub normalized_names: &'a [Option<String>],
+    pub nested_parsers: &'a [Option<Arc<FormatParser>>],
     pub py: Python<'a>,
     pub custom_converters: &'a HashMap<String, PyObject>,
     pub evaluate_result: bool,
@@ -203,6 +207,11 @@ fn per_field_capture_geometry(
     for (i, spec) in field_specs.iter().enumerate() {
         let pattern_groups = if let Some(pc) = precomputed_pattern_groups {
             pc.get(i).copied().unwrap_or(0)
+        } else if matches!(spec.field_type, FieldType::Nested) {
+            spec.nested_regex_body
+                .as_ref()
+                .map(|b| count_capturing_groups(b))
+                .unwrap_or(0)
         } else if !custom_converters.is_empty() {
             validate_custom_type_pattern(spec, custom_converters, py)?
         } else {
@@ -262,6 +271,9 @@ pub fn validate_custom_type_pattern(
     custom_converters: &HashMap<String, PyObject>,
     py: Python,
 ) -> PyResult<usize> {
+    if matches!(&field_spec.field_type, FieldType::Nested) {
+        return Ok(0);
+    }
     let mut pattern_groups = 0;
 
     if let formatparse_core::FieldType::Custom(type_name) = &field_spec.field_type {
@@ -346,6 +358,10 @@ pub fn match_with_captures_raw(
 
     for (i, spec) in field_specs.iter().enumerate() {
         let pattern_groups = custom_type_groups.get(i).copied().unwrap_or(0);
+
+        if matches!(spec.field_type, FieldType::Nested) {
+            return Err("Nested format fields require Python conversion".to_string());
+        }
 
         let cap = extract_capture(
             captures,
@@ -582,12 +598,29 @@ pub fn match_with_captures(
                         fixed.push(converted);
                     }
                 } else {
-                    let converted = crate::types::conversion::convert_value(
-                        spec,
-                        value_str,
-                        py,
-                        custom_converters,
-                    )?;
+                    let converted: PyObject = if matches!(spec.field_type, FieldType::Nested) {
+                        let nested_arc = ctx
+                            .fields
+                            .nested_parsers
+                            .get(i)
+                            .and_then(|x| x.as_ref())
+                            .ok_or_else(|| {
+                                pyo3::exceptions::PyValueError::new_err(
+                                    "internal error: nested parser missing",
+                                )
+                            })?;
+                        match nested_arc.parse_nested_capture(py, value_str, custom_converters)? {
+                            Some(pr) => pr.into_py_any(py)?,
+                            None => return Ok(None),
+                        }
+                    } else {
+                        crate::types::conversion::convert_value(
+                            spec,
+                            value_str,
+                            py,
+                            custom_converters,
+                        )?
+                    };
 
                     // Use original field name (with hyphens/dots) for the result
                     if let Some(ref original_name) = field_names[i] {
@@ -690,6 +723,7 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
     let py = ctx.py;
     let custom_converters = ctx.custom_converters;
     let evaluate_result = ctx.evaluate_result;
+    let nested_parsers = ctx.nested_parsers;
 
     if let Some(captures) = regex.captures(string) {
         // Pre-allocate with capacity based on expected field count
@@ -714,8 +748,13 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
         let mut actual_capture_index = 1; // Start at 1 (group 0 is full match)
 
         for (i, spec) in field_specs.iter().enumerate() {
-            // Validate regex_group_count for custom types with capturing groups (only if custom types exist)
-            let pattern_groups = if !custom_converters.is_empty() {
+            // Capturing groups inside this field's regex fragment (custom converters or nested).
+            let pattern_groups = if matches!(spec.field_type, FieldType::Nested) {
+                spec.nested_regex_body
+                    .as_ref()
+                    .map(|b| count_capturing_groups(b))
+                    .unwrap_or(0)
+            } else if !custom_converters.is_empty() {
                 validate_custom_type_pattern(spec, custom_converters, py)?
             } else {
                 0
@@ -847,12 +886,26 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                             fixed_index += 1;
                         }
                     } else {
-                        let converted = crate::types::conversion::convert_value(
-                            spec,
-                            value_str,
-                            py,
-                            custom_converters,
-                        )?;
+                        let converted: PyObject = if matches!(spec.field_type, FieldType::Nested) {
+                            let nested_arc = nested_parsers.get(i).and_then(|x| x.as_ref()).ok_or_else(
+                                || {
+                                    pyo3::exceptions::PyValueError::new_err(
+                                        "internal error: nested parser missing",
+                                    )
+                                },
+                            )?;
+                            match nested_arc.parse_nested_capture(py, value_str, custom_converters)? {
+                                Some(pr) => pr.into_py_any(py)?,
+                                None => return Ok(None),
+                            }
+                        } else {
+                            crate::types::conversion::convert_value(
+                                spec,
+                                value_str,
+                                py,
+                                custom_converters,
+                            )?
+                        };
 
                         // Use original field name (with hyphens/dots) for the result
                         if let Some(ref original_name) = field_names[i] {

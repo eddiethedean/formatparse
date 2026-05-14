@@ -4,6 +4,12 @@ use pyo3::prelude::*;
 use regex;
 use std::collections::HashMap;
 
+/// Maximum recursive depth when compiling nested format patterns (GitHub issue #12).
+pub const MAX_NESTED_FORMAT_DEPTH: usize = 10;
+
+/// Maximum brace nesting **within** one field's format specification (safety cap).
+const MAX_BRACE_DEPTH_IN_FORMAT_SPEC: i32 = 10;
+
 /// Result tuple from [`parse_pattern`]: compiled pattern string, search regex string, field
 /// specs, original and normalized field names, normalized-to-original name map, and whether
 /// `""` may match when every field is a default unconstrained string.
@@ -20,6 +26,103 @@ pub type ParsedPatternParts = (
 /// True when `s` contains at least one non-whitespace character (trim is non-empty).
 fn literal_delimits_empty_field(s: &str) -> bool {
     !s.trim().is_empty()
+}
+
+/// Collect the format-spec substring after `:` until the matching `}` that closes this
+/// field, honoring nested `{`…`}` and doubled `{{` / `}}` escapes (formatparse#12).
+fn collect_balanced_format_spec(
+    chars: &mut std::iter::Peekable<std::str::Chars>,
+) -> PyResult<String> {
+    let mut out = String::new();
+    let mut depth = 0i32;
+    loop {
+        let Some(&ch) = chars.peek() else {
+            return Err(error::pattern_error(
+                "Unclosed '{' in pattern: expected '}' to close the field",
+            ));
+        };
+        if ch == '}' && depth == 0 {
+            break;
+        }
+        let c = chars.next().unwrap();
+        match c {
+            '{' => {
+                if chars.peek() == Some(&'{') {
+                    chars.next();
+                    out.push('{');
+                    out.push('{');
+                } else {
+                    depth += 1;
+                    if depth > MAX_BRACE_DEPTH_IN_FORMAT_SPEC {
+                        return Err(error::pattern_error(
+                            "Format specification has too many nested '{' (max 10)",
+                        ));
+                    }
+                    out.push('{');
+                }
+            }
+            // A lone `}` closes one `{…}` nesting level inside the spec. Do **not** merge two
+            // consecutive `}` into the `}}` escape here: in `{outer:{inner:d}}` the first `}`
+            // closes the inner field and the second closes the outer field (formatparse#12).
+            '}' => {
+                depth -= 1;
+                if depth < 0 {
+                    return Err(error::pattern_error(
+                        "Unexpected '}' in format specification",
+                    ));
+                }
+                out.push('}');
+            }
+            _ => out.push(c),
+        }
+    }
+    Ok(out)
+}
+
+fn brace_balance_valid_for_nested_candidate(s: &str) -> bool {
+    let mut depth = 0i32;
+    let mut it = s.chars().peekable();
+    while let Some(c) = it.next() {
+        match c {
+            '{' => {
+                if it.peek() == Some(&'{') {
+                    it.next();
+                    continue;
+                }
+                depth += 1;
+            }
+            '}' => {
+                depth -= 1;
+                if depth < 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    depth == 0
+}
+
+/// True when `trimmed` should be compiled as a nested brace pattern (not a classic
+/// ``[[fill]align]…[type]]`` format spec).
+fn is_nested_format_spec_candidate(trimmed: &str) -> bool {
+    if trimmed.len() < 2 {
+        return false;
+    }
+    if !trimmed.starts_with('{') || trimmed.starts_with("{{") {
+        return false;
+    }
+    if !trimmed.ends_with('}') {
+        return false;
+    }
+    brace_balance_valid_for_nested_candidate(trimmed)
+}
+
+/// Strip a leading ``^`` and trailing ``$`` from an anchored full-pattern regex string.
+fn strip_regex_anchors(anchored: &str) -> String {
+    let s = anchored.strip_prefix('^').unwrap_or(anchored);
+    let s = s.strip_suffix('$').unwrap_or(s);
+    s.to_string()
 }
 
 /// After [`parse_field`], `chars` is at optional whitespace then the closing `}`.
@@ -71,6 +174,7 @@ pub fn parse_pattern(
     extra_types: Option<&HashMap<String, PyObject>>,
     custom_patterns: &HashMap<String, String>,
     allow_empty_delimited_default_string: bool,
+    nesting_depth: usize,
 ) -> PyResult<ParsedPatternParts> {
     // Pre-allocate with estimated capacity based on pattern length
     let estimated_fields = pattern.matches('{').count();
@@ -117,7 +221,27 @@ pub fn parse_pattern(
                 }
 
                 // Parse field specification
-                let (spec, name) = parse_field(&mut chars, extra_types)?;
+                let (mut spec, name) = parse_field(&mut chars, extra_types, nesting_depth)?;
+
+                if matches!(spec.field_type, FieldType::Nested) {
+                    if nesting_depth >= MAX_NESTED_FORMAT_DEPTH {
+                        return Err(error::pattern_error(
+                            "Nested format patterns exceed max depth (10)",
+                        ));
+                    }
+                    let inner = spec.nested_subpattern.as_ref().ok_or_else(|| {
+                        error::pattern_error("Internal error: nested field missing subpattern")
+                    })?;
+                    let (inner_anchored, _, _, _, _, _, _) = parse_pattern(
+                        inner,
+                        extra_types,
+                        custom_patterns,
+                        allow_empty_delimited_default_string,
+                        nesting_depth + 1,
+                    )?;
+                    spec.nested_regex_body = Some(strip_regex_anchors(&inner_anchored));
+                }
+
                 if !spec.is_default_unconstrained_string() {
                     allows_empty_default_string_match = false;
                 }
@@ -447,10 +571,10 @@ pub fn parse_field_path(field_name: &str) -> Vec<String> {
 pub fn parse_field(
     chars: &mut std::iter::Peekable<std::str::Chars>,
     extra_types: Option<&HashMap<String, PyObject>>,
+    nesting_depth: usize,
 ) -> PyResult<(FieldSpec, Option<String>)> {
     let mut spec = FieldSpec::new();
     let mut field_name = String::new();
-    let mut format_spec = String::new();
     let mut in_name = true;
 
     // Parse field name (before colon or conversion)
@@ -506,20 +630,23 @@ pub fn parse_field(
         }
     }
 
-    // Parse format spec (everything after colon until closing brace)
+    // Parse format spec (after colon until closing `}` that ends this field)
     if !in_name {
-        while let Some(&ch) = chars.peek() {
-            if ch == '}' {
-                break;
+        let format_spec = collect_balanced_format_spec(chars)?;
+        let trimmed = format_spec.trim();
+        if is_nested_format_spec_candidate(trimmed) {
+            if nesting_depth >= MAX_NESTED_FORMAT_DEPTH {
+                return Err(error::pattern_error(
+                    "Nested format patterns exceed max depth (10)",
+                ));
             }
-            format_spec.push(ch);
-            chars.next();
+            spec.field_type = FieldType::Nested;
+            spec.nested_subpattern = Some(trimmed.to_string());
+        } else {
+            parse_format_spec(&format_spec, &mut spec, extra_types);
         }
+        validate_multiline_mvp(&spec)?;
     }
-
-    // Parse format spec to extract alignment, width, precision, type, etc.
-    parse_format_spec(&format_spec, &mut spec, extra_types);
-    validate_multiline_mvp(&spec)?;
 
     let name = if field_name.is_empty() {
         None
@@ -685,5 +812,33 @@ pub fn parse_format_spec(
                 c => FieldType::Custom(c.to_string()),
             }
         };
+    }
+}
+
+#[cfg(test)]
+mod nested_candidate_tests {
+    use super::*;
+    use pyo3::Python;
+
+    #[test]
+    fn nested_candidate_accepts_inner_field_pattern() {
+        let s = "{inner:d}";
+        assert!(is_nested_format_spec_candidate(s.trim()));
+    }
+
+    #[test]
+    fn parse_nested_outer_field_type() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|_| {
+            let r = parse_pattern("{outer:{inner:d}}", None, &HashMap::new(), true, 0)
+                .expect("parse_pattern");
+            let specs = &r.2;
+            assert_eq!(specs.len(), 1);
+            assert!(
+                matches!(specs[0].field_type, FieldType::Nested),
+                "expected Nested, got {:?}",
+                specs[0].field_type
+            );
+        });
     }
 }

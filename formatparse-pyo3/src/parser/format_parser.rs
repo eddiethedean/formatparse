@@ -2,9 +2,10 @@ use crate::error;
 use crate::parser::matching::{
     match_with_captures, match_with_captures_raw, CapturedMatchContext, FieldCaptureSlices,
 };
+use crate::result::ParseResult;
 use formatparse_core::count_capturing_groups;
 use formatparse_core::parser::{validate_input_length, MAX_FIELDS};
-use formatparse_core::FieldSpec;
+use formatparse_core::{FieldSpec, FieldType};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyString, PyTuple};
@@ -45,6 +46,8 @@ pub struct FormatParser {
     pub(crate) field_count: usize,             // Cached field count for fast path optimizations
     pub(crate) has_nested_dict_fields: Vec<bool>, // Cached flags: does field name contain '[' (nested dict)?
     allows_empty_default_string_match: bool, // True iff parse("") can use empty-field fast path (issue #16)
+    /// Per-field compiled parsers when ``field_type`` is ``Nested`` (issue #12).
+    pub(crate) nested_parsers: Vec<Option<Arc<FormatParser>>>,
 }
 
 impl FormatParser {
@@ -86,6 +89,7 @@ impl FormatParser {
             extra_types.as_ref(),
             &custom_patterns,
             true,
+            0,
         )?;
 
         // Search/findall use a separate compile path without "empty delimited" `.*?` groups so
@@ -95,6 +99,7 @@ impl FormatParser {
             extra_types.as_ref(),
             &custom_patterns,
             false,
+            0,
         )?;
 
         // Validate field count
@@ -106,6 +111,27 @@ impl FormatParser {
             )));
         }
 
+        let nested_parsers: Vec<Option<Arc<FormatParser>>> = Python::with_gil(|py| -> PyResult<_> {
+            let mut out = Vec::with_capacity(field_specs.len());
+            for spec in &field_specs {
+                if matches!(spec.field_type, FieldType::Nested) {
+                    let sub = spec.nested_subpattern.as_ref().ok_or_else(|| {
+                        PyValueError::new_err("internal error: nested field missing subpattern")
+                    })?;
+                    let cloned_et = extra_types.as_ref().map(|m| {
+                        m.iter()
+                            .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                            .collect::<HashMap<_, _>>()
+                    });
+                    out.push(Some(Arc::new(FormatParser::new_with_extra_types(
+                        sub, cloned_et,
+                    )?)));
+                } else {
+                    out.push(None);
+                }
+            }
+            Ok(out)
+        })?;
         // Pre-compute custom type validation results (pattern_groups per field)
         // This avoids calling validate_custom_type_pattern for every match
         let custom_type_groups = Python::with_gil(|py| -> PyResult<Vec<usize>> {
@@ -117,16 +143,21 @@ impl FormatParser {
                 .unwrap_or(&empty_map);
 
             for spec in &field_specs {
-                if !custom_converters.is_empty() {
-                    let pattern_groups = crate::parser::matching::validate_custom_type_pattern(
+                let pattern_groups = if matches!(spec.field_type, FieldType::Nested) {
+                    spec.nested_regex_body
+                        .as_ref()
+                        .map(|b| count_capturing_groups(b))
+                        .unwrap_or(0)
+                } else if !custom_converters.is_empty() {
+                    crate::parser::matching::validate_custom_type_pattern(
                         spec,
                         custom_converters,
                         py,
-                    )?;
-                    groups.push(pattern_groups);
+                    )?
                 } else {
-                    groups.push(0);
-                }
+                    0
+                };
+                groups.push(pattern_groups);
             }
             Ok(groups)
         })?;
@@ -171,6 +202,7 @@ impl FormatParser {
             field_count: field_specs.len(), // Cache field count for fast path
             has_nested_dict_fields,         // Cache nested dict flags
             allows_empty_default_string_match,
+            nested_parsers,
         })
     }
 
@@ -205,6 +237,7 @@ impl FormatParser {
                         field_specs: &self.field_specs,
                         field_names: &self.field_names,
                         normalized_names: &self.normalized_names,
+                        nested_parsers: &self.nested_parsers,
                         py,
                         custom_converters: extra_types_ref,
                         evaluate_result,
@@ -258,6 +291,7 @@ impl FormatParser {
                     field_specs: &self.field_specs,
                     field_names: &self.field_names,
                     normalized_names: &self.normalized_names,
+                    nested_parsers: &self.nested_parsers,
                     py,
                     custom_converters: extra_types_ref,
                     evaluate_result,
@@ -291,6 +325,34 @@ impl FormatParser {
                 .unwrap_or(&self.search_regex)
         }
     }
+
+    /// Parse one capture slice with this parser's pattern (nested fields, issue #12).
+    pub(crate) fn parse_nested_capture(
+        &self,
+        py: Python<'_>,
+        slice: &str,
+        custom_converters: &HashMap<String, PyObject>,
+    ) -> PyResult<Option<Py<ParseResult>>> {
+        use pyo3::types::PyAnyMethods;
+        let mut merged = HashMap::new();
+        if let Some(ref stored) = self.stored_extra_types {
+            for (k, v) in stored {
+                merged.insert(k.clone(), v.clone_ref(py));
+            }
+        }
+        for (k, v) in custom_converters {
+            merged.insert(k.clone(), v.clone_ref(py));
+        }
+        let opt = self.parse_internal(slice, true, Some(&merged), true)?;
+        let Some(obj) = opt else {
+            return Ok(None);
+        };
+        let bound = obj.bind(py);
+        let pr = bound.downcast::<ParseResult>().map_err(|_| {
+            PyValueError::new_err("internal error: nested parse did not return ParseResult")
+        })?;
+        Ok(Some(pr.clone().unbind()))
+    }
 }
 
 impl Clone for FormatParser {
@@ -315,6 +377,7 @@ impl Clone for FormatParser {
             field_count: self.field_count,
             has_nested_dict_fields: self.has_nested_dict_fields.clone(),
             allows_empty_default_string_match: self.allows_empty_default_string_match,
+            nested_parsers: self.nested_parsers.clone(),
         })
     }
 }
@@ -350,6 +413,7 @@ impl FormatParser {
                     field_count: 0,
                     has_nested_dict_fields: Vec::new(),
                     allows_empty_default_string_match: false,
+                    nested_parsers: Vec::new(),
                 })
             }
         }
@@ -673,7 +737,14 @@ impl FindallIter {
     ) -> Self {
         let has_custom_converters = !extra_types.is_empty();
         let has_nested_dicts = parser.has_nested_dict_fields.iter().any(|&b| b);
-        let fast_path = !has_custom_converters && evaluate_result && !has_nested_dicts;
+        let has_nested_format_fields = parser
+            .field_specs
+            .iter()
+            .any(|s| matches!(s.field_type, FieldType::Nested));
+        let fast_path = !has_custom_converters
+            && evaluate_result
+            && !has_nested_dicts
+            && !has_nested_format_fields;
         Self {
             parser,
             haystack,
@@ -718,6 +789,7 @@ impl FindallIter {
                     normalized_names: &slf.parser.normalized_names,
                     custom_type_groups: &slf.parser.custom_type_groups,
                     has_nested_dict_fields: &slf.parser.has_nested_dict_fields,
+                    nested_parsers: &slf.parser.nested_parsers,
                 };
 
                 match match_with_captures_raw(&caps, &slf.haystack, match_start, &slices) {
@@ -763,6 +835,7 @@ impl FindallIter {
                     normalized_names: &slf.parser.normalized_names,
                     custom_type_groups: &slf.parser.custom_type_groups,
                     has_nested_dict_fields: &slf.parser.has_nested_dict_fields,
+                    nested_parsers: &slf.parser.nested_parsers,
                 },
                 py,
                 custom_converters: &slf.extra_types,

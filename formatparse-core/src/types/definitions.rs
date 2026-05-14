@@ -32,6 +32,8 @@ pub enum FieldType {
     /// Indented block: same match boundaries as ``:ml``, then strip common leading spaces/tabs
     /// per line (issue #69). Format specifier ``:blk``.
     IndentBlock,
+    /// Entire format spec is a nested brace pattern (e.g. ``{outer:{inner:d}}``); see formatparse#12.
+    Nested,
     Custom(String),
 }
 
@@ -47,6 +49,10 @@ pub struct FieldSpec {
     pub zero_pad: bool,
     pub strftime_format: Option<String>, // For strftime-style patterns
     pub original_type_char: Option<char>, // Original type character (e.g., 'b', 'o', 'x' for binary/octal/hex)
+    /// When ``field_type`` is ``Nested``: inner pattern text (e.g. ``"{inner:d}"``).
+    pub nested_subpattern: Option<String>,
+    /// Unanchored regex body for the inner pattern (filled after recursive compile; issue #12).
+    pub nested_regex_body: Option<String>,
 }
 
 impl Default for FieldSpec {
@@ -62,6 +68,8 @@ impl Default for FieldSpec {
             zero_pad: false,
             strftime_format: None,
             original_type_char: None,
+            nested_subpattern: None,
+            nested_regex_body: None,
         }
     }
 }
@@ -147,6 +155,8 @@ mod tests {
             zero_pad: true,
             strftime_format: Some("%Y-%m-%d".to_string()),
             original_type_char: Some('d'),
+            nested_subpattern: None,
+            nested_regex_body: None,
         };
 
         assert_eq!(spec.name, Some("test".to_string()));
