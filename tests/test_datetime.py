@@ -381,9 +381,7 @@ def test_http_date_various_formats():
 def test_repeated_strftime_same_name_merged_issue_4():
     """Same logical datetime field split across strftime fragments (issue #4 / parse#197)."""
     ref = datetime(2024, 3, 15, 14, 30, 0)
-    pattern = (
-        "On {d:%B} {d:%d}, {d:%Y} at {d:%H}:{d:%M} we recorded the event"
-    )
+    pattern = "On {d:%B} {d:%d}, {d:%Y} at {d:%H}:{d:%M} we recorded the event"
     text = pattern.format(d=ref)
     result = parse(pattern, text)
     assert result is not None

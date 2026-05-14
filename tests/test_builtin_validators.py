@@ -67,7 +67,9 @@ def test_parse_strict_is_valid_email_raises():
 
 def test_parse_lenient_is_valid_email_warns():
     with pytest.warns(ValidationWarning, match="invalid email"):
-        r = parse("{e}", "bad", validators={"e": is_valid_email}, validation_mode="lenient")
+        r = parse(
+            "{e}", "bad", validators={"e": is_valid_email}, validation_mode="lenient"
+        )
     assert r is not None
     assert r.named["e"] == "bad"
 

@@ -25,7 +25,7 @@ Thank you for your interest in contributing to formatparse! This document provid
 
 4. **Build the extension module** (from repo root; if `maturin develop` with `--manifest-path` errors about `_formatparse`, build from the crate directory instead):
    ```bash
-   cd formatparse-pyo3 && maturin develop --release && cd ..
+   cd formatparse-pyo3 && maturin develop --release --features extension-module && cd ..
    ```
 
 ## Running Tests

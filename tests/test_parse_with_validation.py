@@ -40,7 +40,9 @@ def test_parse_with_validation_lenient_warns():
 
 def test_parse_with_validation_none_short_circuit():
     parser = compile("{n:d}")
-    pl = ValidationPipeline().add_validator("n", lambda _: (_ for _ in ()).throw(AssertionError("no")))
+    pl = ValidationPipeline().add_validator(
+        "n", lambda _: (_ for _ in ()).throw(AssertionError("no"))
+    )
     assert parse_with_validation(parser, "not-a-number", pl) is None
 
 

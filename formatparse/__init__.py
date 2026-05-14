@@ -787,7 +787,9 @@ def parse_batch(
         >>> out[2] is None
         True
     """
-    return _parse_batch(pattern, list(strings), extra_types, case_sensitive, evaluate_result)
+    return _parse_batch(
+        pattern, list(strings), extra_types, case_sensitive, evaluate_result
+    )
 
 
 def search(

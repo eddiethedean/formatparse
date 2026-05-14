@@ -34,7 +34,9 @@ def test_findall_iter_parity_fast_path_many():
 
 
 def test_findall_iter_parity_fast_path_extract():
-    s = "".join(r.fixed[0] for r in findall_iter(">{}<", "<p>some <b>bold</b> text</p>"))
+    s = "".join(
+        r.fixed[0] for r in findall_iter(">{}<", "<p>some <b>bold</b> text</p>")
+    )
     assert s == "some bold text"
 
 

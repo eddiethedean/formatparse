@@ -5,6 +5,8 @@ build-backend = "maturin"
 [tool.maturin]
 module-name = "_formatparse"
 bindings = "pyo3"
+# Enable crate feature that turns on pyo3/extension-module for wheels / develop builds.
+features = ["extension-module"]
 # Linux wheel tag policy for PyPI (auditwheel/manylinux). Does not limit macOS/Windows
 # wheels or local `maturin develop`.
 compatibility = "linux"

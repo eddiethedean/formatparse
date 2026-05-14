@@ -16,7 +16,14 @@ from formatparse import (
 def test_apply_validators_named_strict_passes():
     r = parse("{age:d}", "21")
     assert r is not None
-    apply_validators(r, {"age": lambda v: None if v >= 18 else (_ for _ in ()).throw(ValidationError("minor"))})
+    apply_validators(
+        r,
+        {
+            "age": lambda v: (
+                None if v >= 18 else (_ for _ in ()).throw(ValidationError("minor"))
+            )
+        },
+    )
     assert r.named["age"] == 21
 
 
@@ -26,7 +33,11 @@ def test_apply_validators_named_strict_raises():
     with pytest.raises(ValidationError, match="minor"):
         apply_validators(
             r,
-            {"age": lambda v: None if v >= 18 else (_ for _ in ()).throw(ValidationError("minor"))},
+            {
+                "age": lambda v: (
+                    None if v >= 18 else (_ for _ in ()).throw(ValidationError("minor"))
+                )
+            },
         )
     assert r.named["age"] == 15
 
@@ -34,7 +45,16 @@ def test_apply_validators_named_strict_raises():
 def test_apply_validators_fixed_index():
     r = parse("{:d}-{}", "10-x")
     assert r is not None
-    apply_validators(r, {0: lambda v: None if v > 0 else (_ for _ in ()).throw(ValidationError("need positive"))})
+    apply_validators(
+        r,
+        {
+            0: lambda v: (
+                None
+                if v > 0
+                else (_ for _ in ()).throw(ValidationError("need positive"))
+            )
+        },
+    )
     assert r.fixed == (10, "x")
 
 
@@ -42,7 +62,11 @@ def test_parse_validators_keyword_only():
     r = parse(
         "{a:d}",
         "3",
-        validators={"a": lambda v: None if v % 2 == 1 else (_ for _ in ()).throw(ValidationError("even"))},
+        validators={
+            "a": lambda v: (
+                None if v % 2 == 1 else (_ for _ in ()).throw(ValidationError("even"))
+            )
+        },
     )
     assert r is not None
     assert r.named["a"] == 3
@@ -53,7 +77,9 @@ def test_parse_no_match_skips_validators():
         parse(
             "{a:d}",
             "not a number",
-            validators={"a": lambda _: (_ for _ in ()).throw(AssertionError("should not run"))},
+            validators={
+                "a": lambda _: (_ for _ in ()).throw(AssertionError("should not run"))
+            },
         )
         is None
     )
@@ -110,6 +136,13 @@ def test_validated_parser_parse_and_forward():
     inner = compile("{n}")
     vp = ValidatedParser(inner)
     assert vp.pattern == "{n}"
-    r = vp.parse("hi", validators={"n": lambda s: None if s else (_ for _ in ()).throw(ValidationError("empty"))})
+    r = vp.parse(
+        "hi",
+        validators={
+            "n": lambda s: (
+                None if s else (_ for _ in ()).throw(ValidationError("empty"))
+            )
+        },
+    )
     assert r is not None
     assert r.named["n"] == "hi"

@@ -44,7 +44,7 @@ jobs:
       - name: Build extension module
         run: |
           source .venv/bin/activate
-          cd formatparse-pyo3 && maturin develop --release
+          cd formatparse-pyo3 && maturin develop --release --features extension-module
 
       - name: Install test and mutation dependencies
         run: |

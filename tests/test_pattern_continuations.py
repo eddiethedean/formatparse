@@ -6,8 +6,8 @@ from formatparse import compile, parse, search
 def _assert_same_parse(pattern_a: str, pattern_b: str, text: str) -> None:
     """Compare parse outcomes; ``ParseResult`` does not implement value equality."""
     ra, rb = parse(pattern_a, text), parse(pattern_b, text)
-    assert (ra is None) == (rb is None)
-    if ra is None:
+    if ra is None or rb is None:
+        assert ra is None and rb is None
         return
     assert ra.span == rb.span
     assert dict(ra.named) == dict(rb.named)

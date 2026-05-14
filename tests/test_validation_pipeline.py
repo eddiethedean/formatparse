@@ -48,7 +48,11 @@ def test_apply_validators_lenient_generic_exception_message():
     r = parse("{a:d}", "1")
     assert r is not None
     with pytest.warns(ValidationWarning, match="validator failed"):
-        apply_validators(r, {"a": lambda _: (_ for _ in ()).throw(RuntimeError("boom"))}, mode="lenient")
+        apply_validators(
+            r,
+            {"a": lambda _: (_ for _ in ()).throw(RuntimeError("boom"))},
+            mode="lenient",
+        )
 
 
 def test_pipeline_lenient_runs_hooks_after_field_warnings():
@@ -83,7 +87,9 @@ def test_pipeline_lenient_hook_warning():
 
 def test_parse_lenient_validators():
     with pytest.warns(ValidationWarning, match="expected value"):
-        r = parse("{n:d}", "99", validators={"n": in_range(1, 10)}, validation_mode="lenient")
+        r = parse(
+            "{n:d}", "99", validators={"n": in_range(1, 10)}, validation_mode="lenient"
+        )
     assert r is not None
     assert r.named["n"] == 99
 
@@ -214,7 +220,6 @@ def test_parse_with_pipeline_keyword():
     r = parse("{x:d}", "3", pipeline=pl)
     assert r is not None
     assert r.named["x"] == 3
-
 
     pl = ValidationPipeline().add_validator("a", lambda _: None)
     with pytest.raises(ValueError, match="only one of"):
