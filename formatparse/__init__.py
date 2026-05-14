@@ -28,7 +28,9 @@ and `GitHub issue #11 <https://github.com/eddiethedean/formatparse/issues/11>`_.
 Use :class:`ValidationPipeline` for per-field steps (:meth:`~ValidationPipeline.add_validator`)
 and whole-result hooks (:meth:`~ValidationPipeline.add_hook`), then
 :meth:`~ValidationPipeline.apply`. Field keys are names (``str``) or ``fixed`` indices
-(``int``). Inline ``{...:validator(...)}`` syntax and async pipelines are deferred.
+(``int``). ``validation_mode='lenient'`` logs validator and hook failures with
+:func:`warnings.warn` and still returns the :class:`ParseResult`. Inline ``{...:validator(...)}``
+syntax and async pipelines are deferred.
 """
 
 from __future__ import annotations
@@ -51,6 +53,7 @@ from typing import (
     Union,
 )
 import re
+import warnings
 from importlib.metadata import PackageNotFoundError, version as _package_version
 
 # PEP 440 string for the installed distribution; falls back to workspace Cargo.toml
@@ -132,8 +135,14 @@ class RepeatedNameError(ValueError):
     pass
 
 
-ValidationMode = Literal["strict", "collect"]
+ValidationMode = Literal["strict", "collect", "lenient"]
 ValidatorMap = Mapping[Union[str, int], Callable[..., Any]]
+
+
+class ValidationWarning(UserWarning):
+    """Issued when ``validation_mode='lenient'`` and a validator or hook fails."""
+
+    pass
 
 
 class ValidationError(ValueError):
@@ -162,6 +171,9 @@ class ValidationError(ValueError):
 
 class MultipleValidationErrors(ValueError):
     """Raised when ``validation_mode='collect'`` and at least one validator fails.
+
+    Not used for ``validation_mode='lenient'`` (failures are reported via
+    :exc:`ValidationWarning` instead).
 
     The :attr:`errors` sequence preserves each :exc:`ValidationError` (in key order:
     all ``int`` keys ascending, then ``str`` keys alphabetically).
@@ -192,6 +204,17 @@ def _sorted_validator_keys(keys: Iterable[Union[str, int]]) -> List[Union[str, i
     ints = sorted(k for k in keys if isinstance(k, int))
     strs = sorted(k for k in keys if isinstance(k, str))
     return ints + strs
+
+
+def _warn_validation_failure(err: ValidationError, *, kind: str) -> None:
+    """Emit :exc:`ValidationWarning` for lenient mode (``kind`` is e.g. ``\"field\"`` or ``\"hook\"``)."""
+    field = err.field
+    base = str(err)
+    if field is not None:
+        msg = f"{kind} validation failed (field={field!r}): {base}"
+    else:
+        msg = f"{kind} validation failed: {base}"
+    warnings.warn(msg, ValidationWarning, stacklevel=3)
 
 
 def _validator_field_value(result: ParseResult, key: Union[str, int]) -> Any:
@@ -230,11 +253,34 @@ def apply_validators(
         names for :attr:`ParseResult.named` or ``int`` indices for :attr:`ParseResult.fixed`.
     :param mode: ``\"strict\"`` — stop on first error. ``\"collect\"`` — run all
         validators, then raise :exc:`MultipleValidationErrors` if any failed.
-    :returns: The same ``result`` reference after successful validation.
+        ``\"lenient\"`` — run all validators, emit :exc:`ValidationWarning` for each
+        failure, and always return ``result``.
+    :returns: The same ``result`` reference after validation (including lenient runs
+        with failures).
     :raises ValidationError: In ``strict`` mode when a validator fails.
     :raises MultipleValidationErrors: In ``collect`` mode when any validator fails.
     """
     if result is None or not validators:
+        return result
+
+    if mode == "lenient":
+        for key in _sorted_validator_keys(validators.keys()):
+            fn = validators[key]
+            try:
+                value = _validator_field_value(result, key)
+            except ValidationError as e:
+                _warn_validation_failure(e, kind="field")
+                continue
+            try:
+                fn(value)
+            except ValidationError as e:
+                err = ValidationError(str(e), field=key)
+                err.__cause__ = e.__cause__ if e.__cause__ is not None else e
+                _warn_validation_failure(err, kind="field")
+            except Exception as e:
+                err = ValidationError(f"validator failed: {e}", field=key)
+                err.__cause__ = e
+                _warn_validation_failure(err, kind="field")
         return result
 
     errors: List[ValidationError] = []
@@ -273,11 +319,12 @@ class ValidationPipeline:
     Build with :meth:`add_validator` and/or :meth:`add_hook`, then :meth:`apply` on a
     :class:`ParseResult`. Per-field keys follow :func:`apply_validators` (``str`` for
     named fields, ``int`` for ``fixed`` indices). If the same field is registered twice,
-    the **last** registration wins. Hooks run in registration order **after** all
-    per-field validators succeed.
+    the **last** registration wins. Hooks run in registration order **after** the
+    per-field validator pass completes (on success, or in ``lenient`` mode after every
+    field validator has been attempted).
 
-    Async validators, Rust ``parse_with_validation``, lenient logging, and rich
-    builtins (email/URL) remain deferred (see issue #11).
+    Async validators, Rust ``parse_with_validation``, and rich builtins (email/URL)
+    remain deferred (see issue #11).
     """
 
     __slots__ = ("_steps", "_hooks")
@@ -327,12 +374,27 @@ class ValidationPipeline:
         failure; ``collect`` runs all per-field validators, then if that phase raises
         :exc:`MultipleValidationErrors`, hooks are **not** run. If the field phase
         succeeds, every hook runs and hook failures are raised together as
-        :exc:`MultipleValidationErrors`.
+        :exc:`MultipleValidationErrors`. ``lenient`` runs all field validators (warning
+        on each failure), then all hooks (warning on each failure), and returns
+        ``result`` without raising validation exceptions.
         """
         if result is None:
             return result
         apply_validators(result, self.as_mapping(), mode=mode)
         if not self._hooks:
+            return result
+        if mode == "lenient":
+            for h in self._hooks:
+                try:
+                    h(result)
+                except ValidationError as e:
+                    err = ValidationError(str(e), field=e.field)
+                    err.__cause__ = e.__cause__ if e.__cause__ is not None else e
+                    _warn_validation_failure(err, kind="hook")
+                except Exception as e:
+                    err = ValidationError(f"hook failed: {e}", field=None)
+                    err.__cause__ = e
+                    _warn_validation_failure(err, kind="hook")
             return result
         if mode == "strict":
             for h in self._hooks:
@@ -496,7 +558,7 @@ def parse(
     :type evaluate_result: bool
     :param validators: Optional map of field key to validator; see :func:`apply_validators`.
     :param pipeline: Optional :class:`ValidationPipeline` (mutually exclusive with ``validators``).
-    :param validation_mode: ``\"strict\"`` or ``\"collect\"`` for validation.
+    :param validation_mode: ``\"strict\"``, ``\"collect\"``, or ``\"lenient\"`` for validation.
     :returns: ParseResult object if match found, None otherwise
     :rtype: ParseResult or None
     :raises ValueError: If pattern is invalid, or both ``validators`` and ``pipeline`` are set
@@ -548,6 +610,10 @@ class ValidatedParser:
         pipeline: Optional[ValidationPipeline] = None,
         validation_mode: ValidationMode = "strict",
     ) -> Optional[ParseResult]:
+        """Parse ``string`` with optional ``validators`` or ``pipeline`` (same rules as :func:`parse`).
+
+        :param validation_mode: ``\"strict\"``, ``\"collect\"``, or ``\"lenient\"`` (see :func:`parse`).
+        """
         _validation_source_exclusive(validators=validators, pipeline=pipeline)
         r = self._parser.parse(string, case_sensitive, extra_types, evaluate_result)
         if pipeline is not None:
@@ -1357,6 +1423,7 @@ __all__ = [
     "composed_type",
     "ComposedType",
     "ValidationError",
+    "ValidationWarning",
     "MultipleValidationErrors",
     "ValidationMode",
     "ValidatorMap",

@@ -6,6 +6,7 @@ from formatparse import (
     MultipleValidationErrors,
     ValidationError,
     ValidationPipeline,
+    ValidationWarning,
     ValidatedParser,
     apply_validators,
     compile,
@@ -13,6 +14,86 @@ from formatparse import (
     non_empty_str,
     parse,
 )
+
+
+def test_apply_validators_lenient_warns_and_returns():
+    r = parse("{x:d}", "5")
+    assert r is not None
+    with pytest.warns(ValidationWarning, match="bad"):
+        out = apply_validators(
+            r,
+            {"x": lambda _: (_ for _ in ()).throw(ValidationError("bad"))},
+            mode="lenient",
+        )
+    assert out is r
+    assert out.named["x"] == 5
+
+
+def test_apply_validators_lenient_two_field_failures():
+    r = parse("{a:d}-{b:d}", "1-2")
+    assert r is not None
+    with pytest.warns(ValidationWarning) as record:
+        apply_validators(
+            r,
+            {
+                "a": lambda _: (_ for _ in ()).throw(ValidationError("ea")),
+                "b": lambda _: (_ for _ in ()).throw(ValidationError("eb")),
+            },
+            mode="lenient",
+        )
+    assert len(record) == 2
+
+
+def test_apply_validators_lenient_generic_exception_message():
+    r = parse("{a:d}", "1")
+    assert r is not None
+    with pytest.warns(ValidationWarning, match="validator failed"):
+        apply_validators(r, {"a": lambda _: (_ for _ in ()).throw(RuntimeError("boom"))}, mode="lenient")
+
+
+def test_pipeline_lenient_runs_hooks_after_field_warnings():
+    order: list[str] = []
+
+    def bad(_):
+        order.append("field")
+        raise ValidationError("bad")
+
+    pl = (
+        ValidationPipeline()
+        .add_validator("a", bad)
+        .add_hook(lambda r: order.append("hook"))
+    )
+    r = parse("{a:d}", "1")
+    assert r is not None
+    with pytest.warns(ValidationWarning, match="bad"):
+        pl.apply(r, mode="lenient")
+    assert order == ["field", "hook"]
+
+
+def test_pipeline_lenient_hook_warning():
+    pl = ValidationPipeline().add_hook(
+        lambda _: (_ for _ in ()).throw(ValidationError("hookx"))
+    )
+    r = parse("{a:d}", "1")
+    assert r is not None
+    with pytest.warns(ValidationWarning, match="hookx"):
+        pl.apply(r, mode="lenient")
+    assert r.named["a"] == 1
+
+
+def test_parse_lenient_validators():
+    with pytest.warns(ValidationWarning, match="expected value"):
+        r = parse("{n:d}", "99", validators={"n": in_range(1, 10)}, validation_mode="lenient")
+    assert r is not None
+    assert r.named["n"] == 99
+
+
+def test_validated_parser_lenient():
+    vp = ValidatedParser(compile("{n:d}"))
+    with pytest.warns(ValidationWarning):
+        r = vp.parse("50", validators={"n": in_range(0, 10)}, validation_mode="lenient")
+    assert r is not None
+    assert r.named["n"] == 50
 
 
 def test_hooks_run_after_field_validators():
