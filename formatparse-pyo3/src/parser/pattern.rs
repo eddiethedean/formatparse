@@ -17,11 +17,60 @@ pub type ParsedPatternParts = (
     bool,
 );
 
+/// True when `s` contains at least one non-whitespace character (trim is non-empty).
+fn literal_delimits_empty_field(s: &str) -> bool {
+    !s.trim().is_empty()
+}
+
+/// After [`parse_field`], `chars` is at optional whitespace then the closing `}`.
+/// True when there is a non-whitespace literal run after that `}` and before the next unescaped `{`
+/// or end of pattern (formatparse#83). Whitespace-only gaps do not count so ``{} {}`` keeps
+/// non-empty captures for both fields.
+fn has_trailing_literal_before_next_field(
+    mut chars: std::iter::Peekable<std::str::Chars>,
+) -> bool {
+    while chars.peek().is_some_and(|c| c.is_whitespace()) {
+        chars.next();
+    }
+    if chars.next() != Some('}') {
+        return false;
+    }
+    while chars.peek().is_some_and(|c| c.is_whitespace()) {
+        chars.next();
+    }
+    let mut literal = String::new();
+    loop {
+        match chars.next() {
+            None => return literal_delimits_empty_field(&literal),
+            Some('{') => {
+                if chars.peek() == Some(&'{') {
+                    chars.next();
+                    literal.push('{');
+                } else {
+                    return literal_delimits_empty_field(&literal);
+                }
+            }
+            Some('}') => {
+                if chars.peek() == Some(&'}') {
+                    chars.next();
+                    literal.push('}');
+                } else {
+                    literal.push('}');
+                }
+            }
+            Some(c) => literal.push(c),
+        }
+    }
+}
+
 /// Parse a format pattern string into regex parts, field specs, and names
+/// `allow_empty_delimited_default_string`: when false, default string fields always use `.+?`
+/// (used for the unanchored search regex so search/findall do not stop early).
 pub fn parse_pattern(
     pattern: &str,
     extra_types: Option<&HashMap<String, PyObject>>,
     custom_patterns: &HashMap<String, String>,
+    allow_empty_delimited_default_string: bool,
 ) -> PyResult<ParsedPatternParts> {
     // Pre-allocate with estimated capacity based on pattern length
     let estimated_fields = pattern.matches('{').count();
@@ -44,6 +93,8 @@ pub fn parse_pattern(
                     literal.push('{');
                     continue;
                 }
+
+                let had_leading_literal = !literal.trim().is_empty();
 
                 // Flush literal part
                 if !literal.is_empty() {
@@ -70,6 +121,8 @@ pub fn parse_pattern(
                 if !spec.is_default_unconstrained_string() {
                     allows_empty_default_string_match = false;
                 }
+
+                let has_trailing_literal = has_trailing_literal_before_next_field(chars.clone());
 
                 // Check if the next field (if any) is empty {} (non-greedy)
                 // This affects width-only string patterns: exact when followed by {}, greedy otherwise
@@ -146,7 +199,14 @@ pub fn parse_pattern(
                     }
                 };
 
-                let pattern = spec.to_regex_pattern(custom_patterns, next_field_is_greedy);
+                let allow_empty_delimited = allow_empty_delimited_default_string
+                    && spec.is_default_unconstrained_string()
+                    && (had_leading_literal || has_trailing_literal);
+                let pattern = spec.to_regex_pattern(
+                    custom_patterns,
+                    next_field_is_greedy,
+                    allow_empty_delimited,
+                );
 
                 // Validate repeated field names have same type
                 if let Some(ref original_name) = name {

@@ -43,10 +43,14 @@ pub fn strftime_to_regex(format_str: &str) -> String {
 }
 
 impl FieldSpec {
+    /// `allow_empty_delimited`: for default unconstrained string fields only (no width,
+    /// precision, alignment), use `.*?` instead of `.+?` so an empty capture is allowed when
+    /// the field is delimited by pattern literals (formatparse#83 / parse#136 remainder).
     pub fn to_regex_pattern(
         &self,
         custom_patterns: &HashMap<String, String>,
         next_field_is_greedy: Option<bool>,
+        allow_empty_delimited: bool,
     ) -> String {
         let base_pattern = match &self.field_type {
             FieldType::String => {
@@ -100,9 +104,14 @@ impl FieldSpec {
                         _ => r"[^\{\}]+?".to_string(),
                     }
                 } else {
-                    // For empty {} fields, match any characters including newlines (non-greedy)
-                    // Use .+? to match the original parse library behavior
-                    r".+?".to_string()
+                    // For empty {} fields, match any characters including newlines (non-greedy).
+                    // Delimited default strings may match empty (issue #83); otherwise require
+                    // at least one character like the original parse library.
+                    if allow_empty_delimited {
+                        r".*?".to_string()
+                    } else {
+                        r".+?".to_string()
+                    }
                 }
             }
             FieldType::Multiline | FieldType::IndentBlock => {
@@ -443,16 +452,23 @@ mod tests {
         blk.width = Some(3);
         let custom = HashMap::new();
         assert_eq!(
-            ml.to_regex_pattern(&custom, None),
-            blk.to_regex_pattern(&custom, None)
+            ml.to_regex_pattern(&custom, None, false),
+            blk.to_regex_pattern(&custom, None, false)
         );
     }
 
     #[test]
     fn test_field_spec_string_default() {
         let spec = FieldSpec::new();
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert_eq!(pattern, r".+?");
+    }
+
+    #[test]
+    fn test_field_spec_string_delimited_allows_empty_capture() {
+        let spec = FieldSpec::new();
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, true);
+        assert_eq!(pattern, r".*?");
     }
 
     #[test]
@@ -460,7 +476,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Multiline;
         spec.width = Some(3);
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert_eq!(pattern, r"[\s\S]{3,}");
     }
 
@@ -469,7 +485,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Multiline;
         spec.width = Some(4);
-        let pattern = spec.to_regex_pattern(&HashMap::new(), Some(false));
+        let pattern = spec.to_regex_pattern(&HashMap::new(), Some(false), false);
         assert_eq!(pattern, r"[\s\S]{4}");
     }
 
@@ -478,7 +494,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Multiline;
         spec.alignment = Some('>');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert_eq!(pattern, r" *([\s\S]+?)");
     }
 
@@ -489,7 +505,7 @@ mod tests {
         spec.precision = Some(3);
         spec.alignment = Some('<');
         spec.fill = Some('.');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert_eq!(pattern, r"[\s\S]{3}(?:\.*)");
     }
 
@@ -497,7 +513,7 @@ mod tests {
     fn test_field_spec_string_with_precision() {
         let mut spec = FieldSpec::new();
         spec.precision = Some(5);
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert_eq!(pattern, r".{5}");
     }
 
@@ -505,7 +521,7 @@ mod tests {
     fn test_field_spec_string_with_width() {
         let mut spec = FieldSpec::new();
         spec.width = Some(10);
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert_eq!(pattern, r".{10,}");
     }
 
@@ -514,7 +530,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.width = Some(10);
         // When next field is greedy, use greedy pattern
-        let pattern = spec.to_regex_pattern(&HashMap::new(), Some(true));
+        let pattern = spec.to_regex_pattern(&HashMap::new(), Some(true), false);
         assert_eq!(pattern, r".{10,}");
     }
 
@@ -523,7 +539,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.width = Some(10);
         // When next field is non-greedy (like {}), use exact width
-        let pattern = spec.to_regex_pattern(&HashMap::new(), Some(false));
+        let pattern = spec.to_regex_pattern(&HashMap::new(), Some(false), false);
         assert_eq!(pattern, r".{10}");
     }
 
@@ -531,7 +547,7 @@ mod tests {
     fn test_field_spec_string_with_alignment_left() {
         let mut spec = FieldSpec::new();
         spec.alignment = Some('<');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(r"([^\{\}\s]+"));
     }
 
@@ -539,7 +555,7 @@ mod tests {
     fn test_field_spec_string_with_alignment_right() {
         let mut spec = FieldSpec::new();
         spec.alignment = Some('>');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert_eq!(pattern, r" *(.+?)");
     }
 
@@ -547,7 +563,7 @@ mod tests {
     fn test_field_spec_string_with_alignment_center() {
         let mut spec = FieldSpec::new();
         spec.alignment = Some('^');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(r"([^\{\}\s]+"));
     }
 
@@ -557,7 +573,7 @@ mod tests {
         spec.precision = Some(5);
         spec.alignment = Some('<');
         spec.fill = Some('x');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(".{5}"));
         assert!(pattern.contains("x*"));
     }
@@ -566,7 +582,7 @@ mod tests {
     fn test_field_spec_integer() {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Integer;
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(r"[+-]?"));
         assert!(pattern.contains(r"\s*[0-9]+") || pattern.contains(r"[0-9]+"));
     }
@@ -575,7 +591,7 @@ mod tests {
     fn test_field_spec_integer_decimal_leading_whitespace_before_digits() {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Integer;
-        let p = spec.to_regex_pattern(&HashMap::new(), None);
+        let p = spec.to_regex_pattern(&HashMap::new(), None, false);
         let re = Regex::new(&format!("^{}$", p)).unwrap();
         assert!(re.is_match("    0"));
         assert!(re.is_match("  42"));
@@ -587,7 +603,7 @@ mod tests {
         spec.field_type = FieldType::Integer;
         spec.zero_pad = true;
         spec.width = Some(5);
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains("[0-9]{1,5}"));
     }
 
@@ -596,7 +612,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Integer;
         spec.original_type_char = Some('x');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains("0[xX]"));
         assert!(pattern.contains("[0-9a-fA-F]+"));
     }
@@ -606,7 +622,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Integer;
         spec.original_type_char = Some('o');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains("0[oO]"));
         assert!(pattern.contains("[0-7]+"));
     }
@@ -616,7 +632,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Integer;
         spec.original_type_char = Some('b');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains("0[bB]"));
         assert!(pattern.contains("[01]+"));
     }
@@ -625,7 +641,7 @@ mod tests {
     fn test_field_spec_float() {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Float;
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(r"[+-]?"));
         assert!(pattern.contains(r"\d+\.\d+"));
     }
@@ -635,7 +651,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Float;
         spec.precision = Some(2);
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(r"\.\d{2}"));
     }
 
@@ -645,7 +661,7 @@ mod tests {
         spec.field_type = FieldType::Float;
         spec.precision = Some(0);
         spec.width = Some(2);
-        let p = spec.to_regex_pattern(&HashMap::new(), None);
+        let p = spec.to_regex_pattern(&HashMap::new(), None, false);
         let re = Regex::new(&format!("^{}$", p)).unwrap();
         assert!(re.is_match("20"));
         assert!(re.is_match(" 20"));
@@ -656,7 +672,7 @@ mod tests {
     fn test_field_spec_boolean() {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Boolean;
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains("true"));
         assert!(pattern.contains("false"));
         assert!(pattern.contains("1"));
@@ -667,7 +683,7 @@ mod tests {
     fn test_field_spec_letters() {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Letters;
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert_eq!(pattern, r"[a-zA-Z]+");
     }
 
@@ -675,7 +691,7 @@ mod tests {
     fn test_field_spec_word() {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Word;
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert_eq!(pattern, r"\w+");
     }
 
@@ -683,7 +699,7 @@ mod tests {
     fn test_field_spec_datetime_iso() {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::DateTimeISO;
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(r"\d{4}-\d{2}-\d{2}"));
     }
 
@@ -692,7 +708,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::DateTimeStrftime;
         spec.strftime_format = Some("%Y-%m-%d".to_string());
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(r"\d{4}"));
         assert!(pattern.contains(r"\d{1,2}"));
     }
@@ -703,7 +719,7 @@ mod tests {
         spec.field_type = FieldType::Custom("MyType".to_string());
         let mut custom_patterns = HashMap::new();
         custom_patterns.insert("MyType".to_string(), r"\d+".to_string());
-        let pattern = spec.to_regex_pattern(&custom_patterns, None);
+        let pattern = spec.to_regex_pattern(&custom_patterns, None, false);
         assert_eq!(pattern, r"\d+");
     }
 
@@ -711,7 +727,7 @@ mod tests {
     fn test_field_spec_custom_type_no_pattern() {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Custom("MyType".to_string());
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         // Should default to non-whitespace
         assert_eq!(pattern, r"\S+");
     }
@@ -720,7 +736,7 @@ mod tests {
     fn test_field_spec_braced_content_placeholder_regex() {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::BracedContent;
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert_eq!(pattern, r".*?");
     }
 
@@ -729,7 +745,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Integer;
         spec.sign = Some('+');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(r"\+?"));
     }
 
@@ -738,7 +754,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Integer;
         spec.sign = Some(' ');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(r"[- ]?"));
     }
 
@@ -748,7 +764,7 @@ mod tests {
         spec.field_type = FieldType::Integer;
         spec.fill = Some('x');
         spec.alignment = Some('=');
-        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         // Should have fill pattern between sign and digits
         assert!(pattern.contains("x*"));
     }

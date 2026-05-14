@@ -85,6 +85,16 @@ impl FormatParser {
             &pattern_owned,
             extra_types.as_ref(),
             &custom_patterns,
+            true,
+        )?;
+
+        // Search/findall use a separate compile path without "empty delimited" `.*?` groups so
+        // unanchored matching does not stop early (e.g. `{}, {}` on "Hello, World").
+        let (regex_str_search_anchored, _, _, _, _, _, _) = crate::parser::pattern::parse_pattern(
+            &pattern_owned,
+            extra_types.as_ref(),
+            &custom_patterns,
+            false,
         )?;
 
         // Validate field count
@@ -132,15 +142,18 @@ impl FormatParser {
         let regex = formatparse_core::build_regex(&regex_str_with_anchors)
             .map_err(crate::error::core_error_to_py_err)?;
 
+        let regex_search_anchored = formatparse_core::build_regex(&regex_str_search_anchored)
+            .map_err(crate::error::core_error_to_py_err)?;
+
         // Build case-insensitive regex
         let regex_case_insensitive =
             formatparse_core::build_case_insensitive_regex(&regex_str_with_anchors);
 
         // Pre-compile search regex variants (without anchors)
-        let search_regex = formatparse_core::build_search_regex(regex.as_str(), true)
+        let search_regex = formatparse_core::build_search_regex(regex_search_anchored.as_str(), true)
             .map_err(crate::error::core_error_to_py_err)?;
         let search_regex_case_insensitive =
-            formatparse_core::build_search_regex(regex.as_str(), false).ok();
+            formatparse_core::build_search_regex(regex_search_anchored.as_str(), false).ok();
 
         Ok(Self {
             pattern: pattern_owned,

@@ -168,3 +168,28 @@ def test_empty_string_default_string_fields_formatparse_issue16():
     assert r is not None
     assert r.named["a"] == "x"
     assert r.named["b"] == "y"
+
+
+def test_literal_plus_empty_default_string_formatparse_issue83():
+    """Parity with parse (parse#136 remainder): literal + default string may capture empty (#83)."""
+    r = parse.parse("/{url1}", "/")
+    assert r is not None
+    assert r.named["url1"] == ""
+
+    r = parse.parse("{path}/", "/")
+    assert r is not None
+    assert r.named["path"] == ""
+
+    r = parse.parse("a{}b", "ab")
+    assert r is not None
+    assert r[0] == ""
+
+    r = parse.parse("/{a}/{b}", "//")
+    assert r is not None
+    assert r.named["a"] == ""
+    assert r.named["b"] == ""
+
+    r = parse.parse("{}{}", "ab")
+    assert r is not None
+    assert r[0] == "a"
+    assert r[1] == "b"
