@@ -19,6 +19,13 @@ child parser and returns a nested :class:`ParseResult`. The parent pickle story 
 unchanged (only the parent pattern string is restored); re-supply ``extra_types``
 after unpickling, including any composed child parsers (see `GitHub issue #7
 <https://github.com/eddiethedean/formatparse/issues/7>`_).
+
+**Post-parse validators:** after :func:`parse` or :meth:`FormatParser.parse`, run
+callables with :func:`apply_validators`, or pass ``validators=`` to :func:`parse`
+(see `GitHub issue #10 <https://github.com/eddiethedean/formatparse/issues/10>`_).
+Keys are field names (``str``) or positional indices (``int`` for ``fixed``).
+In-process ``{...:validator(...)}`` syntax and async pipelines are deferred
+(issues #10 / #11).
 """
 
 from __future__ import annotations
@@ -28,8 +35,11 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     Iterator,
     List,
+    Literal,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -119,6 +129,141 @@ class RepeatedNameError(ValueError):
     pass
 
 
+ValidationMode = Literal["strict", "collect"]
+ValidatorMap = Mapping[Union[str, int], Callable[..., Any]]
+
+
+class ValidationError(ValueError):
+    """Raised when a post-parse validator rejects a field.
+
+    Subclass of :exc:`ValueError` for compatibility with ``except ValueError``.
+    Validators should raise this (or let :func:`apply_validators` wrap other
+    exceptions) so callers can inspect :attr:`field`.
+
+    See `GitHub issue #10 <https://github.com/eddiethedean/formatparse/issues/10>`_.
+
+    :param message: Human-readable reason the value was rejected.
+    :param field: Parsed field identifier — ``str`` for a named field or ``int``
+        for a positional ``fixed`` index (same convention as ``validators`` keys).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        field: Optional[Union[str, int]] = None,
+    ) -> None:
+        super().__init__(message)
+        self.field = field
+
+
+class MultipleValidationErrors(ValueError):
+    """Raised when ``validation_mode='collect'`` and at least one validator fails.
+
+    The :attr:`errors` sequence preserves each :exc:`ValidationError` (in key order:
+    all ``int`` keys ascending, then ``str`` keys alphabetically).
+    """
+
+    def __init__(self, errors: Sequence[ValidationError]) -> None:
+        self.errors = tuple(errors)
+        if not self.errors:
+            super().__init__("validation failed")
+        else:
+            super().__init__("; ".join(str(e) for e in self.errors))
+
+
+def validator(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Mark a function as a post-parse validator (metadata for tooling / docs).
+
+    Validators are invoked with the parsed value for one field; they should raise
+    :exc:`ValidationError` on failure or return normally on success.
+
+    :param func: Callable taking the parsed value (and optional extra args if you
+        wrap it yourself before passing to :func:`apply_validators`).
+    """
+    setattr(func, "_formatparse_validator", True)
+    return func
+
+
+def _sorted_validator_keys(keys: Iterable[Union[str, int]]) -> List[Union[str, int]]:
+    ints = sorted(k for k in keys if isinstance(k, int))
+    strs = sorted(k for k in keys if isinstance(k, str))
+    return ints + strs
+
+
+def _validator_field_value(result: ParseResult, key: Union[str, int]) -> Any:
+    if isinstance(key, str):
+        if key not in result.named:
+            raise ValidationError(
+                f"no named field {key!r} in parse result",
+                field=key,
+            )
+        return result.named[key]
+    fixed = result.fixed
+    if not isinstance(key, int) or key < 0 or key >= len(fixed):
+        raise ValidationError(
+            f"fixed field index {key!r} out of range (len(fixed)={len(fixed)})",
+            field=key,
+        )
+    return fixed[key]
+
+
+def apply_validators(
+    result: Optional[ParseResult],
+    validators: Optional[ValidatorMap],
+    *,
+    mode: ValidationMode = "strict",
+) -> Optional[ParseResult]:
+    """Run post-parse validators on ``named`` / ``fixed`` values.
+
+    Validators are **raise-based**: on success the callable returns (typically
+    ``None``). On failure raise :exc:`ValidationError` (recommended) or any
+    exception (wrapped in :exc:`ValidationError`). Replacing values in ``fixed``
+    slots is not supported; use named fields or mutate ``result.named`` yourself
+    after validation if you need coercion.
+
+    :param result: Output of :func:`parse` / :meth:`FormatParser.parse`, or ``None``.
+    :param validators: Map from **field key** to validator. Keys are ``str`` field
+        names for :attr:`ParseResult.named` or ``int`` indices for :attr:`ParseResult.fixed`.
+    :param mode: ``\"strict\"`` — stop on first error. ``\"collect\"`` — run all
+        validators, then raise :exc:`MultipleValidationErrors` if any failed.
+    :returns: The same ``result`` reference after successful validation.
+    :raises ValidationError: In ``strict`` mode when a validator fails.
+    :raises MultipleValidationErrors: In ``collect`` mode when any validator fails.
+    """
+    if result is None or not validators:
+        return result
+
+    errors: List[ValidationError] = []
+    for key in _sorted_validator_keys(validators.keys()):
+        fn = validators[key]
+        try:
+            value = _validator_field_value(result, key)
+        except ValidationError as e:
+            if mode == "strict":
+                raise
+            errors.append(e)
+            continue
+        try:
+            fn(value)
+        except ValidationError as e:
+            err = ValidationError(str(e), field=key)
+            err.__cause__ = e.__cause__ if e.__cause__ is not None else e
+            if mode == "strict":
+                raise err from err.__cause__
+            errors.append(err)
+        except Exception as e:
+            err = ValidationError(f"validator failed: {e}", field=key)
+            err.__cause__ = e
+            if mode == "strict":
+                raise err from e
+            errors.append(err)
+
+    if errors:
+        raise MultipleValidationErrors(errors)
+    return result
+
+
 # Wrap compile to catch RepeatedNameError
 def compile(pattern: str, extra_types: Optional[ExtraTypes] = None) -> FormatParser:
     """Compile a pattern into a FormatParser for repeated use.
@@ -190,6 +335,9 @@ def parse(
     extra_types: Optional[ExtraTypes] = None,
     case_sensitive: bool = False,
     evaluate_result: bool = True,
+    *,
+    validators: Optional[ValidatorMap] = None,
+    validation_mode: ValidationMode = "strict",
 ) -> Optional[ParseResult]:
     """Parse a string using a format specification.
 
@@ -211,9 +359,14 @@ def parse(
     :type case_sensitive: bool
     :param evaluate_result: Whether to evaluate and convert result types (default: True)
     :type evaluate_result: bool
+    :param validators: Optional map of field key (``str`` name or ``int`` ``fixed`` index)
+        to validator callable; see :func:`apply_validators`.
+    :param validation_mode: ``\"strict\"`` or ``\"collect\"`` for :func:`apply_validators`.
     :returns: ParseResult object if match found, None otherwise
     :rtype: ParseResult or None
     :raises ValueError: If pattern is invalid
+    :raises ValidationError: If ``validators`` is set and validation fails in strict mode
+    :raises MultipleValidationErrors: If ``validation_mode='collect'`` and any validator fails
 
     Example::
 
@@ -226,7 +379,38 @@ def parse(
         >>> result.fixed
         ('Hello', 'World')
     """
-    return _parse(pattern, string, extra_types, case_sensitive, evaluate_result)
+    r = _parse(pattern, string, extra_types, case_sensitive, evaluate_result)
+    return apply_validators(r, validators, mode=validation_mode)
+
+
+class ValidatedParser:
+    """Thin wrapper around :class:`FormatParser` with optional ``validators`` on :meth:`parse`.
+
+    Other attributes and methods are forwarded to the inner parser (e.g. ``search``,
+    ``pattern``). Use when you compile once and want the same validation ergonomics
+    as :func:`parse` keyword arguments.
+    """
+
+    __slots__ = ("_parser",)
+
+    def __init__(self, parser: FormatParser) -> None:
+        object.__setattr__(self, "_parser", parser)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._parser, name)
+
+    def parse(
+        self,
+        string: str,
+        case_sensitive: bool = False,
+        extra_types: Optional[ExtraTypes] = None,
+        evaluate_result: bool = True,
+        *,
+        validators: Optional[ValidatorMap] = None,
+        validation_mode: ValidationMode = "strict",
+    ) -> Optional[ParseResult]:
+        r = self._parser.parse(string, case_sensitive, extra_types, evaluate_result)
+        return apply_validators(r, validators, mode=validation_mode)
 
 
 def parse_batch(
@@ -1030,4 +1214,11 @@ __all__ = [
     "with_pattern",
     "composed_type",
     "ComposedType",
+    "ValidationError",
+    "MultipleValidationErrors",
+    "ValidationMode",
+    "ValidatorMap",
+    "apply_validators",
+    "validator",
+    "ValidatedParser",
 ]
