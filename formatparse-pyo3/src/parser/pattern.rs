@@ -16,6 +16,7 @@ pub fn parse_pattern(
     Vec<Option<String>>,
     Vec<Option<String>>,
     HashMap<String, String>,
+    bool,
 )> {
     // Pre-allocate with estimated capacity based on pattern length
     let estimated_fields = pattern.matches('{').count();
@@ -27,6 +28,7 @@ pub fn parse_pattern(
     let mut field_name_types = HashMap::with_capacity(estimated_fields); // Track field name -> FieldType for validation
     let mut chars: std::iter::Peekable<std::str::Chars> = pattern.chars().peekable();
     let mut literal = String::new();
+    let mut allows_empty_default_string_match = true;
 
     while let Some(ch) = chars.next() {
         match ch {
@@ -40,6 +42,7 @@ pub fn parse_pattern(
 
                 // Flush literal part
                 if !literal.is_empty() {
+                    allows_empty_default_string_match = false;
                     // If literal ends with whitespace, make it flexible to allow multiple spaces
                     // But use \s+ (one or more) instead of \s* (zero or more) to ensure we consume the space
                     let escaped = if literal.trim_end() != literal {
@@ -59,6 +62,9 @@ pub fn parse_pattern(
 
                 // Parse field specification
                 let (spec, name) = parse_field(&mut chars, extra_types)?;
+                if !spec.is_default_unconstrained_string() {
+                    allows_empty_default_string_match = false;
+                }
 
                 // Check if the next field (if any) is empty {} (non-greedy)
                 // This affects width-only string patterns: exact when followed by {}, greedy otherwise
@@ -205,6 +211,7 @@ pub fn parse_pattern(
 
     // Flush remaining literal
     if !literal.is_empty() {
+        allows_empty_default_string_match = false;
         // If literal ends with whitespace, make it flexible to allow multiple spaces
         let escaped = if literal.trim_end() != literal {
             // Literal ends with whitespace - replace trailing whitespace with \s*
@@ -226,6 +233,7 @@ pub fn parse_pattern(
         field_names,
         normalized_names,
         name_mapping,
+        allows_empty_default_string_match,
     ))
 }
 

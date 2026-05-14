@@ -147,3 +147,24 @@ def test_unused_left_alignment_bug():
 def test_match_trailing_newline():
     r = parse.parse("{}", "test\n")
     assert r[0] == "test\n"
+
+
+def test_empty_string_default_string_fields_formatparse_issue16():
+    """Parity with parse (parse#136): default string fields may match empty input."""
+    r = parse.parse("{}", "")
+    assert r is not None
+    assert r[0] == ""
+
+    r = parse.parse("{name}", "")
+    assert r is not None
+    assert r.named["name"] == ""
+
+    r = parse.parse("{}{}", "")
+    assert r is not None
+    assert r[0] == ""
+    assert r[1] == ""
+
+    r = parse.parse("{a}{b}", "xy")
+    assert r is not None
+    assert r.named["a"] == "x"
+    assert r.named["b"] == "y"

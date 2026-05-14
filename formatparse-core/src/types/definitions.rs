@@ -62,6 +62,16 @@ impl FieldSpec {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// True for `{}` / `{name}` with no width, precision, or alignment (the plain
+    /// string branch in the regex builder). Used for empty-input `parse`
+    /// handling (formatparse#16) without changing search/findall semantics.
+    pub fn is_default_unconstrained_string(&self) -> bool {
+        matches!(self.field_type, FieldType::String)
+            && self.width.is_none()
+            && self.precision.is_none()
+            && self.alignment.is_none()
+    }
 }
 
 #[cfg(test)]

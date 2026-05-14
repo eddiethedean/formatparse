@@ -32,6 +32,7 @@ pub struct FormatParser {
     pub(crate) custom_type_groups: Vec<usize>, // Cached pattern_groups per field (for custom types)
     pub(crate) field_count: usize,             // Cached field count for fast path optimizations
     pub(crate) has_nested_dict_fields: Vec<bool>, // Cached flags: does field name contain '[' (nested dict)?
+    allows_empty_default_string_match: bool, // True iff parse("") can use empty-field fast path (issue #16)
 }
 
 impl FormatParser {
@@ -75,6 +76,7 @@ impl FormatParser {
             field_names,
             normalized_names,
             name_mapping,
+            allows_empty_default_string_match,
         ) = crate::parser::pattern::parse_pattern(pattern, extra_types.as_ref(), &custom_patterns)?;
 
         // Validate field count
@@ -147,6 +149,7 @@ impl FormatParser {
             custom_type_groups,
             field_count: field_specs.len(), // Cache field count for fast path
             has_nested_dict_fields,         // Cache nested dict flags
+            allows_empty_default_string_match,
         })
     }
 
@@ -209,6 +212,24 @@ impl FormatParser {
             } else {
                 &HashMap::new()
             };
+
+            if string.is_empty()
+                && self.allows_empty_default_string_match
+                && !self.field_specs.is_empty()
+            {
+                if let Some(obj) = crate::parser::matching::match_empty_default_string_parse(
+                    &self.pattern,
+                    &self.field_specs,
+                    &self.field_names,
+                    &self.normalized_names,
+                    py,
+                    extra_types_ref,
+                    evaluate_result,
+                )? {
+                    return Ok(Some(obj));
+                }
+            }
+
             crate::parser::matching::match_with_regex(
                 regex,
                 string,
@@ -271,6 +292,7 @@ impl Clone for FormatParser {
             custom_type_groups: self.custom_type_groups.clone(),
             field_count: self.field_count,
             has_nested_dict_fields: self.has_nested_dict_fields.clone(),
+            allows_empty_default_string_match: self.allows_empty_default_string_match,
         })
     }
 }
@@ -310,6 +332,7 @@ impl FormatParser {
                     custom_type_groups: Vec::new(),
                     field_count: 0,
                     has_nested_dict_fields: Vec::new(),
+                    allows_empty_default_string_match: false,
                 })
             }
         }
@@ -472,6 +495,7 @@ impl FormatParser {
         self.custom_type_groups = reconstructed.custom_type_groups;
         self.field_count = reconstructed.field_count;
         self.has_nested_dict_fields = reconstructed.has_nested_dict_fields;
+        self.allows_empty_default_string_match = reconstructed.allows_empty_default_string_match;
         Ok(())
     }
 }
