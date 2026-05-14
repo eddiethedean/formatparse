@@ -2,6 +2,11 @@
 Parse strings using a specification based on the Python format() syntax.
 
 This is a Rust-backed implementation of the parse library for better performance.
+
+**Custom types:** pass a mapping as ``extra_types`` from each type name used in the
+pattern (e.g. ``{:Number}`` → key ``\"Number\"``) to a callable, usually decorated
+with :func:`with_pattern`. See :func:`compile` and the `Custom types user guide
+<https://formatparse.readthedocs.io/en/latest/user_guides/custom_types.html>`_.
 """
 
 from __future__ import annotations
@@ -60,7 +65,8 @@ class ConverterProtocol(Protocol):
         ...
 
 
-# Type alias for extra_types parameter
+# Type alias: mapping from custom type name (e.g. ``Number`` in ``{:Number}``) to a
+# callable with ``pattern`` and optional ``regex_group_count`` (see :func:`with_pattern`).
 ExtraTypes = Dict[str, ConverterProtocol]
 
 
@@ -111,9 +117,22 @@ def compile(pattern: str, extra_types: Optional[ExtraTypes] = None) -> FormatPar
     not pay full pattern-to-regex compilation on every iteration (see
     `issue #29 <https://github.com/eddiethedean/formatparse/issues/29>`_).
 
+    **Custom types:** keys are the *type names* used after ``:`` in fields (for example
+    ``Number`` in ``{:Number}`` or ``{x:Number}``). Values are callables, usually from
+    :func:`with_pattern`, which attach a ``pattern`` regex fragment and optional
+    ``regex_group_count`` when the regex contains capturing parentheses. See the
+    `Custom types guide <https://formatparse.readthedocs.io/en/latest/user_guides/custom_types.html>`_
+    for examples with :func:`search` / :func:`findall` and for ``regex_group_count``.
+
+    The cache fingerprints each name's ``pattern`` and ``regex_group_count``. If you
+    mutate those attributes on a live converter object, reuse the same ``extra_types``
+    dict, and the fingerprint stays unchanged, you can see a stale compiled parser until
+    the process restarts—prefer a fresh dict or new function objects when changing
+    patterns at runtime.
+
     :param pattern: Format specification pattern (e.g., ``"{name}: {age:d}"``)
     :type pattern: str
-    :param extra_types: Optional dictionary of custom type converters
+    :param extra_types: Optional mapping of custom type names to converters (see above)
     :type extra_types: dict, optional
     :returns: FormatParser object that can be used to parse strings
     :rtype: FormatParser
@@ -165,7 +184,11 @@ def parse(
     :type pattern: str
     :param string: String to parse
     :type string: str
-    :param extra_types: Optional dictionary of custom type converters
+    :param extra_types: Optional mapping of custom type names (after ``:`` in the field)
+        to callables, typically from :func:`with_pattern`. Uses the same compiled-parser
+        cache as :func:`compile` (pattern plus per-name ``pattern`` /
+        ``regex_group_count``). See the
+        `Custom types guide <https://formatparse.readthedocs.io/en/latest/user_guides/custom_types.html>`_.
     :type extra_types: dict, optional
     :param case_sensitive: Whether matching should be case sensitive (default: False)
     :type case_sensitive: bool
@@ -211,7 +234,8 @@ def search(
     :type pos: int
     :param endpos: End position for search (default: None for end of string)
     :type endpos: int, optional
-    :param extra_types: Optional dictionary of custom type converters
+    :param extra_types: Same semantics as :func:`parse` (custom types / cache); see
+        `Custom types guide <https://formatparse.readthedocs.io/en/latest/user_guides/custom_types.html>`_.
     :type extra_types: dict, optional
     :param case_sensitive: Whether matching should be case sensitive (default: True)
     :type case_sensitive: bool
@@ -269,7 +293,10 @@ def findall(
     :type pattern: str
     :param string: String to search
     :type string: str
-    :param extra_types: Optional dictionary of custom type converters
+    :param extra_types: Same semantics as :func:`parse`. When provided, the Rust fast
+        path that returns :class:`Results` is disabled and a Python ``list`` is built
+        instead (see returns below). See the
+        `Custom types guide <https://formatparse.readthedocs.io/en/latest/user_guides/custom_types.html>`_.
     :type extra_types: dict, optional
     :param case_sensitive: Whether matching should be case sensitive (default: False)
     :type case_sensitive: bool

@@ -75,6 +75,27 @@ for result in results:
 
 For more examples and detailed usage, see the [documentation](https://formatparse.readthedocs.io/).
 
+## Custom types (`extra_types`)
+
+Map format-specifier names in your pattern to Python callables with the `@with_pattern` decorator. The type name after the colon in the field (for example `Number` in `{:Number}`) must match a key in the `extra_types` dict.
+
+```python
+from formatparse import parse, with_pattern
+
+@with_pattern(r"\d+")
+def parse_int(text: str) -> int:
+    return int(text)
+
+result = parse("n={:Number}", "n=42", extra_types={"Number": parse_int})
+assert result.fixed[0] == 42
+```
+
+If your regex uses capturing parentheses, set `regex_group_count` on `@with_pattern` so the engine can align groups correctly. Full examples, `search` / `findall` usage, and pitfalls are in the **[Custom types](https://formatparse.readthedocs.io/en/latest/user_guides/custom_types.html)** user guide.
+
+**Caching:** `parse`, `search`, `findall`, and `compile` share an internal LRU cache keyed by the pattern string and a fingerprint of `extra_types` (each converter’s `pattern` and `regex_group_count`). Two dicts with the same keys and equivalent converters reuse the same compiled regex; changing a converter’s `pattern` without changing the dict identity can still reuse a stale cache entry—use a fresh dict or restart the process if you change patterns at runtime. See [issue #29](https://github.com/eddiethedean/formatparse/issues/29).
+
+**Pickling:** A pickled `FormatParser` stores only the pattern string. After `pickle.loads`, pass `extra_types` again when calling `parse` / `search` / `findall` if your pattern uses custom types.
+
 ## Performance
 
 formatparse is significantly faster than the original Python `parse` library, with speedups ranging from **3x to 80x** depending on the use case. The Rust backend provides:
