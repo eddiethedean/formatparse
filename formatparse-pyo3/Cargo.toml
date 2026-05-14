@@ -12,6 +12,11 @@ description = "PyO3 bindings for formatparse"
 name = "_formatparse"
 crate-type = ["cdylib"]
 
+[features]
+default = []
+# Opt-in tests that require a Python interpreter (see raw_match.rs).
+python-tests = []
+
 [dependencies]
 formatparse-core = { path = "../formatparse-core" }
 pyo3 = { version = "0.24", features = ["extension-module"] }

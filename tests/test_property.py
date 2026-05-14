@@ -417,9 +417,7 @@ def test_fill_char_combinations(fill_char, alignment, width, value):
     result = formatter.parse(formatted)
     if result is not None:
         parsed = result.named["value"]
-        expected = _expected_parsed_aligned_string(
-            value, alignment, width, fill_char
-        )
+        expected = _expected_parsed_aligned_string(value, alignment, width, fill_char)
         assert parsed == expected
 
 

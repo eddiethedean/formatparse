@@ -6,6 +6,4 @@
 pub mod conversion;
 
 // Re-export core types for convenience
-pub use formatparse_core::{FieldType, FieldSpec};
-pub use formatparse_core::strftime_to_regex;
-
+pub use formatparse_core::FieldSpec;

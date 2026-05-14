@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyTuple, PySlice};
+use pyo3::types::{PySlice, PyTuple};
 use std::collections::HashMap;
 
 #[pyclass]
@@ -8,41 +8,47 @@ pub struct ParseResult {
     #[pyo3(get)]
     pub named: HashMap<String, PyObject>,
     pub span: (usize, usize),
-    pub field_spans: HashMap<String, (usize, usize)>,  // Maps field index/name to (start, end)
+    pub field_spans: HashMap<String, (usize, usize)>, // Maps field index/name to (start, end)
 }
 
 impl Clone for ParseResult {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| {
-            Self {
-                fixed: self.fixed.iter().map(|obj| obj.clone_ref(py).into()).collect(),
-                named: self.named.iter().map(|(k, v)| (k.clone(), v.clone_ref(py).into())).collect(),
-                span: self.span,
-                field_spans: self.field_spans.clone(),
-            }
+        Python::with_gil(|py| Self {
+            fixed: self.fixed.iter().map(|obj| obj.clone_ref(py)).collect(),
+            named: self
+                .named
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                .collect(),
+            span: self.span,
+            field_spans: self.field_spans.clone(),
         })
     }
 }
 
 impl ParseResult {
-    pub fn new(fixed: Vec<PyObject>, named: HashMap<String, PyObject>, span: (usize, usize)) -> Self {
-        Self { 
-            fixed, 
-            named, 
+    pub fn new(
+        fixed: Vec<PyObject>,
+        named: HashMap<String, PyObject>,
+        span: (usize, usize),
+    ) -> Self {
+        Self {
+            fixed,
+            named,
             span,
             field_spans: HashMap::new(),
         }
     }
 
     pub fn new_with_spans(
-        fixed: Vec<PyObject>, 
-        named: HashMap<String, PyObject>, 
+        fixed: Vec<PyObject>,
+        named: HashMap<String, PyObject>,
         span: (usize, usize),
-        field_spans: HashMap<String, (usize, usize)>
+        field_spans: HashMap<String, (usize, usize)>,
     ) -> Self {
-        Self { 
-            fixed, 
-            named, 
+        Self {
+            fixed,
+            named,
             span,
             field_spans,
         }
@@ -51,19 +57,24 @@ impl ParseResult {
     pub fn with_offset(mut self, offset: usize) -> Self {
         self.span = (self.span.0 + offset, self.span.1 + offset);
         // Adjust all field spans by offset
-        self.field_spans = self.field_spans.into_iter()
+        self.field_spans = self
+            .field_spans
+            .into_iter()
             .map(|(k, (start, end))| (k, (start + offset, end + offset)))
             .collect();
         self
     }
-
 }
 
 #[pymethods]
 impl ParseResult {
     #[new]
     #[pyo3(signature = (fixed, named, span=None))]
-    fn new_py(fixed: Vec<PyObject>, named: HashMap<String, PyObject>, span: Option<(usize, usize)>) -> Self {
+    fn new_py(
+        fixed: Vec<PyObject>,
+        named: HashMap<String, PyObject>,
+        span: Option<(usize, usize)>,
+    ) -> Self {
         Self::new(fixed, named, span.unwrap_or((0, 0)))
     }
 
@@ -105,7 +116,7 @@ impl ParseResult {
             if let Ok(slice) = key.downcast::<PySlice>() {
                 let len = self.fixed.len() as isize;
                 let indices = slice.indices(len)?;
-                
+
                 let mut result = Vec::new();
                 let mut idx = indices.start;
                 for _ in 0..indices.slicelength {
@@ -114,21 +125,30 @@ impl ParseResult {
                     }
                     idx += indices.step;
                 }
-                
+
                 let tuple = PyTuple::new(py, result)?;
                 Ok(tuple.into())
             } else if let Ok(idx) = key.extract::<usize>() {
                 self.fixed
                     .get(idx)
-                    .map(|obj| obj.clone_ref(py).into())
-                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyIndexError, _>("Index out of range"))
+                    .map(|obj| obj.clone_ref(py))
+                    .ok_or_else(|| {
+                        PyErr::new::<pyo3::exceptions::PyIndexError, _>("Index out of range")
+                    })
             } else if let Ok(name) = key.extract::<String>() {
                 self.named
                     .get(&name)
-                    .map(|obj| obj.clone_ref(py).into())
-                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>(format!("Key '{}' not found", name)))
+                    .map(|obj| obj.clone_ref(py))
+                    .ok_or_else(|| {
+                        PyErr::new::<pyo3::exceptions::PyKeyError, _>(format!(
+                            "Key '{}' not found",
+                            name
+                        ))
+                    })
             } else {
-                Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>("Key must be int, str, or slice"))
+                Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                    "Key must be int, str, or slice",
+                ))
             }
         })
     }
@@ -162,4 +182,3 @@ impl ParseResult {
         })
     }
 }
-

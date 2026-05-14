@@ -21,7 +21,10 @@ impl FixedTzOffset {
         let hours = self.offset_seconds.abs() / 3600;
         let minutes = (self.offset_seconds.abs() % 3600) / 60;
         let sign = if self.offset_seconds >= 0 { "" } else { "-" };
-        format!("<FixedTzOffset {} {}{}:{:02}:00>", self.name, sign, hours, minutes)
+        format!(
+            "<FixedTzOffset {} {}{}:{:02}:00>",
+            self.name, sign, hours, minutes
+        )
     }
 
     fn __str__(&self) -> String {
@@ -30,8 +33,8 @@ impl FixedTzOffset {
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
         if let Ok(other_tz) = other.downcast::<Self>() {
-            Ok(self.offset_seconds == other_tz.borrow().offset_seconds && 
-               self.name == other_tz.borrow().name)
+            Ok(self.offset_seconds == other_tz.borrow().offset_seconds
+                && self.name == other_tz.borrow().name)
         } else {
             Ok(false)
         }
@@ -55,10 +58,10 @@ impl FixedTzOffset {
 
     /// tzinfo.utcoffset() - returns timedelta for offset
     fn utcoffset(&self, py: Python, _dt: Option<&Bound<'_, PyAny>>) -> PyResult<PyObject> {
-        let datetime_module = py.import_bound("datetime")?;
+        let datetime_module = py.import("datetime")?;
         let timedelta_class = datetime_module.getattr("timedelta")?;
         // timedelta(seconds=offset_seconds)
-        let delta = timedelta_class.call1((0, 0, self.offset_seconds,))?;
+        let delta = timedelta_class.call1((0, 0, self.offset_seconds))?;
         Ok(delta.to_object(py))
     }
 
@@ -72,4 +75,3 @@ impl FixedTzOffset {
         self.name.clone()
     }
 }
-

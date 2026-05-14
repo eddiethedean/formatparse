@@ -9,17 +9,17 @@ const MAX_REGEX_COMPILATION_TIME_MS: u128 = 200;
 /// Includes timeout protection against ReDoS attacks
 pub fn build_regex(pattern: &str) -> Result<Regex, FormatParseError> {
     let start = Instant::now();
-    
+
     // Pre-allocate with estimated capacity
     let mut regex_with_flags = String::with_capacity(pattern.len() + 4);
     regex_with_flags.push_str("(?s)");
     regex_with_flags.push_str(pattern);
-    
+
     let regex = Regex::new(&regex_with_flags).map_err(|e| {
         // Sanitize error message - don't expose full regex pattern to prevent information disclosure
         FormatParseError::RegexError(format!("Invalid regex pattern: {}", e))
     })?;
-    
+
     // Check compilation time
     let elapsed = start.elapsed().as_millis();
     if elapsed > MAX_REGEX_COMPILATION_TIME_MS {
@@ -28,7 +28,7 @@ pub fn build_regex(pattern: &str) -> Result<Regex, FormatParseError> {
             elapsed, MAX_REGEX_COMPILATION_TIME_MS
         )));
     }
-    
+
     Ok(regex)
 }
 
@@ -36,20 +36,20 @@ pub fn build_regex(pattern: &str) -> Result<Regex, FormatParseError> {
 /// Includes timeout protection against ReDoS attacks
 pub fn build_case_insensitive_regex(pattern: &str) -> Option<Regex> {
     let start = Instant::now();
-    
+
     // Pre-allocate with estimated capacity
     let mut regex_with_flags = String::with_capacity(pattern.len() + 8);
     regex_with_flags.push_str("(?s)(?i)");
     regex_with_flags.push_str(pattern);
-    
+
     let regex = Regex::new(&regex_with_flags).ok()?;
-    
+
     // Check compilation time
     let elapsed = start.elapsed().as_millis();
     if elapsed > MAX_REGEX_COMPILATION_TIME_MS {
         return None;
     }
-    
+
     Some(regex)
 }
 
@@ -58,22 +58,22 @@ pub fn build_case_insensitive_regex(pattern: &str) -> Option<Regex> {
 pub fn prepare_search_regex(regex_str: &str) -> String {
     let mut start = 0;
     let mut end = regex_str.len();
-    
+
     // Remove (?s) flag if present
     if regex_str.starts_with("(?s)") {
         start = 4;
     }
-    
+
     // Remove ^ anchor
     if regex_str[start..].starts_with("^") {
         start += 1;
     }
-    
+
     // Remove $ anchor
     if regex_str[..end].ends_with("$") {
         end -= 1;
     }
-    
+
     // Only allocate if we need to modify the string
     if start > 0 || end < regex_str.len() {
         regex_str[start..end].to_string()
@@ -84,11 +84,14 @@ pub fn prepare_search_regex(regex_str: &str) -> String {
 
 /// Build a search regex (without anchors) with optional case sensitivity
 /// Includes timeout protection against ReDoS attacks
-pub fn build_search_regex(regex_str: &str, case_sensitive: bool) -> Result<Regex, FormatParseError> {
+pub fn build_search_regex(
+    regex_str: &str,
+    case_sensitive: bool,
+) -> Result<Regex, FormatParseError> {
     let start = Instant::now();
-    
+
     let search_regex_str = prepare_search_regex(regex_str);
-    
+
     // Pre-allocate with estimated capacity
     let capacity = search_regex_str.len() + if case_sensitive { 4 } else { 8 };
     let mut pattern = String::with_capacity(capacity);
@@ -97,12 +100,12 @@ pub fn build_search_regex(regex_str: &str, case_sensitive: bool) -> Result<Regex
         pattern.push_str("(?i)");
     }
     pattern.push_str(&search_regex_str);
-    
+
     let regex = Regex::new(&pattern).map_err(|e| {
         // Sanitize error message - don't expose full regex pattern to prevent information disclosure
         FormatParseError::RegexError(format!("Invalid regex pattern: {}", e))
     })?;
-    
+
     // Check compilation time
     let elapsed = start.elapsed().as_millis();
     if elapsed > MAX_REGEX_COMPILATION_TIME_MS {
@@ -111,7 +114,7 @@ pub fn build_search_regex(regex_str: &str, case_sensitive: bool) -> Result<Regex
             elapsed, MAX_REGEX_COMPILATION_TIME_MS
         )));
     }
-    
+
     Ok(regex)
 }
 
@@ -204,4 +207,3 @@ mod tests {
         assert!(regex.is_match("prefix test\nline suffix"));
     }
 }
-

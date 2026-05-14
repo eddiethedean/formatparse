@@ -1,45 +1,52 @@
 //! formatparse-pyo3: PyO3 bindings for formatparse
 //!
-//! This crate provides Python bindings for the formatparse-core library.
+//! formatparse-pyo3 provides Python bindings for the formatparse-core library.
 
-use pyo3::prelude::*;
-use pyo3::exceptions::PyValueError;
-use pyo3::types::{PyDict, PyList};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use once_cell::sync::Lazy;
+#![allow(deprecated)] // PyO3: ToPyObject::to_object pending migration to IntoPyObject
+#![allow(dead_code)] // Public / reserved helpers (e.g. error constructors, datetime parsers)
+#![allow(clippy::if_same_then_else)] // Parser mirrors symmetric branches intentionally
+#![allow(clippy::manual_strip)] // Signed numeric parsing keeps explicit slice paths
+#![allow(clippy::too_many_arguments)] // PyO3 entry points and format spec plumbing
+#![allow(clippy::type_complexity)] // PyO3-heavy signatures
+#![allow(clippy::wrong_self_convention)] // `to_py_object` mirrors Python naming
+
 use lru::LruCache;
-use std::num::NonZeroUsize;
-use std::hash::{Hash, Hasher};
+use once_cell::sync::Lazy;
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyList};
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::num::NonZeroUsize;
+use std::sync::{Arc, Mutex};
 
 // Use formatparse-core for pure Rust types (imported below via pub use)
 
 mod datetime;
 mod error;
+mod match_rs;
 mod parser;
 mod result;
 mod results;
 mod types;
-mod match_rs;
 
 pub use datetime::FixedTzOffset;
-pub use parser::{FormatParser, Format};
+pub use parser::{Format, FormatParser};
 pub use result::*;
 pub use results::Results;
 pub use types::conversion::*;
 // Core types come from formatparse-core
-pub use formatparse_core::{FieldType, FieldSpec};
 pub use formatparse_core::strftime_to_regex;
+pub use formatparse_core::{FieldSpec, FieldType};
 pub use match_rs::Match;
 
 // Pattern cache for compiled FormatParser instances
 // Cache size: 1000 patterns
 // Using u64 hash as key for faster lookups
 // Using Arc to avoid expensive clones
-static PATTERN_CACHE: Lazy<Mutex<LruCache<u64, Arc<FormatParser>>>> = Lazy::new(|| {
-    Mutex::new(LruCache::new(NonZeroUsize::new(1000).unwrap()))
-});
+static PATTERN_CACHE: Lazy<Mutex<LruCache<u64, Arc<FormatParser>>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(1000).unwrap())));
 
 /// Create a cache key hash from pattern and extra_types
 fn create_cache_key_hash(pattern: &str, extra_types: &Option<HashMap<String, PyObject>>) -> u64 {
@@ -62,26 +69,26 @@ fn get_or_create_parser(
     extra_types: Option<HashMap<String, PyObject>>,
 ) -> PyResult<Arc<FormatParser>> {
     let cache_key = create_cache_key_hash(pattern, &extra_types);
-    
+
     // Try to get from cache (minimize lock scope)
     let cached = {
         let mut cache = PATTERN_CACHE.lock().unwrap();
         cache.get(&cache_key).cloned()
     };
-    
+
     if let Some(cached_parser) = cached {
         return Ok(cached_parser);
     }
-    
+
     // Not in cache, create new parser
     let parser = Arc::new(FormatParser::new_with_extra_types(pattern, extra_types)?);
-    
+
     // Store in cache (minimize lock scope)
     {
         let mut cache = PATTERN_CACHE.lock().unwrap();
         cache.put(cache_key, parser.clone());
     }
-    
+
     Ok(parser)
 }
 
@@ -97,22 +104,28 @@ fn parse(
 ) -> PyResult<Option<PyObject>> {
     // Validate input lengths
     formatparse_core::validate_pattern_length(pattern)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
     formatparse_core::validate_input_length(string)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
-    
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+
     // Check for null bytes in inputs
     if pattern.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err("Pattern contains null byte"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Pattern contains null byte",
+        ));
     }
     if string.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err("Input string contains null byte"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Input string contains null byte",
+        ));
     }
-    
+
     // Use cached parser if available
     let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
         extra_types.as_ref().map(|et| {
-            et.iter().map(|(k, v)| (k.clone(), v.clone_ref(py).into())).collect()
+            et.iter()
+                .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                .collect()
         })
     });
     match get_or_create_parser(pattern, extra_types_cloned) {
@@ -149,7 +162,7 @@ fn search(
     if pos > string.len() {
         return Ok(None);
     }
-    
+
     // Validate endpos parameter
     let end = endpos.unwrap_or(string.len());
     if end > string.len() {
@@ -158,30 +171,38 @@ fn search(
     if end < pos {
         return Ok(None);
     }
-    
+
     // Validate input lengths
     formatparse_core::validate_pattern_length(pattern)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
     formatparse_core::validate_input_length(string)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
-    
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+
     // Check for null bytes in inputs
     if pattern.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err("Pattern contains null byte"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Pattern contains null byte",
+        ));
     }
     if string.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err("Input string contains null byte"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Input string contains null byte",
+        ));
     }
-    
+
     let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
         extra_types.as_ref().map(|et| {
-            et.iter().map(|(k, v)| (k.clone(), v.clone_ref(py).into())).collect()
+            et.iter()
+                .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                .collect()
         })
     });
     let parser = get_or_create_parser(pattern, extra_types_cloned)?;
     let search_string = &string[pos..end];
-    
-    if let Some(result) = parser.search_pattern(search_string, case_sensitive, extra_types, evaluate_result)? {
+
+    if let Some(result) =
+        parser.search_pattern(search_string, case_sensitive, extra_types, evaluate_result)?
+    {
         // Adjust positions if it's a ParseResult (not Match)
         Python::with_gil(|py| {
             if let Ok(parse_result) = result.bind(py).downcast::<ParseResult>() {
@@ -212,48 +233,57 @@ fn findall(
 ) -> PyResult<PyObject> {
     // Validate input lengths
     formatparse_core::validate_pattern_length(pattern)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
     formatparse_core::validate_input_length(string)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))?;
-    
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+
     // Check for null bytes in inputs
     if pattern.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err("Pattern contains null byte"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Pattern contains null byte",
+        ));
     }
     if string.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err("Input string contains null byte"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Input string contains null byte",
+        ));
     }
-    
+
     let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
         extra_types.as_ref().map(|et| {
-            et.iter().map(|(k, v)| (k.clone(), v.clone_ref(py).into())).collect()
+            et.iter()
+                .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                .collect()
         })
     });
     let parser = get_or_create_parser(pattern, extra_types_cloned)?;
-    
+
     // Fast path: if no custom converters and evaluate_result=True, use raw matching
     // This defers all Python object creation until the end (batch conversion)
     // CRITICAL: Do ALL regex matching OUTSIDE GIL, then batch convert inside GIL
-    let has_custom_converters = extra_types.as_ref().map(|et| !et.is_empty()).unwrap_or(false);
+    let has_custom_converters = extra_types
+        .as_ref()
+        .map(|et| !et.is_empty())
+        .unwrap_or(false);
     let has_nested_dicts = parser.has_nested_dict_fields.iter().any(|&b| b);
-    
+
     if !has_custom_converters && evaluate_result && !has_nested_dicts {
         // Use raw matching path: collect all raw data first (NO GIL), then batch convert
         let mut raw_results = Vec::new();
         let search_regex = parser.get_search_regex(case_sensitive);
         let mut last_end = 0;
-        
+
         // Collect all raw matches OUTSIDE GIL (no Python objects created yet)
         // This is the key optimization: all CPU work happens without GIL
         for captures in search_regex.captures_iter(string) {
             let full_match = captures.get(0).unwrap();
             let match_start = full_match.start();
             let match_end = full_match.end();
-            
+
             if match_start < last_end {
                 continue;
             }
-            
+
             // Try raw matching (no Python objects, no GIL needed)
             if let Ok(Some(raw_data)) = crate::parser::matching::match_with_captures_raw(
                 &captures,
@@ -267,13 +297,13 @@ fn findall(
             ) {
                 raw_results.push(raw_data);
                 last_end = match_end;
-                
+
                 if match_start == match_end {
                     last_end += 1;
                 }
             }
         }
-        
+
         // Return Results object with raw data (lazy conversion)
         // This avoids creating all ParseResult objects upfront
         // The Results object is lightweight - just stores raw data
@@ -282,9 +312,9 @@ fn findall(
             Ok(Py::new(py, results)?.into_py(py))
         });
     }
-    
-        // Fallback: use Python path (for custom converters or evaluate_result=False)
-        // Optimized: Collect results first, then create PyList with items directly
+
+    // Fallback: use Python path (for custom converters or evaluate_result=False)
+    // Optimized: Collect results first, then create PyList with items directly
     Python::with_gil(|py| -> PyResult<PyObject> {
         let search_regex = parser.get_search_regex(case_sensitive);
         let mut results = Vec::new();
@@ -294,18 +324,18 @@ fn findall(
         } else {
             &HashMap::new()
         };
-        
+
         for captures in search_regex.captures_iter(string) {
             let full_match = captures.get(0).unwrap();
             let match_start = full_match.start();
             let match_end = full_match.end();
-            
+
             if match_start < last_end {
                 continue;
             }
-            
+
             let extra_types_ref = &extra_types_for_matching;
-            
+
             if let Some(result) = crate::parser::matching::match_with_captures(
                 &captures,
                 string,
@@ -322,18 +352,16 @@ fn findall(
             )? {
                 results.push(result);
                 last_end = match_end;
-                
+
                 if match_start == match_end {
                     last_end += 1;
                 }
             }
         }
-        
+
         // Create PyList with items directly (more efficient than empty + append)
         // Convert PyObject to Bound<PyAny> for PyList::new
-        let items: Vec<_> = results.iter()
-            .map(|obj| obj.bind(py))
-            .collect();
+        let items: Vec<_> = results.iter().map(|obj| obj.bind(py)).collect();
         let results_list = PyList::new(py, items)?;
         Ok(results_list.into())
     })
@@ -347,14 +375,13 @@ fn compile(
     extra_types: Option<HashMap<String, PyObject>>,
 ) -> PyResult<FormatParser> {
     // Validate pattern length
-    formatparse_core::validate_pattern_length(pattern)
-        .map_err(|e| PyValueError::new_err(e))?;
-    
+    formatparse_core::validate_pattern_length(pattern).map_err(PyValueError::new_err)?;
+
     // Check for null bytes in pattern
     if pattern.contains('\0') {
         return Err(PyValueError::new_err("Pattern contains null byte"));
     }
-    
+
     FormatParser::new_with_extra_types(pattern, extra_types)
 }
 
@@ -366,11 +393,11 @@ fn extract_format(
     _match_dict: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<PyObject> {
     use crate::types::FieldSpec;
-    
+
     // Parse the format spec string
     let mut spec = FieldSpec::new();
     crate::parser::pattern::parse_format_spec(format_string, &mut spec, None);
-    
+
     // Extract type from the original format_string (preserve original type chars like 'o', 'x', 'b')
     // Parse the format spec to extract the type characters that come after width/precision/alignment
     let type_str: String = if format_string == "%" {
@@ -381,43 +408,45 @@ fn extract_format(
         let chars: Vec<char> = format_string.chars().collect();
         let mut i = 0;
         let len = chars.len();
-        
+
         // Skip fill and align
         if i < len && (chars[i] == '<' || chars[i] == '>' || chars[i] == '^' || chars[i] == '=') {
             i += 1;
         } else if i + 1 < len {
             let ch = chars[i];
             let next_ch = chars[i + 1];
-            if (next_ch == '<' || next_ch == '>' || next_ch == '^' || next_ch == '=') && ch != next_ch {
+            if (next_ch == '<' || next_ch == '>' || next_ch == '^' || next_ch == '=')
+                && ch != next_ch
+            {
                 i += 2; // Skip fill + align
             }
         }
-        
+
         // Skip sign
         if i < len && (chars[i] == '+' || chars[i] == '-' || chars[i] == ' ') {
             i += 1;
         }
-        
+
         // Skip #
         if i < len && chars[i] == '#' {
             i += 1;
         }
-        
+
         // Skip 0
         if i < len && chars[i] == '0' {
             i += 1;
         }
-        
+
         // Skip width (digits)
         while i < len && chars[i].is_ascii_digit() {
             i += 1;
         }
-        
+
         // Skip comma
         if i < len && chars[i] == ',' {
             i += 1;
         }
-        
+
         // Skip precision (.digits)
         if i < len && chars[i] == '.' {
             i += 1;
@@ -425,7 +454,7 @@ fn extract_format(
                 i += 1;
             }
         }
-        
+
         // Type is the rest
         if i < len {
             format_string[i..].to_string()
@@ -433,41 +462,40 @@ fn extract_format(
             "s".to_string() // Default
         }
     };
-    
+
     // Build result dictionary
     Python::with_gil(|py| {
         let result = PyDict::new(py);
         result.set_item("type", type_str)?;
-        
+
         // Extract width
         if let Some(width) = spec.width {
             result.set_item("width", width.to_string())?;
         }
-        
+
         // Extract precision
         if let Some(precision) = spec.precision {
             result.set_item("precision", precision.to_string())?;
         }
-        
+
         // Extract alignment
         if let Some(align) = spec.alignment {
             result.set_item("align", align.to_string())?;
         }
-        
+
         // Extract fill
         if let Some(fill) = spec.fill {
             result.set_item("fill", fill.to_string())?;
         }
-        
+
         // Extract zero padding
         if spec.zero_pad {
             result.set_item("zero", true)?;
         }
-        
+
         Ok(result.into_py(py))
     })
 }
-
 
 /// Python module definition
 #[pymodule]
@@ -485,4 +513,3 @@ fn _formatparse(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Results>()?;
     Ok(())
 }
-

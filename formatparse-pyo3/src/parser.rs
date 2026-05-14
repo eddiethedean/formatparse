@@ -8,10 +8,9 @@
 
 pub mod pattern;
 // regex module is in formatparse-core
-pub mod matching;
 pub mod format_parser;
+pub mod matching;
 pub mod raw_match;
 
-pub use format_parser::{FormatParser, Format};
+pub use format_parser::{Format, FormatParser};
 pub use pattern::parse_field_path;
-
