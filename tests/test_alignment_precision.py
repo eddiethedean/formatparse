@@ -59,6 +59,14 @@ def test_left_aligned_precision_valid():
     # This is correctly rejected by validation
 
 
+def test_left_aligned_precision_preserves_trailing_spaces_issue_39():
+    """Trailing spaces inside width/precision are content, not padding (parse parity)."""
+    result = parse("{s:<15.15}", "xxxxxxxxxx     ")
+    assert result is not None
+    assert result.named["s"] == "xxxxxxxxxx     "
+    assert len(result.named["s"]) == 15
+
+
 def test_center_aligned_precision():
     """Test center-aligned precision validation"""
     # Valid: no padding, exactly precision chars (total = width = precision)
@@ -131,4 +139,4 @@ def test_alignment_without_precision():
 
     result = parse("{s:<10}", "hello     ")
     assert result is not None
-    assert result.named["s"] == "hello"
+    assert result.named["s"] == "hello     "

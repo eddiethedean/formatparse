@@ -271,8 +271,12 @@ pub fn convert_value(spec: &FieldSpec, value: &str, py: Python, custom_converter
                     // Strip fill characters and whitespace based on alignment
                     let trimmed = match spec.alignment {
                         Some('<') => {
-                            // Left-aligned: strip trailing fill chars, then trailing spaces
-                            if let Some(fill_ch) = spec.fill {
+                            // With a fixed width, the capture includes intentional trailing
+                            // fill (often spaces); match parse and keep it (issue #39).
+                            // Without width, strip trailing fill / spaces like parse does.
+                            if spec.width.is_some() {
+                                value
+                            } else if let Some(fill_ch) = spec.fill {
                                 value.trim_end_matches(fill_ch).trim_end()
                             } else {
                                 value.trim_end()

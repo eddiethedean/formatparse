@@ -58,8 +58,9 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
                     // Strip fill characters and whitespace based on alignment
                     let trimmed = match spec.alignment {
                         Some('<') => {
-                            // Left-aligned: strip trailing fill chars, then trailing spaces
-                            if let Some(fill_ch) = spec.fill {
+                            if spec.width.is_some() {
+                                value
+                            } else if let Some(fill_ch) = spec.fill {
                                 value.trim_end_matches(fill_ch).trim_end()
                             } else {
                                 value.trim_end()
@@ -309,7 +310,7 @@ mod tests {
             ..Default::default()
         };
         
-        // Left-aligned: strip trailing spaces
+        // Left-aligned without width: strip trailing spaces (parse parity)
         let result = convert_value_raw(&spec, "hello     ");
         assert!(matches!(result, Ok(RawValue::String(ref s)) if s == "hello"));
     }
