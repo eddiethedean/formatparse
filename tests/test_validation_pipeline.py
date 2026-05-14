@@ -141,6 +141,34 @@ def test_hooks_collect_two_failures():
     assert msgs == ["first", "second"]
 
 
+def test_collect_merges_field_and_hook_errors():
+    """Collect mode runs all hooks even when field validators fail (#11)."""
+    ran: list[str] = []
+
+    def hook1(_r):
+        ran.append("h1")
+        raise ValidationError("hook1")
+
+    def hook2(_r):
+        ran.append("h2")
+        raise ValidationError("hook2")
+
+    p = (
+        ValidationPipeline()
+        .add_validator("a", lambda _: (_ for _ in ()).throw(ValidationError("bad a")))
+        .add_validator("b", lambda _: (_ for _ in ()).throw(ValidationError("bad b")))
+        .add_hook(hook1)
+        .add_hook(hook2)
+    )
+    r = parse("{a:d}-{b:d}", "1-2")
+    assert r is not None
+    with pytest.raises(MultipleValidationErrors) as exc:
+        p.apply(r, mode="collect")
+    assert ran == ["h1", "h2"]
+    msgs = [e.args[0] for e in exc.value.errors]
+    assert msgs == ["bad a", "bad b", "hook1", "hook2"]
+
+
 def test_cross_field_hook_end_after_start():
     def dates_ok(res):
         if res.named["end"] < res.named["start"]:

@@ -194,8 +194,10 @@ class MultipleValidationErrors(ValueError):
     Not used for ``validation_mode='lenient'`` (failures are reported via
     :exc:`ValidationWarning` instead).
 
-    The :attr:`errors` sequence preserves each :exc:`ValidationError` (in key order:
-    all ``int`` keys ascending, then ``str`` keys alphabetically).
+    For :func:`apply_validators`, :attr:`errors` lists each :exc:`ValidationError` in
+    key order (all ``int`` keys ascending, then ``str`` keys alphabetically). For
+    :meth:`ValidationPipeline.apply` in ``collect`` mode, field failures are listed
+    first in that same order, followed by hook failures in hook registration order.
     """
 
     def __init__(self, errors: Sequence[ValidationError]) -> None:
@@ -253,6 +255,32 @@ def _validator_field_value(result: ParseResult, key: Union[str, int]) -> Any:
     return fixed[key]
 
 
+def _collect_field_validator_errors(
+    result: ParseResult,
+    validators: ValidatorMap,
+) -> List[ValidationError]:
+    """Run every per-field validator and return all failures (never raises)."""
+    errors: List[ValidationError] = []
+    for key in _sorted_validator_keys(validators.keys()):
+        fn = validators[key]
+        try:
+            value = _validator_field_value(result, key)
+        except ValidationError as e:
+            errors.append(e)
+            continue
+        try:
+            fn(value)
+        except ValidationError as e:
+            err = ValidationError(str(e), field=key)
+            err.__cause__ = e.__cause__ if e.__cause__ is not None else e
+            errors.append(err)
+        except Exception as e:
+            err = ValidationError(f"validator failed: {e}", field=key)
+            err.__cause__ = e
+            errors.append(err)
+    return errors
+
+
 def apply_validators(
     result: Optional[ParseResult],
     validators: Optional[ValidatorMap],
@@ -302,31 +330,26 @@ def apply_validators(
                 _warn_validation_failure(err, kind="field")
         return result
 
-    errors: List[ValidationError] = []
-    for key in _sorted_validator_keys(validators.keys()):
-        fn = validators[key]
-        try:
-            value = _validator_field_value(result, key)
-        except ValidationError as e:
-            if mode == "strict":
+    if mode == "strict":
+        for key in _sorted_validator_keys(validators.keys()):
+            fn = validators[key]
+            try:
+                value = _validator_field_value(result, key)
+            except ValidationError:
                 raise
-            errors.append(e)
-            continue
-        try:
-            fn(value)
-        except ValidationError as e:
-            err = ValidationError(str(e), field=key)
-            err.__cause__ = e.__cause__ if e.__cause__ is not None else e
-            if mode == "strict":
+            try:
+                fn(value)
+            except ValidationError as e:
+                err = ValidationError(str(e), field=key)
+                err.__cause__ = e.__cause__ if e.__cause__ is not None else e
                 raise err from err.__cause__
-            errors.append(err)
-        except Exception as e:
-            err = ValidationError(f"validator failed: {e}", field=key)
-            err.__cause__ = e
-            if mode == "strict":
+            except Exception as e:
+                err = ValidationError(f"validator failed: {e}", field=key)
+                err.__cause__ = e
                 raise err from e
-            errors.append(err)
+        return result
 
+    errors = _collect_field_validator_errors(result, validators)
     if errors:
         raise MultipleValidationErrors(errors)
     return result
@@ -390,14 +413,30 @@ class ValidationPipeline:
         ``field=None``.
 
         ``mode`` matches :func:`apply_validators`: ``strict`` stops on the first
-        failure; ``collect`` runs all per-field validators, then if that phase raises
-        :exc:`MultipleValidationErrors`, hooks are **not** run. If the field phase
-        succeeds, every hook runs and hook failures are raised together as
-        :exc:`MultipleValidationErrors`. ``lenient`` runs all field validators (warning
-        on each failure), then all hooks (warning on each failure), and returns
+        failure (field or hook). ``collect`` runs **all** per-field validators and
+        **all** hooks, then raises a single :exc:`MultipleValidationErrors` listing field
+        failures first (same key order as :func:`apply_validators`), then hook failures
+        in hook registration order. ``lenient`` runs all field validators (warning on
+        each failure), then all hooks (warning on each failure), and returns
         ``result`` without raising validation exceptions.
         """
         if result is None:
+            return result
+        if mode == "collect":
+            errors = _collect_field_validator_errors(result, self.as_mapping())
+            for h in self._hooks:
+                try:
+                    h(result)
+                except ValidationError as e:
+                    err = ValidationError(str(e), field=e.field)
+                    err.__cause__ = e.__cause__ if e.__cause__ is not None else e
+                    errors.append(err)
+                except Exception as e:
+                    err = ValidationError(f"hook failed: {e}", field=None)
+                    err.__cause__ = e
+                    errors.append(err)
+            if errors:
+                raise MultipleValidationErrors(errors)
             return result
         apply_validators(result, self.as_mapping(), mode=mode)
         if not self._hooks:
@@ -428,21 +467,6 @@ class ValidationPipeline:
                     err.__cause__ = e
                     raise err from e
             return result
-        errors: List[ValidationError] = []
-        for h in self._hooks:
-            try:
-                h(result)
-            except ValidationError as e:
-                err = ValidationError(str(e), field=e.field)
-                err.__cause__ = e.__cause__ if e.__cause__ is not None else e
-                errors.append(err)
-            except Exception as e:
-                err = ValidationError(f"hook failed: {e}", field=None)
-                err.__cause__ = e
-                errors.append(err)
-        if errors:
-            raise MultipleValidationErrors(errors)
-        return result
 
 
 def in_range(
