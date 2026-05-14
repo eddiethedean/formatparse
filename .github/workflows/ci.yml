@@ -137,10 +137,10 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
-            .venv/Scripts/python -m pip install hypothesis pytest-cov pytest-benchmark pympler memory_profiler
+            .venv/Scripts/python -m pip install hypothesis pytest-cov pytest-benchmark pytest-xdist pympler memory_profiler
           else
             source .venv/bin/activate
-            pip install hypothesis pytest-cov pytest-benchmark pympler memory_profiler
+            pip install hypothesis pytest-cov pytest-benchmark pytest-xdist pympler memory_profiler
           fi
 
       - name: Run pytest suite

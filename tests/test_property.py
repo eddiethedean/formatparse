@@ -4,6 +4,8 @@ These tests use property-based testing to explore edge cases and verify
 invariants that should hold for all valid inputs.
 """
 
+from typing import Optional
+
 import pytest
 from hypothesis import given, assume, strategies as st, settings
 from formatparse import (
@@ -339,6 +341,29 @@ def test_scientific_notation_parsing(value):
 # ============================================================================
 
 
+def _expected_parsed_aligned_string(
+    value: str, alignment: str, width: int, fill_char: Optional[str]
+) -> str:
+    """Match FieldType::String post-capture trimming (issue #39: `<` + width keeps tail)."""
+    spec = (
+        f"{fill_char}{alignment}{width}"
+        if fill_char is not None
+        else f"{alignment}{width}"
+    )
+    s = format(value, spec)
+    if alignment == "<":
+        return s
+    if alignment == ">":
+        if fill_char is not None:
+            return s.lstrip(fill_char).lstrip()
+        return s.lstrip()
+    if alignment == "^":
+        if fill_char is not None:
+            return s.strip(fill_char).strip()
+        return s.strip()
+    return s
+
+
 @settings(max_examples=100)
 @given(
     alignment=st.sampled_from(["<", ">", "^"]),
@@ -355,12 +380,12 @@ def test_string_alignment_combinations(alignment, width, value):
     # Format
     formatted = formatter.format({"value": value})
 
-    # Parse back - should extract the value (without alignment padding)
+    # Parse back — expected capture follows alignment-specific trimming rules
     result = formatter.parse(formatted)
     if result is not None:
-        # The parsed value should be the original value (padding removed)
         parsed = result.named["value"]
-        assert parsed == value
+        expected = _expected_parsed_aligned_string(value, alignment, width, None)
+        assert parsed == expected
 
 
 @settings(max_examples=100)
@@ -388,12 +413,14 @@ def test_fill_char_combinations(fill_char, alignment, width, value):
     # Format
     formatted = formatter.format({"value": value})
 
-    # Parse back
+    # Parse back — expected capture follows alignment-specific trimming rules
     result = formatter.parse(formatted)
     if result is not None:
-        # Should extract the original value (padding removed)
         parsed = result.named["value"]
-        assert parsed == value
+        expected = _expected_parsed_aligned_string(
+            value, alignment, width, fill_char
+        )
+        assert parsed == expected
 
 
 @settings(max_examples=100)

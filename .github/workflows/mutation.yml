@@ -55,6 +55,7 @@ jobs:
             "hypothesis>=6.0" \
             "pytest-cov>=4.0" \
             "pytest-benchmark>=4.0" \
+            "pytest-xdist>=3.0" \
             "pympler>=0.9" \
             "memory_profiler>=0.60" \
             "mutmut>=2.0"
