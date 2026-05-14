@@ -24,9 +24,10 @@ after unpickling, including any composed child parsers (see `GitHub issue #7
 callables with :func:`apply_validators`, or pass ``validators=`` / ``pipeline=`` to
 :func:`parse`. See `GitHub issue #10 <https://github.com/eddiethedean/formatparse/issues/10>`_
 and `GitHub issue #11 <https://github.com/eddiethedean/formatparse/issues/11>`_.
-Use :class:`ValidationPipeline` to register steps then :meth:`~ValidationPipeline.apply`.
-Keys are field names (``str``) or positional indices (``int`` for ``fixed``).
-Inline ``{...:validator(...)}`` syntax and async pipelines are deferred.
+Use :class:`ValidationPipeline` for per-field steps (:meth:`~ValidationPipeline.add_validator`)
+and whole-result hooks (:meth:`~ValidationPipeline.add_hook`), then
+:meth:`~ValidationPipeline.apply`. Field keys are names (``str``) or ``fixed`` indices
+(``int``). Inline ``{...:validator(...)}`` syntax and async pipelines are deferred.
 """
 
 from __future__ import annotations
@@ -266,21 +267,23 @@ def apply_validators(
 
 
 class ValidationPipeline:
-    """Ordered registry of per-field validators (GitHub issue #11 MVP).
+    """Ordered registry of per-field validators and whole-result hooks (issue #11).
 
-    Build with :meth:`add_validator`, then :meth:`apply` on a :class:`ParseResult`.
-    Field keys follow the same convention as :func:`apply_validators` (``str`` for
-    named fields, ``int`` for ``fixed`` indices). If the same field is registered
-    twice, the **last** registration wins.
+    Build with :meth:`add_validator` and/or :meth:`add_hook`, then :meth:`apply` on a
+    :class:`ParseResult`. Per-field keys follow :func:`apply_validators` (``str`` for
+    named fields, ``int`` for ``fixed`` indices). If the same field is registered twice,
+    the **last** registration wins. Hooks run in registration order **after** all
+    per-field validators succeed.
 
-    Async validators, Rust ``parse_with_validation``, and lenient logging modes
-    are out of scope for this MVP (see issue #11).
+    Async validators, Rust ``parse_with_validation``, lenient logging, and rich
+    builtins (email/URL) remain deferred (see issue #11).
     """
 
-    __slots__ = ("_steps",)
+    __slots__ = ("_steps", "_hooks")
 
     def __init__(self) -> None:
         self._steps: List[Tuple[Union[str, int], Callable[..., Any]]] = []
+        self._hooks: List[Callable[[ParseResult], None]] = []
 
     def add_validator(
         self,
@@ -289,6 +292,11 @@ class ValidationPipeline:
     ) -> ValidationPipeline:
         """Register ``fn`` for ``field``; returns ``self`` for chaining."""
         self._steps.append((field, fn))
+        return self
+
+    def add_hook(self, fn: Callable[[ParseResult], None]) -> ValidationPipeline:
+        """Register a whole-result hook; runs after per-field validators. Chainable."""
+        self._hooks.append(fn)
         return self
 
     def as_mapping(self) -> Dict[Union[str, int], Callable[..., Any]]:
@@ -304,8 +312,55 @@ class ValidationPipeline:
         *,
         mode: ValidationMode = "strict",
     ) -> Optional[ParseResult]:
-        """Run all validators; same semantics as :func:`apply_validators`."""
-        return apply_validators(result, self.as_mapping(), mode=mode)
+        """Run per-field validators, then registered hooks.
+
+        If ``result`` is ``None``, returns ``None`` immediately (no validators or hooks).
+
+        Hooks receive the full :class:`ParseResult` and use the same raise-based
+        contract as :func:`apply_validators`. Failures are :exc:`ValidationError`
+        (``field`` preserved when the raised error had one; otherwise ``None`` for
+        generic hook failures). Other exceptions become :exc:`ValidationError` with
+        ``field=None``.
+
+        ``mode`` matches :func:`apply_validators`: ``strict`` stops on the first
+        failure; ``collect`` runs all per-field validators, then if that phase raises
+        :exc:`MultipleValidationErrors`, hooks are **not** run. If the field phase
+        succeeds, every hook runs and hook failures are raised together as
+        :exc:`MultipleValidationErrors`.
+        """
+        if result is None:
+            return result
+        apply_validators(result, self.as_mapping(), mode=mode)
+        if not self._hooks:
+            return result
+        if mode == "strict":
+            for h in self._hooks:
+                try:
+                    h(result)
+                except ValidationError as e:
+                    err = ValidationError(str(e), field=e.field)
+                    err.__cause__ = e.__cause__ if e.__cause__ is not None else e
+                    raise err from err.__cause__
+                except Exception as e:
+                    err = ValidationError(f"hook failed: {e}", field=None)
+                    err.__cause__ = e
+                    raise err from e
+            return result
+        errors: List[ValidationError] = []
+        for h in self._hooks:
+            try:
+                h(result)
+            except ValidationError as e:
+                err = ValidationError(str(e), field=e.field)
+                err.__cause__ = e.__cause__ if e.__cause__ is not None else e
+                errors.append(err)
+            except Exception as e:
+                err = ValidationError(f"hook failed: {e}", field=None)
+                err.__cause__ = e
+                errors.append(err)
+        if errors:
+            raise MultipleValidationErrors(errors)
+        return result
 
 
 def in_range(

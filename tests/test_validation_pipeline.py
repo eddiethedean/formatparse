@@ -1,4 +1,4 @@
-"""ValidationPipeline and built-in validators (GitHub issue #11 MVP)."""
+"""ValidationPipeline (per-field validators, whole-result hooks) and builtins (#11)."""
 
 import pytest
 
@@ -13,6 +13,68 @@ from formatparse import (
     non_empty_str,
     parse,
 )
+
+
+def test_hooks_run_after_field_validators():
+    order: list[str] = []
+    p = (
+        ValidationPipeline()
+        .add_validator("a", lambda v: order.append("field"))
+        .add_hook(lambda r: order.append("hook"))
+    )
+    r = parse("{a:d}", "1")
+    assert r is not None
+    p.apply(r)
+    assert order == ["field", "hook"]
+
+
+def test_apply_none_skips_validators_and_hooks():
+    called: list[int] = []
+    p = ValidationPipeline().add_hook(lambda r: called.append(1))
+    assert p.apply(None) is None
+    assert called == []
+
+
+def test_hook_strict_raises():
+    p = ValidationPipeline().add_hook(
+        lambda r: (_ for _ in ()).throw(ValidationError("cross-field"))
+    )
+    r = parse("{a:d}", "1")
+    assert r is not None
+    with pytest.raises(ValidationError, match="cross-field") as exc:
+        p.apply(r)
+    assert exc.value.field is None
+
+
+def test_hooks_collect_two_failures():
+    p = (
+        ValidationPipeline()
+        .add_hook(lambda r: (_ for _ in ()).throw(ValidationError("first")))
+        .add_hook(lambda r: (_ for _ in ()).throw(ValidationError("second")))
+    )
+    r = parse("{x:d}", "0")
+    assert r is not None
+    with pytest.raises(MultipleValidationErrors) as exc:
+        p.apply(r, mode="collect")
+    msgs = [e.args[0] for e in exc.value.errors]
+    assert msgs == ["first", "second"]
+
+
+def test_cross_field_hook_end_after_start():
+    def dates_ok(res):
+        if res.named["end"] < res.named["start"]:
+            raise ValidationError("end before start")
+
+    p = (
+        ValidationPipeline()
+        .add_validator("start", lambda _: None)
+        .add_validator("end", lambda _: None)
+        .add_hook(dates_ok)
+    )
+    ok = parse("{start:d}-{end:d}", "2-5", pipeline=p)
+    assert ok is not None
+    with pytest.raises(ValidationError, match="end before start"):
+        parse("{start:d}-{end:d}", "5-2", pipeline=p)
 
 
 def test_pipeline_apply_delegates_to_collect():
