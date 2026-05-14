@@ -14,6 +14,16 @@ and fill are supported like plain string fields (see `GitHub issue #70
 <https://github.com/eddiethedean/formatparse/issues/70>`_); sign, zero-padding, and
 ``=`` alignment are not supported with ``:ml``.
 
+**Indented blocks:** use ``{name:blk}`` when content is written as an indented block
+under a header: matching uses the same rules as ``:ml`` (non-greedy up to the next
+literal or field), then the captured text is **dedented** by removing the largest
+common prefix of spaces and tabs from each line (blank lines do not contribute to
+that margin; tabs count as single characters). See `GitHub issue #69
+<https://github.com/eddiethedean/formatparse/issues/69>`_. If a pattern literal ends
+with trailing whitespace before ``{...:blk}``, it is compiled as ``\\s+`` and may
+consume the block's leading spaces—keep the newline outside that literal chunk when
+you need a margin (e.g. ``key:{body:blk}\\nEND`` rather than ``key:\\n{body:blk}``).
+
 **Long patterns:** a backslash immediately before the end of a line continues the
 pattern on the next line (``\\r\\n`` or ``\\n``); doubled backslashes keep a literal
 newline. Leading spaces and tabs on the continued line are stripped (see `GitHub

@@ -52,41 +52,14 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
 
     match &spec.field_type {
         FieldType::String | FieldType::Multiline => {
-            // Fast path: no alignment means no trimming needed
-            if spec.alignment.is_none() {
-                Ok(RawValue::String(value.to_string()))
-            } else {
-                // Strip fill characters and whitespace based on alignment
-                let trimmed = match spec.alignment {
-                    Some('<') => {
-                        if spec.width.is_some() {
-                            value
-                        } else if let Some(fill_ch) = spec.fill {
-                            value.trim_end_matches(fill_ch).trim_end()
-                        } else {
-                            value.trim_end()
-                        }
-                    }
-                    Some('>') => {
-                        // Right-aligned: strip leading fill chars, then leading spaces
-                        if let Some(fill_ch) = spec.fill {
-                            value.trim_start_matches(fill_ch).trim_start()
-                        } else {
-                            value.trim_start()
-                        }
-                    }
-                    Some('^') => {
-                        // Center-aligned: strip both leading and trailing fill chars, then spaces
-                        if let Some(fill_ch) = spec.fill {
-                            value.trim_matches(fill_ch).trim()
-                        } else {
-                            value.trim()
-                        }
-                    }
-                    _ => value, // No alignment: keep as-is
-                };
-                Ok(RawValue::String(trimmed.to_string()))
-            }
+            let t = crate::types::conversion::trim_string_or_multiline_value(spec, value);
+            Ok(RawValue::String(t.into_owned()))
+        }
+        FieldType::IndentBlock => {
+            let t = crate::types::conversion::trim_string_or_multiline_value(spec, value);
+            Ok(RawValue::String(formatparse_core::strip_common_indent(
+                t.as_ref(),
+            )))
         }
         FieldType::Integer => {
             // Fast path: common case - decimal integer, no special formatting

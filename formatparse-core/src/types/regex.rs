@@ -105,8 +105,9 @@ impl FieldSpec {
                     r".+?".to_string()
                 }
             }
-            FieldType::Multiline => {
+            FieldType::Multiline | FieldType::IndentBlock => {
                 // Same layout as strings, but ``.`` cannot span newlines in Rust regex; use ``[\s\S]``.
+                // ``IndentBlock`` (:blk) uses the same fragment as ``Multiline``; dedent is applied after capture.
                 const ML: &str = "[\\s\\S]";
                 if let Some(prec) = self.precision {
                     if let Some(align) = self.alignment {
@@ -421,6 +422,21 @@ mod tests {
     fn test_strftime_to_regex_unknown() {
         let result = strftime_to_regex("%Z");
         assert_eq!(result, ".+?");
+    }
+
+    #[test]
+    fn test_field_spec_indent_block_matches_multiline_regex() {
+        let mut ml = FieldSpec::new();
+        ml.field_type = FieldType::Multiline;
+        ml.width = Some(3);
+        let mut blk = FieldSpec::new();
+        blk.field_type = FieldType::IndentBlock;
+        blk.width = Some(3);
+        let custom = HashMap::new();
+        assert_eq!(
+            ml.to_regex_pattern(&custom, None),
+            blk.to_regex_pattern(&custom, None)
+        );
     }
 
     #[test]
