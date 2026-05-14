@@ -345,8 +345,16 @@ fn findall(
         .map(|et| !et.is_empty())
         .unwrap_or(false);
     let has_nested_dicts = parser.has_nested_dict_fields.iter().any(|&b| b);
+    let has_nested_format_fields = parser
+        .field_specs
+        .iter()
+        .any(|s| matches!(s.field_type, FieldType::Nested));
 
-    if !has_custom_converters && evaluate_result && !has_nested_dicts {
+    if !has_custom_converters
+        && evaluate_result
+        && !has_nested_dicts
+        && !has_nested_format_fields
+    {
         // Use raw matching path: collect all raw data first (NO GIL), then batch convert
         let mut raw_results = Vec::new();
         let search_regex = parser.get_search_regex(case_sensitive);
@@ -374,6 +382,7 @@ fn findall(
                     normalized_names: &parser.normalized_names,
                     custom_type_groups: &parser.custom_type_groups,
                     has_nested_dict_fields: &parser.has_nested_dict_fields,
+                    nested_parsers: &parser.nested_parsers,
                 },
             ) {
                 raw_results.push(raw_data);
@@ -427,6 +436,7 @@ fn findall(
                         normalized_names: &parser.normalized_names,
                         custom_type_groups: &parser.custom_type_groups,
                         has_nested_dict_fields: &parser.has_nested_dict_fields,
+                        nested_parsers: &parser.nested_parsers,
                     },
                     py,
                     custom_converters: extra_types_ref,

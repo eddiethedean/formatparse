@@ -86,6 +86,26 @@ Pattern literals still use doubled braces ``{{`` and ``}}`` for a single
 literal brace in the *pattern* string; ``:brace`` is only for matching
 brace-wrapped **payload** in the **input**.
 
+Nested format patterns in a field spec (``#12``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When the text after ``:`` is itself a balanced brace pattern that looks like a
+mini format field (for example ``{inner:d}``), formatparse compiles it as an
+inner pattern, matches it as part of the outer field, then parses the captured
+substring again. Nested values show up as :class:`ParseResult` instances under
+the outer field name (``result.named["outer"].named["inner"]``). Nesting depth
+when compiling is capped at 10; ``{{`` / ``}}`` in the **pattern** string still
+denote literal braces in pattern text—inside the nested spec substring, a ``}``
+that closes an inner field is **not** merged with the following ``}`` that
+closes the outer field.
+
+.. doctest::
+
+   >>> from formatparse import parse
+   >>> r = parse("{outer:{inner:d}}", "42")
+   >>> r.named["outer"].named["inner"]
+   42
+
 Format Specifiers
 -----------------
 

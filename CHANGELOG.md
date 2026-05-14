@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Nested format patterns** in a field's format specification (e.g. ``{outer:{inner:d}}``): the inner ``{…}`` is compiled as its own pattern, the outer capture is parsed again, and nested values appear as ``ParseResult`` objects under ``named`` (issue `#12 <https://github.com/eddiethedean/formatparse/issues/12>`_; upstream `parse#206 <https://github.com/r1chardj0n3s/parse/issues/206>`_). Brace-balanced scanning applies in the spec after ``:``; nesting depth is capped at 10; ``findall`` and ``FindallIter`` use the Python match path when nested fields are present (same rule as nested dict field names).
 - **Input line continuations** for ``:ml`` and ``:blk`` captures: a backslash before end-of-line in the matched text joins lines (same odd/even backslash rules as pattern continuations in #68); leading spaces and tabs on the continued line are stripped (#80).
 
 ### Fixed

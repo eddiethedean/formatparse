@@ -53,6 +53,15 @@ unchanged (only the parent pattern string is restored); re-supply ``extra_types`
 after unpickling, including any composed child parsers (see `GitHub issue #7
 <https://github.com/eddiethedean/formatparse/issues/7>`_).
 
+**Nested brace patterns in a field spec:** when the substring after ``:`` is a
+balanced nested field pattern (for example ``{outer:{inner:d}}``), the inner
+pattern is compiled and matched as part of the outer capture, then parsed
+again; nested groups appear as :class:`ParseResult` objects under
+``ParseResult.named`` (see `GitHub issue #12
+<https://github.com/eddiethedean/formatparse/issues/12>`_ and upstream
+`parse#206 <https://github.com/r1chardj0n3s/parse/issues/206>`_). Maximum
+nesting depth is 10.
+
 **Post-parse validators:** after :func:`parse` or :meth:`FormatParser.parse`, run
 callables with :func:`apply_validators`, or pass ``validators=`` / ``pipeline=`` to
 :func:`parse`, or use :func:`parse_with_validation` with a compiled parser and a

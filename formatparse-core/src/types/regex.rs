@@ -453,6 +453,11 @@ impl FieldSpec {
                 // Placeholder: named patterns use special regex in the PyO3 pattern compiler.
                 r".*?".to_string()
             }
+            FieldType::Nested => self
+                .nested_regex_body
+                .as_deref()
+                .unwrap_or(r"[\s\S]*?")
+                .to_string(),
             FieldType::Boolean => {
                 "true|false|True|False|TRUE|FALSE|1|0|yes|no|Yes|No|YES|NO|on|off|On|Off|ON|OFF"
                     .to_string()

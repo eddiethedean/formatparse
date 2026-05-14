@@ -230,6 +230,7 @@ pub fn convert_value(
             FieldType::BracedContent => "brace",
             FieldType::Multiline => "ml",
             FieldType::IndentBlock => "blk",
+            FieldType::Nested => "nested",
         };
 
         // If there's a custom converter for this type name, use it instead of built-in
@@ -452,6 +453,10 @@ pub fn convert_value(
             }
         }
         FieldType::BracedContent => Ok(value.into_py_any(py)?),
+        FieldType::Nested => Err(error::conversion_error(
+            value,
+            "nested format (handled by parser, not convert_value)",
+        )),
         FieldType::Custom(_) => {
             // Already handled above
             Ok(value.into_py_any(py)?)
