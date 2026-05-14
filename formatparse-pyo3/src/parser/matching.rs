@@ -149,7 +149,7 @@ pub fn extract_capture<'a>(
 /// processing that field, matching the main match loops' bookkeeping.
 fn per_field_capture_geometry(
     field_specs: &[FieldSpec],
-    normalized_names: &[Option<String>],
+    _normalized_names: &[Option<String>],
     py: Python<'_>,
     custom_converters: &HashMap<String, PyObject>,
     precomputed_pattern_groups: Option<&[usize]>,
@@ -166,11 +166,7 @@ fn per_field_capture_geometry(
             0
         };
         out.push((aci, go));
-        if normalized_names.get(i).and_then(|n| n.as_ref()).is_none() {
-            aci += 1;
-        } else {
-            aci += 1;
-        }
+        aci += 1;
         if spec.alignment.is_some() {
             go += 1;
         }
@@ -315,11 +311,7 @@ pub fn match_with_captures_raw(
             group_offset,
         );
 
-        if normalized_names.get(i).and_then(|n| n.as_ref()).is_none() {
-            actual_capture_index += 1;
-        } else {
-            actual_capture_index += 1;
-        }
+        actual_capture_index += 1;
 
         if let Some(cap) = cap {
             let value_str = cap.as_str();
