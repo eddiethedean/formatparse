@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PySlice, PyTuple};
+use pyo3::types::{PySlice, PyString, PyTuple};
 use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
 
@@ -91,8 +91,11 @@ impl ParseResult {
         let mut named_parts = Vec::new();
         for k in keys.iter().take(MAX_KEYS) {
             let v = self.named.get(k).expect("key from sorted vec");
+            // Use Python `repr(key)` so dict-style output matches CPython (single-quoted keys),
+            // not Rust `Debug` / `{:?}` which uses double quotes.
+            let key_repr: String = PyString::new(py, k.as_str()).repr()?.extract()?;
             let r: String = v.bind(py).repr()?.extract()?;
-            named_parts.push(format!("{k:?}: {}", repr_trunc(&r, MAX_VAL_CHARS)));
+            named_parts.push(format!("{}: {}", key_repr, repr_trunc(&r, MAX_VAL_CHARS)));
         }
         let mut named_body = named_parts.join(", ");
         if keys.len() > MAX_KEYS {

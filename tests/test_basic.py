@@ -104,8 +104,8 @@ def test_parse_result_repr_named_and_fixed():
     s = repr(r)
     assert s.startswith("<ParseResult ")
     assert "span=(0, 9)" in s
-    assert '"age": 30' in s
-    assert "'Alice'" in s
+    assert "'age': 30" in s
+    assert "'name': 'Alice'" in s
     assert "fixed=()" in s
     assert str(r) == s
 
