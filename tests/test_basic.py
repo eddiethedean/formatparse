@@ -97,6 +97,49 @@ def test_result_indexing():
     assert result2[1] == "World"
 
 
+def test_parse_result_repr_named_and_fixed():
+    """ParseResult repr surfaces named/fixed/span for REPL debugging (issue #41)."""
+    r = parse("{name}: {age:d}", "Alice: 30")
+    assert r is not None
+    s = repr(r)
+    assert s.startswith("<ParseResult ")
+    assert "span=(0, 9)" in s
+    assert '"age": 30' in s
+    assert "'Alice'" in s
+    assert "fixed=()" in s
+    assert str(r) == s
+
+    r2 = parse("{}, {}", "Hello, World")
+    assert r2 is not None
+    s2 = repr(r2)
+    assert "named={}" in s2
+    assert "('Hello', 'World')" in s2
+
+
+def test_parse_result_repr_truncates_many_named():
+    pattern = " ".join("{%s}" % chr(97 + i) for i in range(15))
+    text = " ".join(chr(97 + i) for i in range(15))
+    r = parse(pattern, text)
+    assert r is not None
+    assert "(+3 more)" in repr(r)
+
+
+def test_parse_result_repr_truncates_many_fixed():
+    pattern = " ".join("{}") * 10
+    text = " ".join(str(i) for i in range(10))
+    r = parse(pattern, text)
+    assert r is not None
+    assert "(+2 more)" in repr(r)
+
+
+def test_parse_result_repr_truncates_long_value():
+    long = "x" * 200
+    r = parse("{}", long)
+    assert r is not None
+    assert "..." in repr(r)
+    assert len(repr(r)) < 250
+
+
 def test_result_contains():
     """Test ParseResult __contains__"""
     result = parse("{name}: {age:d}", "Alice: 30")
