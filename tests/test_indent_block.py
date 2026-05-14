@@ -53,3 +53,9 @@ def test_blk_rejects_sign():
 def test_blk_rejects_equals_alignment():
     with pytest.raises(ValueError, match=":blk"):
         compile("{x:=10blk}")
+
+
+def test_blk_input_line_continuation_then_dedent_issue80():
+    """Input continuations run before :blk dedent (issue #80)."""
+    r = parse("BEGIN\n{body:blk}\nEND", "BEGIN\n  x\\\n  y\nEND")
+    assert r.named["body"] == "xy"

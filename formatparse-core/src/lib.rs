@@ -5,10 +5,12 @@
 
 pub mod error;
 pub mod indent_block;
+pub mod input_line_continuations;
 pub mod parser;
 pub mod types;
 
 pub use indent_block::strip_common_indent;
+pub use input_line_continuations::normalize_input_line_continuations;
 pub use parser::{
     count_capturing_groups, validate_field_name, validate_input_length, validate_pattern_length,
     MAX_FIELDS, MAX_FIELD_NAME_LENGTH, MAX_INPUT_LENGTH, MAX_PATTERN_LENGTH,

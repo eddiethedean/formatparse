@@ -89,3 +89,15 @@ def test_plain_brace_newline_regression():
     """Unchanged: default ``{}`` between anchors still parses across newlines."""
     r = parse("X{}Y", "Xa\nbY")
     assert r.fixed[0] == "a\nb"
+
+
+def test_ml_input_line_continuation_issue80():
+    """Backslash at end of line inside the capture joins lines (issue #80)."""
+    r = parse("BEGIN\n{body:ml}\nEND", "BEGIN\nalpha\\\nbeta\nEND")
+    assert r.named["body"] == "alphabeta"
+
+    r = parse("BEGIN\n{body:ml}\nEND", "BEGIN\nalpha\\\\\nbeta\nEND")
+    assert r.named["body"] == "alpha\\\\\nbeta"
+
+    r = parse("BEGIN\n{body:ml}\nEND", "BEGIN\nalpha\\\n  beta\nEND")
+    assert r.named["body"] == "alphabeta"

@@ -137,6 +137,20 @@ pub fn validate_alignment_precision(spec: &FieldSpec, value: &str) -> bool {
     true
 }
 
+/// Like [`validate_alignment_precision`], but for captures that may include backslash line
+/// continuations: multiline and indent-block slices are folded first (issue #80).
+pub(crate) fn validate_alignment_precision_for_capture(spec: &FieldSpec, raw: &str) -> bool {
+    if matches!(
+        spec.field_type,
+        FieldType::Multiline | FieldType::IndentBlock
+    ) {
+        let folded = formatparse_core::normalize_input_line_continuations(raw);
+        validate_alignment_precision(spec, folded.as_str())
+    } else {
+        validate_alignment_precision(spec, raw)
+    }
+}
+
 /// Trim fill / whitespace for string-like fields that support alignment (``String``, ``Multiline``, ``IndentBlock``).
 pub(crate) fn trim_string_or_multiline_value<'a>(
     spec: &FieldSpec,
@@ -236,11 +250,13 @@ pub fn convert_value(
             }
         }
         FieldType::Multiline => {
-            let trimmed = trim_string_or_multiline_value(spec, value);
+            let folded = formatparse_core::normalize_input_line_continuations(value);
+            let trimmed = trim_string_or_multiline_value(spec, folded.as_str());
             Ok(trimmed.into_py_any(py)?)
         }
         FieldType::IndentBlock => {
-            let trimmed = trim_string_or_multiline_value(spec, value);
+            let folded = formatparse_core::normalize_input_line_continuations(value);
+            let trimmed = trim_string_or_multiline_value(spec, folded.as_str());
             Ok(formatparse_core::strip_common_indent(trimmed.as_ref()).into_py_any(py)?)
         }
         FieldType::Integer => {
