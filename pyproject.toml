@@ -47,7 +47,8 @@ Repository = "https://github.com/eddiethedean/formatparse"
 [tool.pytest.ini_options]
 # With PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 (see Makefile and CI), only these plugins load.
 # That avoids broken third-party pytest11 plugins (e.g. old pytest-asyncio) breaking startup.
-addopts = "-p benchmark -p hypothesispytest"
+# pytest_cov is included so `pytest --cov=...` works without extra `-p` flags.
+addopts = "-p benchmark -p hypothesispytest -p pytest_cov"
 markers = [
     "benchmark: marks tests as benchmarks",
     "slow: marks tests as slow running",

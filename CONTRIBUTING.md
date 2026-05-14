@@ -30,7 +30,7 @@ Thank you for your interest in contributing to formatparse! This document provid
 
 ## Running Tests
 
-Pytest loads only the plugins listed in `pyproject.toml` (`benchmark`, `hypothesispytest`) when **`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`** is set. That avoids broken third-party `pytest11` plugins (for example an incompatible **pytest-asyncio**) crashing pytest before tests run. CI and `make test` set this automatically.
+Pytest loads only the plugins listed in `pyproject.toml` (`benchmark`, `hypothesispytest`, `pytest_cov`) when **`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`** is set. That avoids broken third-party `pytest11` plugins (for example an incompatible **pytest-asyncio**) crashing pytest before tests run. CI and `make test` set this automatically.
 
 ### Python Tests
 

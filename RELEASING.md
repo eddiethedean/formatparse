@@ -2,84 +2,84 @@
 
 This document explains how to release a new version of `formatparse` to PyPI.
 
-## Quick Release
+## Current version
 
-Use the release script:
+The canonical version lives in the **workspace** `Cargo.toml` as `[workspace.package] version = "…"`. Member crates (`formatparse-core`, `formatparse-pyo3`) use `version.workspace = true`. PyPI metadata uses `dynamic = ["version"]`; Maturin reads the version from the Rust workspace when building wheels and sdist.
+
+Before tagging, confirm:
+
+- `[workspace.package] version` in the root [`Cargo.toml`](Cargo.toml) matches the intended release.
+- [`CHANGELOG.md`](CHANGELOG.md) is updated for this release.
+- CI on `main` is green.
+
+If the workspace version is **already** `X.Y.Z` on `main` (for example after a merge that bumped it), you do **not** need `release.sh` to edit `Cargo.toml` again. Push the tag only (see [Tag without a version bump](#tag-without-a-version-bump) below).
+
+## Quick release
+
+Use the release script (from repo root, on `main`, clean working tree):
 
 ```bash
-./scripts/release.sh 0.1.0
+./scripts/release.sh X.Y.Z
+```
+
+Example for a patch after 0.7.0:
+
+```bash
+./scripts/release.sh 0.7.1
 ```
 
 This will:
-1. Update the version in `Cargo.toml`
-2. Commit the change
-3. Create and push a git tag (e.g., `v0.1.0`)
-4. Push to the main branch
 
-The GitHub Actions workflow will **automatically** trigger when you push the tag and will:
-- Build wheels for all platforms and Python versions
-- Publish to PyPI
+1. Set `version = "X.Y.Z"` on the `version` line in the root `Cargo.toml` (workspace package version).
+2. Commit the change.
+3. Create and push a git tag `vX.Y.Z`.
+4. Push `main` to `origin`.
 
-**Wheel metadata:** `[tool.maturin] compatibility = "linux"` in `pyproject.toml` sets the manylinux / auditwheel policy for **Linux** wheels built during publish. It does not restrict wheels for other platforms or local development builds.
+The [Publish to PyPI](.github/workflows/publish.yml) workflow runs on tag push and will:
 
-**Note:** Creating a GitHub release is optional but recommended for better visibility and release notes.
+- Build wheels for Linux (manylinux), macOS, and Windows (including Intel and Windows 11 ARM where applicable).
+- Build Python **3.8 through 3.14** wheels per the publish matrix (where `setup-python` / manylinux provide those interpreters).
+- Build an sdist, run security checks, and publish to PyPI (trusted publishing).
 
-## Manual Release
+**Wheel metadata:** `[tool.maturin] compatibility = "linux"` in `pyproject.toml` sets the manylinux / auditwheel policy for **Linux** wheels built during publish. It does not restrict wheels for other platforms or local `maturin develop`.
 
-If you prefer to do it manually:
+**Note:** Creating a GitHub **Release** (with notes) is optional but recommended; copy highlights from `CHANGELOG.md`.
 
-1. **Update version in `Cargo.toml`:**
-   ```toml
-   version = "0.1.0"  # Update this
-   ```
+## Tag without a version bump
 
-2. **Commit the change:**
+Use this when `Cargo.toml` already has `[workspace.package] version = "X.Y.Z"` and you only need to publish:
+
+```bash
+git tag -a vX.Y.Z -m "Release X.Y.Z"
+git push origin vX.Y.Z
+```
+
+The publish workflow runs on the tag push.
+
+## Manual release
+
+1. **Bump `[workspace.package] version` in the root `Cargo.toml`.**
+2. **Update `CHANGELOG.md`** for the new version.
+3. **Commit:** `git add Cargo.toml CHANGELOG.md && git commit -m "Bump version to X.Y.Z"`
+4. **Tag and push:**
    ```bash
-   git add Cargo.toml
-   git commit -m "Bump version to 0.1.0"
-   ```
-
-3. **Create and push a tag:**
-   ```bash
-   git tag -a v0.1.0 -m "Release 0.1.0"
+   git tag -a vX.Y.Z -m "Release X.Y.Z"
    git push origin main
-   git push origin v0.1.0
+   git push origin vX.Y.Z
    ```
+5. **Optional:** Draft a GitHub Release from the tag and attach release notes.
 
-4. **Create a GitHub release:**
-   - Go to the releases page
-   - Click "Draft a new release"
-   - Select the tag
-   - Fill in release notes
-   - Click "Publish release"
-
-## Version Numbering
+## Version numbering
 
 Follow [Semantic Versioning](https://semver.org/):
-- **MAJOR** version for incompatible API changes
-- **MINOR** version for backwards-compatible functionality
-- **PATCH** version for backwards-compatible bug fixes
 
-Examples:
-- `0.1.0` → `0.1.1` (patch)
-- `0.1.0` → `0.2.0` (minor)
-- `0.1.0` → `1.0.0` (major)
-
-## What Gets Built
-
-The workflow builds:
-- **Wheels** for:
-  - Linux (manylinux)
-  - macOS (universal2)
-  - Windows
-  - Python versions: 3.9, 3.10, 3.11, 3.12, 3.13
-- **Source distribution** (sdist)
-
-All artifacts are automatically published to PyPI.
+- **MAJOR** — incompatible API changes
+- **MINOR** — backwards-compatible functionality
+- **PATCH** — backwards-compatible bug fixes
 
 ## Troubleshooting
 
-- **Version already exists on PyPI**: Update the version number in `Cargo.toml`
-- **Workflow fails**: Check the Actions tab for error details
-- **Tag already exists**: Delete it with `git tag -d v0.1.0 && git push origin :refs/tags/v0.1.0`
-
+- **Version already exists on PyPI:** bump the workspace version and re-tag (never reuse a published version).
+- **Workflow fails:** inspect the Actions tab; common issues are missing Python on a new runner image or transient PyPI/network errors.
+- **Tag already exists locally:** `git tag -d vX.Y.Z` then recreate, or choose a new patch version.
+- **Tag already on remote:** coordinate with maintainers before force-deleting remote tags.

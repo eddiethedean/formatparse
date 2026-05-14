@@ -17,6 +17,7 @@ The documentation includes:
 - **User Guides** - Comprehensive guides on patterns, datetime parsing, custom types, and bidirectional patterns
 - **API Reference** - Complete API documentation for all functions and classes
 - **Examples & Cookbook** - Practical examples and common use cases
+- **Changelog** - Release history in [CHANGELOG.md](CHANGELOG.md) in the repository
 
 ## Features
 

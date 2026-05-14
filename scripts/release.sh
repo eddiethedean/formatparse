@@ -45,10 +45,15 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Update version in Cargo.toml
+# Update version in Cargo.toml (workspace package version)
 echo "📝 Updating version in Cargo.toml to ${VERSION}..."
 sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
-rm Cargo.toml.bak
+rm -f Cargo.toml.bak
+
+if ! grep -q "^version = \"${VERSION}\"" Cargo.toml; then
+    echo "❌ Error: Could not confirm workspace version line in Cargo.toml (expected version = \"${VERSION}\")."
+    exit 1
+fi
 
 # Commit the version change
 echo "💾 Committing version change..."
