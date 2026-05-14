@@ -677,3 +677,117 @@ pub fn match_with_regex(
         Ok(None)
     }
 }
+
+/// Full parse of `""` when the pattern has no non-empty literals and every field is a
+/// default unconstrained string (`parse_pattern` sets `allows_empty_default_string_match`).
+pub fn match_empty_default_string_parse(
+    pattern: &str,
+    field_specs: &[FieldSpec],
+    field_names: &[Option<String>],
+    normalized_names: &[Option<String>],
+    py: Python<'_>,
+    custom_converters: &HashMap<String, PyObject>,
+    evaluate_result: bool,
+) -> PyResult<Option<PyObject>> {
+    let value_str = "";
+    let field_start: usize = 0;
+    let field_end: usize = 0;
+    let field_count = field_specs.len();
+    let mut fixed: Vec<PyObject> = Vec::with_capacity(field_count);
+    let mut named: HashMap<String, PyObject> = HashMap::with_capacity(field_count);
+    let mut field_spans: HashMap<String, (usize, usize)> = HashMap::with_capacity(field_count);
+    let mut captures_vec: Vec<Option<String>> = Vec::with_capacity(field_count);
+    let mut named_captures: HashMap<String, String> = HashMap::with_capacity(field_count);
+
+    let start = 0usize;
+    let end = 0usize;
+    let mut fixed_index = 0usize;
+
+    for (i, spec) in field_specs.iter().enumerate() {
+        if !custom_converters.is_empty() {
+            let _pattern_groups = validate_custom_type_pattern(spec, custom_converters, py)?;
+        }
+
+        if !evaluate_result {
+            captures_vec.push(Some(value_str.to_string()));
+            if let Some(norm_name) = normalized_names.get(i).and_then(|n| n.as_ref()) {
+                named_captures.insert(norm_name.clone(), value_str.to_string());
+            }
+        }
+
+        if evaluate_result {
+            if !crate::types::conversion::validate_alignment_precision(spec, value_str) {
+                return Ok(None);
+            }
+
+            let converted =
+                crate::types::conversion::convert_value(spec, value_str, py, custom_converters)?;
+
+            if let Some(ref original_name) = field_names[i] {
+                if original_name.contains('[') {
+                    let path = crate::parser::pattern::parse_field_path(original_name);
+                    if let Some(existing_value) = get_nested_dict_value(&named, &path, py)? {
+                        let are_equal: bool = {
+                            let existing_obj = existing_value.bind(py);
+                            let converted_obj = converted.bind(py);
+                            existing_obj.eq(converted_obj).unwrap_or(false)
+                        };
+                        if !are_equal {
+                            return Ok(None);
+                        }
+                    }
+                    insert_nested_dict(&mut named, &path, converted, py)?;
+                } else {
+                    match named.get(original_name) {
+                        Some(existing_value) => {
+                            let are_equal: bool = {
+                                let existing_obj = existing_value.to_object(py);
+                                let converted_obj = converted.to_object(py);
+                                existing_obj
+                                    .bind(py)
+                                    .eq(converted_obj.bind(py))
+                                    .unwrap_or(false)
+                            };
+                            if !are_equal {
+                                return Ok(None);
+                            }
+                            field_spans.insert(original_name.clone(), (field_start, field_end));
+                        }
+                        None => {
+                            let name_for_named = original_name.clone();
+                            named.insert(name_for_named.clone(), converted);
+                            field_spans.insert(name_for_named, (field_start, field_end));
+                        }
+                    }
+                }
+            } else {
+                fixed.push(converted);
+                field_spans.insert(fixed_index.to_string(), (field_start, field_end));
+                fixed_index += 1;
+            }
+        } else if let Some(ref original_name) = field_names[i] {
+            field_spans.insert(original_name.clone(), (field_start, field_end));
+        } else {
+            let index_str = fixed_index.to_string();
+            field_spans.insert(index_str, (field_start, field_end));
+            fixed_index += 1;
+        }
+    }
+
+    if evaluate_result {
+        let parse_result = ParseResult::new_with_spans(fixed, named, (start, end), field_spans);
+        Ok(Some(Py::new(py, parse_result)?.to_object(py)))
+    } else {
+        let match_obj = Match::new(
+            pattern.to_string(),
+            field_specs.to_vec(),
+            field_names.to_vec(),
+            normalized_names.to_vec(),
+            captures_vec,
+            named_captures,
+            (start, end),
+            field_spans,
+        );
+        Ok(Some(Py::new(py, match_obj)?.to_object(py)))
+    }
+}
