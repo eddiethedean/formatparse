@@ -19,9 +19,24 @@ from typing import (
     Union,
 )
 import re
+from importlib.metadata import PackageNotFoundError, version as _package_version
+
+# PEP 440 string for the installed distribution; falls back to workspace Cargo.toml
+# when running from a source checkout without package metadata (see issue #38).
+try:
+    __version__ = _package_version("formatparse")
+except PackageNotFoundError:
+    from pathlib import Path
+
+    _cargo = Path(__file__).resolve().parent.parent / "Cargo.toml"
+    try:
+        _m = re.search(r'version\s*=\s*"([^"]+)"', _cargo.read_text(encoding="utf-8"))
+        __version__ = _m.group(1) if _m else "0.0.0"
+    except OSError:
+        __version__ = "0.0.0"
 
 # Import from the Rust extension module
-from _formatparse import (  # type: ignore[import-not-found]
+from _formatparse import (  # type: ignore[import-not-found, import-untyped]
     parse as _parse,
     search as _search,
     findall as _findall,
@@ -821,6 +836,7 @@ class BidirectionalResult:
 
 
 __all__ = [
+    "__version__",
     "parse",
     "search",
     "findall",

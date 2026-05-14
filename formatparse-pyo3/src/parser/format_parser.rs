@@ -367,6 +367,15 @@ impl FormatParser {
         self.search_pattern(string, case_sensitive, extra_types, evaluate_result)
     }
 
+    /// Pickle support: rebuild with `compile(pattern)` so unpickling never relies on
+    /// `FormatParser.__new__` argument conventions across PyO3 / pickle versions.
+    fn __reduce__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let m = py.import_bound("_formatparse")?;
+        let compile_fn = m.getattr("compile")?;
+        let args = PyTuple::new_bound(py, [&self.pattern]);
+        Ok(PyTuple::new_bound(py, [compile_fn.as_any(), args.as_any()]).into_py(py))
+    }
+
     /// Get state for pickling
     fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
         use pyo3::types::PyDict;

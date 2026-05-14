@@ -549,10 +549,12 @@ def test_findall_finds_all_matches(num_matches, value):
 @settings(max_examples=50)
 @given(
     separator=simple_strings.filter(
-        lambda s: len(s) > 0
-        and not any(c.isdigit() for c in s)
-        and "I" not in s
-        and "D" not in s
+        lambda s: (
+            len(s) > 0
+            and not any(c.isdigit() for c in s)
+            and "I" not in s
+            and "D" not in s
+        )
     ),  # Non-digit separator, also avoid 'I' and 'D' to prevent pattern confusion
     values=st.lists(st.integers(min_value=0, max_value=99), min_size=1, max_size=5),
 )
@@ -643,10 +645,12 @@ def test_unicode_round_trip(name, value):
 @settings(max_examples=100)
 @given(
     text=unicode_strings.filter(
-        lambda s: len(s) > 0
-        and len(s) < 50
-        and not any(c.isdigit() for c in s)
-        and "\x00" not in s
+        lambda s: (
+            len(s) > 0
+            and len(s) < 50
+            and not any(c.isdigit() for c in s)
+            and "\x00" not in s
+        )
     ),
     value=integers,
 )

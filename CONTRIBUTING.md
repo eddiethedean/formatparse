@@ -23,42 +23,55 @@ Thank you for your interest in contributing to formatparse! This document provid
    - Install Rust from https://rustup.rs/
    - The project uses Rust stable
 
-4. **Build the extension module**
+4. **Build the extension module** (from repo root; if `maturin develop` with `--manifest-path` errors about `_formatparse`, build from the crate directory instead):
    ```bash
-   maturin develop --manifest-path formatparse-pyo3/Cargo.toml --release
+   cd formatparse-pyo3 && maturin develop --release && cd ..
    ```
 
 ## Running Tests
 
+Pytest loads only the plugins listed in `pyproject.toml` (`benchmark`, `hypothesispytest`) when **`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`** is set. That avoids broken third-party `pytest11` plugins (for example an incompatible **pytest-asyncio**) crashing pytest before tests run. CI and `make test` set this automatically.
+
 ### Python Tests
 
-Run all Python tests:
+Run all Python tests (uses `.venv/bin/python` when that interpreter exists):
 ```bash
+make test
+```
+
+Or manually:
+```bash
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1   # omit on a clean venv with no conflicting plugins
 pytest tests/ -v
 ```
 
 Run specific test files:
 ```bash
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 pytest tests/test_basic.py -v
 ```
 
 Run with coverage:
 ```bash
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 pytest tests/ --cov=formatparse --cov-report=html --cov-report=term
 ```
 
 Run benchmarks:
 ```bash
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 pytest tests/test_performance.py --benchmark-only
 ```
 
 Run stress tests:
 ```bash
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 pytest tests/test_stress.py -v
 ```
 
 Run property-based tests:
 ```bash
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 pytest tests/test_property.py -v
 ```
 
@@ -83,6 +96,7 @@ cargo test --package formatparse-core --lib types::regex
 - Critical paths should have 100% coverage
 - Check coverage before submitting PRs:
   ```bash
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
   pytest tests/ --cov=formatparse --cov-report=term-missing
   ```
 
@@ -224,7 +238,7 @@ Mutation testing runs automatically in CI on the main branch (weekly).
 
 Before submitting a PR, ensure:
 
-- [ ] All tests pass (`pytest tests/`)
+- [ ] All tests pass (`make test` or `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/`)
 - [ ] Rust tests pass (`cargo test --package formatparse-core`)
 - [ ] Code coverage is maintained or improved
 - [ ] Code is formatted (`ruff format .`, `cargo fmt`)
