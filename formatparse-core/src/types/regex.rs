@@ -2,6 +2,39 @@ use crate::types::definitions::{FieldSpec, FieldType};
 use regex;
 use std::collections::HashMap;
 
+/// When [`FieldSpec::width`] and [`FieldSpec::precision`] are both set on integer fields
+/// (`d` / `i` / `x` / `X` / `o` / `b`), the significant digit run uses a bounded repetition
+/// `{min_digits,max_digits}` (inclusive).
+///
+/// This follows the **parse** library documentation (`parse#107`): width is a **minimum**
+/// number of digits and precision a **maximum**. Python’s `str.format` rejects `.precision`
+/// on integer `d` presentation types; formatparse still accepts it in patterns and applies
+/// these bounds so adjacent numeric fields do not greedily consume more digits than the
+/// maximum. The `next_field_is_greedy` hint used for width-only **string** fields does not
+/// apply here—the digit count is already capped by `precision`.
+///
+/// Returns [`None`] when the pair should fall back to legacy rules: missing width or
+/// precision, or **zero-padded** fields with `width > precision` (treated as width-only
+/// `{1,width}` so wide zero-filled fields are not collapsed to `precision` digits).
+///
+/// For non-zero-padded fields with `width > precision` (an inconsistent min/max pair), the
+/// quantifier degenerates to exactly `precision` digits.
+fn int_width_precision_bounds(
+    width: Option<usize>,
+    precision: Option<usize>,
+    zero_pad: bool,
+) -> Option<(usize, usize)> {
+    let w = width?;
+    let p = precision?;
+    if w <= p {
+        Some((w, p))
+    } else if zero_pad {
+        None
+    } else {
+        Some((p, p))
+    }
+}
+
 /// Convert strftime format string to regex pattern
 pub fn strftime_to_regex(format_str: &str) -> String {
     let mut regex_parts = Vec::new();
@@ -177,13 +210,56 @@ impl FieldSpec {
                         (String::new(), String::new())
                     };
 
+                let width_precision =
+                    int_width_precision_bounds(self.width, self.precision, self.zero_pad);
+
                 let base_pattern = if self.zero_pad {
-                    // Zero-padded: if width is specified, match 1 to width digits
-                    // This allows unpadded values (e.g., '9' for {c:02d}) but rejects values exceeding width
-                    if let Some(width) = self.width {
+                    if let Some((lo, hi)) = width_precision {
+                        // Both width and precision: bounded digit count (formatparse#82 / parse#107).
+                        format!(
+                            "{}{}{}[0-9]{{{},{}}}",
+                            sign, fill_prefix, fill_suffix, lo, hi
+                        )
+                    } else if let Some(width) = self.width {
+                        // Zero-padded: if width is specified, match 1 to width digits
+                        // This allows unpadded values (e.g., '9' for {c:02d}) but rejects values exceeding width
                         format!("{}{}{}[0-9]{{1,{}}}", sign, fill_prefix, fill_suffix, width)
                     } else {
                         format!("{}{}{}[0-9]+", sign, fill_prefix, fill_suffix)
+                    }
+                } else if let Some((lo, hi)) = width_precision {
+                    let q_hex = format!("[0-9a-fA-F]{{{},{}}}", lo, hi);
+                    let q_oct = format!("[0-7]{{{},{}}}", lo, hi);
+                    let q_bin = format!("[01]{{{},{}}}", lo, hi);
+                    let q_dec = format!("[0-9]{{{},{}}}", lo, hi);
+                    match self.original_type_char {
+                        Some('x') | Some('X') => {
+                            // Hex: bounded digit run after optional 0x (parse#107 / #82).
+                            format!(
+                                "{}{}{}(?:0[xX]{}|{})",
+                                sign, fill_prefix, fill_suffix, q_hex, q_hex
+                            )
+                        }
+                        Some('o') => {
+                            format!(
+                                "{}{}{}(?:0[oO]{}|{})",
+                                sign, fill_prefix, fill_suffix, q_oct, q_oct
+                            )
+                        }
+                        Some('b') => {
+                            format!(
+                                "{}{}{}(?:0[bB]{}|{})",
+                                sign, fill_prefix, fill_suffix, q_bin, q_bin
+                            )
+                        }
+                        _ => {
+                            // Decimal `d` / `i`: optional leading whitespace before digits (#81);
+                            // each radix branch uses the same inclusive min/max digit count.
+                            format!(
+                                "{}{}{}(?:0[xX]{}|0[oO]{}|0[bB]{}|\\s*{})",
+                                sign, fill_prefix, fill_suffix, q_hex, q_oct, q_bin, q_dec
+                            )
+                        }
                     }
                 } else {
                     // Check original type to determine what digits to match
@@ -770,5 +846,60 @@ mod tests {
         let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         // Should have fill pattern between sign and digits
         assert!(pattern.contains("x*"));
+    }
+
+    #[test]
+    fn test_field_spec_integer_decimal_width_and_precision_bounded() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Integer;
+        spec.width = Some(2);
+        spec.precision = Some(2);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
+        assert!(pattern.contains(r"[0-9]{2,2}"), "pattern: {}", pattern);
+        let re = Regex::new(&format!("^{}$", pattern)).unwrap();
+        assert!(re.is_match("99"));
+        assert!(!re.is_match("999"));
+    }
+
+    #[test]
+    fn test_field_spec_integer_hex_width_and_precision_bounded() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Integer;
+        spec.original_type_char = Some('x');
+        spec.width = Some(2);
+        spec.precision = Some(2);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
+        assert!(pattern.contains(r"[0-9a-fA-F]{2,2}"), "pattern: {}", pattern);
+    }
+
+    #[test]
+    fn test_field_spec_integer_width_gt_precision_nonzero_pad_degenerates() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Integer;
+        spec.width = Some(5);
+        spec.precision = Some(2);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
+        assert!(pattern.contains(r"[0-9]{2,2}"), "pattern: {}", pattern);
+    }
+
+    #[test]
+    fn test_field_spec_integer_width_gt_precision_zero_pad_uses_width_only() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Integer;
+        spec.zero_pad = true;
+        spec.width = Some(30);
+        spec.precision = Some(2);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
+        assert!(pattern.contains("[0-9]{1,30}"), "pattern: {}", pattern);
+    }
+
+    #[test]
+    fn test_field_spec_integer_decimal_width_2_precision_5() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Integer;
+        spec.width = Some(2);
+        spec.precision = Some(5);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
+        assert!(pattern.contains(r"[0-9]{2,5}"), "pattern: {}", pattern);
     }
 }

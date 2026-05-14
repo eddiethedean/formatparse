@@ -40,7 +40,11 @@ integer-like text as well as forms with a trailing dot or trailing fractional ze
 
 **Integer decimal ``d``:** optional leading spaces and tabs are allowed before the digit
 run so values such as ``"    0"`` match ``{a:d}`` when they mirror padded numeric output
-(see `GitHub issue #81 <https://github.com/eddiethedean/formatparse/issues/81>`_).
+(see `GitHub issue #81 <https://github.com/eddiethedean/formatparse/issues/81>`_). When
+both **width** and **.precision** are present on integer or radix fields (e.g. ``{:2.2d}``,
+``{:2.2x}``), the digit run is bounded: at least ``width`` digits and at most ``precision``
+(`GitHub issue #82 <https://github.com/eddiethedean/formatparse/issues/82>`_; `parse#107
+<https://github.com/r1chardj0n3s/parse/issues/107>`_).
 
 **Composition (sub-parsers):** use :func:`composed_type` to wrap a compiled
 :class:`FormatParser` and pass it in ``extra_types`` so one field is parsed by the
