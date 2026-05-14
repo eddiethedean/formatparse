@@ -36,7 +36,7 @@ except PackageNotFoundError:
         __version__ = "0.0.0"
 
 # Import from the Rust extension module
-from _formatparse import (  # type: ignore[import-not-found]
+from _formatparse import (  # type: ignore[import-not-found, import-untyped]
     parse as _parse,
     search as _search,
     findall as _findall,

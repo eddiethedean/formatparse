@@ -40,6 +40,7 @@ wheels/
 
 # Virtual environments
 .venv/
+.test_env/
 venv/
 ENV/
 env/

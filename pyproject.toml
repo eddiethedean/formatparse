@@ -65,3 +65,11 @@ exclude_lines = [
 paths_to_mutate = ["formatparse/"]
 test_command = "python -m pytest tests -x"
 
+[tool.mypy]
+python_version = "3.8"
+files = ["formatparse", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["pympler", "memory_profiler"]
+ignore_missing_imports = true
+
