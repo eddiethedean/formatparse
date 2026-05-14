@@ -21,11 +21,12 @@ after unpickling, including any composed child parsers (see `GitHub issue #7
 <https://github.com/eddiethedean/formatparse/issues/7>`_).
 
 **Post-parse validators:** after :func:`parse` or :meth:`FormatParser.parse`, run
-callables with :func:`apply_validators`, or pass ``validators=`` to :func:`parse`
-(see `GitHub issue #10 <https://github.com/eddiethedean/formatparse/issues/10>`_).
+callables with :func:`apply_validators`, or pass ``validators=`` / ``pipeline=`` to
+:func:`parse`. See `GitHub issue #10 <https://github.com/eddiethedean/formatparse/issues/10>`_
+and `GitHub issue #11 <https://github.com/eddiethedean/formatparse/issues/11>`_.
+Use :class:`ValidationPipeline` to register steps then :meth:`~ValidationPipeline.apply`.
 Keys are field names (``str``) or positional indices (``int`` for ``fixed``).
-In-process ``{...:validator(...)}`` syntax and async pipelines are deferred
-(issues #10 / #11).
+Inline ``{...:validator(...)}`` syntax and async pipelines are deferred.
 """
 
 from __future__ import annotations
@@ -264,6 +265,83 @@ def apply_validators(
     return result
 
 
+class ValidationPipeline:
+    """Ordered registry of per-field validators (GitHub issue #11 MVP).
+
+    Build with :meth:`add_validator`, then :meth:`apply` on a :class:`ParseResult`.
+    Field keys follow the same convention as :func:`apply_validators` (``str`` for
+    named fields, ``int`` for ``fixed`` indices). If the same field is registered
+    twice, the **last** registration wins.
+
+    Async validators, Rust ``parse_with_validation``, and lenient logging modes
+    are out of scope for this MVP (see issue #11).
+    """
+
+    __slots__ = ("_steps",)
+
+    def __init__(self) -> None:
+        self._steps: List[Tuple[Union[str, int], Callable[..., Any]]] = []
+
+    def add_validator(
+        self,
+        field: Union[str, int],
+        fn: Callable[..., Any],
+    ) -> ValidationPipeline:
+        """Register ``fn`` for ``field``; returns ``self`` for chaining."""
+        self._steps.append((field, fn))
+        return self
+
+    def as_mapping(self) -> Dict[Union[str, int], Callable[..., Any]]:
+        """Last registration per field wins (dict built in ``add_validator`` order)."""
+        m: Dict[Union[str, int], Callable[..., Any]] = {}
+        for k, fn in self._steps:
+            m[k] = fn
+        return m
+
+    def apply(
+        self,
+        result: Optional[ParseResult],
+        *,
+        mode: ValidationMode = "strict",
+    ) -> Optional[ParseResult]:
+        """Run all validators; same semantics as :func:`apply_validators`."""
+        return apply_validators(result, self.as_mapping(), mode=mode)
+
+
+def in_range(
+    min_value: Optional[Union[int, float]] = None,
+    max_value: Optional[Union[int, float]] = None,
+) -> Callable[[Union[int, float]], None]:
+    """Return a validator that accepts numeric ``value`` within ``[min_value, max_value]``."""
+
+    def check(value: Union[int, float]) -> None:
+        if min_value is not None and value < min_value:
+            raise ValidationError(
+                f"expected value >= {min_value!r}, got {value!r}",
+            )
+        if max_value is not None and value > max_value:
+            raise ValidationError(
+                f"expected value <= {max_value!r}, got {value!r}",
+            )
+
+    return check
+
+
+def non_empty_str(value: Any) -> None:
+    """Reject ``None``, non-strings, or blank/whitespace-only strings."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError("expected non-empty string")
+
+
+def _validation_source_exclusive(
+    *,
+    validators: Optional[ValidatorMap],
+    pipeline: Optional[ValidationPipeline],
+) -> None:
+    if validators is not None and pipeline is not None:
+        raise ValueError("pass only one of validators= or pipeline=")
+
+
 # Wrap compile to catch RepeatedNameError
 def compile(pattern: str, extra_types: Optional[ExtraTypes] = None) -> FormatParser:
     """Compile a pattern into a FormatParser for repeated use.
@@ -337,6 +415,7 @@ def parse(
     evaluate_result: bool = True,
     *,
     validators: Optional[ValidatorMap] = None,
+    pipeline: Optional[ValidationPipeline] = None,
     validation_mode: ValidationMode = "strict",
 ) -> Optional[ParseResult]:
     """Parse a string using a format specification.
@@ -359,13 +438,13 @@ def parse(
     :type case_sensitive: bool
     :param evaluate_result: Whether to evaluate and convert result types (default: True)
     :type evaluate_result: bool
-    :param validators: Optional map of field key (``str`` name or ``int`` ``fixed`` index)
-        to validator callable; see :func:`apply_validators`.
-    :param validation_mode: ``\"strict\"`` or ``\"collect\"`` for :func:`apply_validators`.
+    :param validators: Optional map of field key to validator; see :func:`apply_validators`.
+    :param pipeline: Optional :class:`ValidationPipeline` (mutually exclusive with ``validators``).
+    :param validation_mode: ``\"strict\"`` or ``\"collect\"`` for validation.
     :returns: ParseResult object if match found, None otherwise
     :rtype: ParseResult or None
-    :raises ValueError: If pattern is invalid
-    :raises ValidationError: If ``validators`` is set and validation fails in strict mode
+    :raises ValueError: If pattern is invalid, or both ``validators`` and ``pipeline`` are set
+    :raises ValidationError: If validation fails in strict mode
     :raises MultipleValidationErrors: If ``validation_mode='collect'`` and any validator fails
 
     Example::
@@ -379,12 +458,15 @@ def parse(
         >>> result.fixed
         ('Hello', 'World')
     """
+    _validation_source_exclusive(validators=validators, pipeline=pipeline)
     r = _parse(pattern, string, extra_types, case_sensitive, evaluate_result)
+    if pipeline is not None:
+        return pipeline.apply(r, mode=validation_mode)
     return apply_validators(r, validators, mode=validation_mode)
 
 
 class ValidatedParser:
-    """Thin wrapper around :class:`FormatParser` with optional ``validators`` on :meth:`parse`.
+    """Thin wrapper around :class:`FormatParser` with optional ``validators`` / ``pipeline`` on :meth:`parse`.
 
     Other attributes and methods are forwarded to the inner parser (e.g. ``search``,
     ``pattern``). Use when you compile once and want the same validation ergonomics
@@ -407,9 +489,13 @@ class ValidatedParser:
         evaluate_result: bool = True,
         *,
         validators: Optional[ValidatorMap] = None,
+        pipeline: Optional[ValidationPipeline] = None,
         validation_mode: ValidationMode = "strict",
     ) -> Optional[ParseResult]:
+        _validation_source_exclusive(validators=validators, pipeline=pipeline)
         r = self._parser.parse(string, case_sensitive, extra_types, evaluate_result)
+        if pipeline is not None:
+            return pipeline.apply(r, mode=validation_mode)
         return apply_validators(r, validators, mode=validation_mode)
 
 
@@ -1219,6 +1305,9 @@ __all__ = [
     "ValidationMode",
     "ValidatorMap",
     "apply_validators",
+    "ValidationPipeline",
+    "in_range",
+    "non_empty_str",
     "validator",
     "ValidatedParser",
 ]

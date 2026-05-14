@@ -1,0 +1,87 @@
+"""ValidationPipeline and built-in validators (GitHub issue #11 MVP)."""
+
+import pytest
+
+from formatparse import (
+    MultipleValidationErrors,
+    ValidationError,
+    ValidationPipeline,
+    ValidatedParser,
+    apply_validators,
+    compile,
+    in_range,
+    non_empty_str,
+    parse,
+)
+
+
+def test_pipeline_apply_delegates_to_collect():
+    p = ValidationPipeline()
+    p.add_validator("a", lambda v: (_ for _ in ()).throw(ValidationError("bad a")))
+    p.add_validator("b", lambda v: (_ for _ in ()).throw(ValidationError("bad b")))
+    r = parse("{a:d}-{b:d}", "1-2")
+    assert r is not None
+    with pytest.raises(MultipleValidationErrors) as exc:
+        p.apply(r, mode="collect")
+    assert {e.field for e in exc.value.errors} == {"a", "b"}
+
+
+def test_pipeline_last_validator_wins_same_field():
+    pipe = (
+        ValidationPipeline()
+        .add_validator("x", lambda _: None)
+        .add_validator("x", lambda _: (_ for _ in ()).throw(ValidationError("second")))
+    )
+    r = parse("{x:d}", "1")
+    assert r is not None
+    with pytest.raises(ValidationError, match="second"):
+        pipe.apply(r)
+
+
+def test_parse_with_pipeline_keyword():
+    pl = ValidationPipeline().add_validator("x", in_range(0, 5))
+    r = parse("{x:d}", "3", pipeline=pl)
+    assert r is not None
+    assert r.named["x"] == 3
+
+
+    pl = ValidationPipeline().add_validator("a", lambda _: None)
+    with pytest.raises(ValueError, match="only one of"):
+        parse("{a:d}", "1", validators={"a": lambda _: None}, pipeline=pl)
+
+
+def test_validated_parser_with_pipeline():
+    pl = (
+        ValidationPipeline()
+        .add_validator("age", in_range(0, 150))
+        .add_validator("name", non_empty_str)
+    )
+    vp = ValidatedParser(compile("{name} {age:d}"))
+    r = vp.parse("Ann 40", pipeline=pl)
+    assert r is not None
+    assert r.named["name"] == "Ann"
+    assert r.named["age"] == 40
+
+
+def test_validated_parser_pipeline_conflict():
+    pl = ValidationPipeline().add_validator("a", lambda _: None)
+    vp = ValidatedParser(compile("{a:d}"))
+    with pytest.raises(ValueError, match="only one of"):
+        vp.parse("1", validators={"a": lambda _: None}, pipeline=pl)
+
+
+def test_in_range_pass_and_fail():
+    r = parse("{n:d}", "10", validators={"n": in_range(1, 20)})
+    assert r is not None
+    assert r.named["n"] == 10
+    r2 = parse("{n:d}", "99")
+    assert r2 is not None
+    with pytest.raises(ValidationError, match="expected value <="):
+        apply_validators(r2, {"n": in_range(1, 20)})
+
+
+def test_non_empty_str():
+    r = parse("{s}", "hi", validators={"s": non_empty_str})
+    assert r is not None
+    with pytest.raises(ValidationError, match="non-empty"):
+        parse("{s}", "   ", validators={"s": non_empty_str})
