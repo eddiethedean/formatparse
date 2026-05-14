@@ -23,7 +23,8 @@ after unpickling, including any composed child parsers (see `GitHub issue #7
 
 **Post-parse validators:** after :func:`parse` or :meth:`FormatParser.parse`, run
 callables with :func:`apply_validators`, or pass ``validators=`` / ``pipeline=`` to
-:func:`parse`. See `GitHub issue #10 <https://github.com/eddiethedean/formatparse/issues/10>`_
+:func:`parse`, or use :func:`parse_with_validation` with a compiled parser and a
+:class:`ValidationPipeline`. See `GitHub issue #10 <https://github.com/eddiethedean/formatparse/issues/10>`_
 and `GitHub issue #11 <https://github.com/eddiethedean/formatparse/issues/11>`_.
 Use :class:`ValidationPipeline` for per-field steps (:meth:`~ValidationPipeline.add_validator`)
 and whole-result hooks (:meth:`~ValidationPipeline.add_hook`), then
@@ -326,8 +327,8 @@ class ValidationPipeline:
     per-field validator pass completes (on success, or in ``lenient`` mode after every
     field validator has been attempted).
 
-    Async validators, Rust ``parse_with_validation``, and rich builtins (email/URL)
-    remain deferred (see issue #11).
+    Async validators and inline ``{...:validator(...)}`` syntax remain deferred
+    (see issue #11).
     """
 
     __slots__ = ("_steps", "_hooks")
@@ -623,8 +624,40 @@ def parse(
     return apply_validators(r, validators, mode=validation_mode)
 
 
+def parse_with_validation(
+    parser: FormatParser,
+    string: str,
+    pipeline: ValidationPipeline,
+    *,
+    extra_types: Optional[ExtraTypes] = None,
+    case_sensitive: bool = False,
+    evaluate_result: bool = True,
+    validation_mode: ValidationMode = "strict",
+) -> Optional[ParseResult]:
+    """Parse ``string`` with a compiled ``parser``, then run ``pipeline``.
+
+    Equivalent to applying ``pipeline`` to the result of ``parser.parse(...)`` with
+    the same ``case_sensitive``, ``extra_types``, and ``evaluate_result`` defaults as
+    :func:`parse`. Use :func:`parse` or :meth:`ValidatedParser.parse` when you pass a
+    ``validators`` map instead of a :class:`ValidationPipeline`.
+
+    :param parser: Output of :func:`compile`.
+    :param string: Text to parse.
+    :param pipeline: Validation pipeline (required).
+    :param validation_mode: Passed to :meth:`ValidationPipeline.apply`.
+    :returns: Same as :meth:`FormatParser.parse` after validation, or ``None`` if parse failed.
+    In ``lenient`` mode, validation failures emit :exc:`ValidationWarning` and do not raise.
+    :raises ValidationError: In ``strict`` mode when validation fails.
+    :raises MultipleValidationErrors: In ``collect`` mode when validation fails.
+    """
+    r = parser.parse(string, case_sensitive, extra_types, evaluate_result)
+    return pipeline.apply(r, mode=validation_mode)
+
+
 class ValidatedParser:
     """Thin wrapper around :class:`FormatParser` with optional ``validators`` / ``pipeline`` on :meth:`parse`.
+
+    Also provides :meth:`parse_with_validation` for the compile-once + pipeline case.
 
     Other attributes and methods are forwarded to the inner parser (e.g. ``search``,
     ``pattern``). Use when you compile once and want the same validation ergonomics
@@ -659,6 +692,27 @@ class ValidatedParser:
         if pipeline is not None:
             return pipeline.apply(r, mode=validation_mode)
         return apply_validators(r, validators, mode=validation_mode)
+
+    def parse_with_validation(
+        self,
+        string: str,
+        pipeline: ValidationPipeline,
+        *,
+        extra_types: Optional[ExtraTypes] = None,
+        case_sensitive: bool = False,
+        evaluate_result: bool = True,
+        validation_mode: ValidationMode = "strict",
+    ) -> Optional[ParseResult]:
+        """Parse ``string`` with the inner parser, then ``pipeline`` (see :func:`parse_with_validation`)."""
+        return parse_with_validation(
+            self._parser,
+            string,
+            pipeline,
+            extra_types=extra_types,
+            case_sensitive=case_sensitive,
+            evaluate_result=evaluate_result,
+            validation_mode=validation_mode,
+        )
 
 
 def parse_batch(
@@ -1454,6 +1508,7 @@ class BidirectionalResult:
 __all__ = [
     "__version__",
     "parse",
+    "parse_with_validation",
     "parse_batch",
     "search",
     "findall",
