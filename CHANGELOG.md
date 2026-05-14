@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Publish workflow: build sdist from repo root with `--manifest-path` (fixes “pyproject.toml not found” when run from `formatparse-pyo3/` only).
 - Remove `[tool.maturin] python-source = "."` so `maturin sdist` does not require a repo-root `_formatparse` Python package (that check failed for this PyO3 cdylib layout on 1.12.x and 1.13.x). Publish and `[build-system].requires` use **`maturin>=1.12.6,<2.0`**.
-- Linux wheel for CPython 3.8: use `manylinux2014` + `--manylinux 2014` when `manylinux_2_28` no longer ships that interpreter (avoids exit 127).
+- Linux wheel for CPython 3.8: use `manylinux2014` + `--manylinux 2014` when `manylinux_2_28` no longer ships that interpreter (avoids exit 127); pin `manylinux2014_x86_64:2026.05.01-2` because `latest` removed `/opt/python/cp38-cp38` after [manylinux#1882](https://github.com/pypa/manylinux/issues/1882).
 
 ### Added
 

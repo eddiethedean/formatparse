@@ -134,9 +134,10 @@ jobs:
         run: |
           PYTHON_VER="${{ matrix.python }}"
           PYTHON_TAG="cp${PYTHON_VER//./}"
-          # manylinux_2_28 images have dropped some EOL Pythons; 3.8 still lives on manylinux2014.
+          # manylinux_2_28 images have dropped cp38; manylinux2014 `latest` dropped it after 2026-05-05
+          # (pypa/manylinux#1882). Pin a pre-removal tag so /opt/python/cp38-cp38 exists in CI.
           if [ "$PYTHON_VER" = "3.8" ]; then
-            MANYLINUX_IMAGE="quay.io/pypa/manylinux2014_x86_64"
+            MANYLINUX_IMAGE="quay.io/pypa/manylinux2014_x86_64:2026.05.01-2"
             MANYLINUX_PLATFORM="2014"
           else
             MANYLINUX_IMAGE="quay.io/pypa/manylinux_2_28_x86_64"
