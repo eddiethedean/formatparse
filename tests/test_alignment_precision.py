@@ -1,21 +1,31 @@
 """Tests for field alignment with precision validation
 
-These tests verify that formatparse correctly rejects invalid cases where
-alignment with precision would cause incorrect parsing, as described in
-issue #3 (related to parse#218).
-
-formatparse is stricter than the original parse library and correctly
-rejects these cases, which is the desired behavior.
+These tests cover alignment + precision rules (issue #3 / parse#218) and
+parse parity for **zero-filled, right-aligned** string fields when width,
+precision, and the captured slice length are all equal (issue #40): ``0``
+padding cannot be distinguished from content, matching the original ``parse``
+library for those cases.
 """
 
 from formatparse import parse
 
 
+def test_issue40_zero_fill_right_align_width_precision():
+    """Regression: parse parity for {s:0>18.18} (GitHub issue #40)."""
+    result = parse("{s:0>18.18}", "000000000000100000")
+    assert result is not None
+    assert result.named["s"] == "000000000000100000"
+
+    # Shorter pattern: capture must stay zero-padded (not stripped to "xx")
+    result = parse("{s:0>4.4}", "00xx")
+    assert result is not None
+    assert result.named["s"] == "00xx"
+
+
 def test_right_aligned_precision_invalid_both_sides():
-    """Test that right-aligned precision rejects fill chars on both sides"""
-    # Should fail: has fill character (space) on both sides
+    """Over-long input still does not match the anchored pattern."""
     result = parse("{s:>4.4}", " aaa ")
-    assert result is None, "Should reject fill character on both sides"
+    assert result is None
 
 
 def test_right_aligned_precision_invalid_extra_char():
@@ -43,9 +53,7 @@ def test_right_aligned_precision_valid():
     assert result is not None
     assert result.named["s"] == "aaaa"
 
-    # Note: "{s:>4.4}" with " aaa" (4 chars: 1 space + 3 content) doesn't match
-    # because the regex pattern requires exactly 4 chars after optional spaces
-    # This is correct behavior - when width==precision, no fill chars are allowed
+    # Note: "{s:>4.4}" with " aaa" (4 chars: 1 space + 3 content) matches as a full 4-char cell
 
 
 def test_left_aligned_precision_valid():
@@ -92,8 +100,7 @@ def test_alignment_precision_with_fill_character():
     assert result is not None
     assert result.named["s"] == "aaaa"
 
-    # Invalid: fill char on both sides - formatparse correctly rejects this
-    # Note: The original parse library incorrectly accepts this, but formatparse is stricter
+    # Invalid: fill char on both sides - formatparse rejects (parse accepts; we stay stricter here)
     result = parse("{s:.>4.4}", ".aa.")
     assert result is None, "Should reject fill character on both sides"
 

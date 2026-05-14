@@ -14,6 +14,17 @@ use std::collections::HashMap;
 pub fn validate_alignment_precision(spec: &FieldSpec, value: &str) -> bool {
     if let FieldType::String = &spec.field_type {
         if let (Some(prec), Some(align)) = (spec.precision, spec.alignment) {
+            // When width == precision == captured length and the field is zero-filled
+            // right-aligned, leading/trailing '0' cannot be distinguished from content
+            // (GitHub issue #40; parse parity).
+            if align == '>'
+                && spec.fill == Some('0')
+                && spec.width == Some(prec)
+                && Some(value.len()) == spec.width
+            {
+                return true;
+            }
+
             let fill_ch = spec.fill.unwrap_or(' ');
             let has_leading_fill = value.starts_with(fill_ch);
             let has_trailing_fill = value.ends_with(fill_ch);
@@ -185,8 +196,13 @@ pub fn convert_value(
                         }
                     }
                     Some('>') => {
-                        // Right-aligned: strip leading fill chars, then leading spaces
-                        if let Some(fill_ch) = spec.fill {
+                        // Zero-filled right align, fixed cell: keep full capture (issue #40, parse parity).
+                        if spec.fill == Some('0')
+                            && spec.width == spec.precision
+                            && spec.width == Some(value.len())
+                        {
+                            value
+                        } else if let Some(fill_ch) = spec.fill {
                             value.trim_start_matches(fill_ch).trim_start()
                         } else {
                             value.trim_start()
@@ -490,6 +506,19 @@ mod tests {
         // Non-string types should always return true (no validation)
         assert!(validate_alignment_precision(&spec, "12345"));
         assert!(validate_alignment_precision(&spec, "anything"));
+    }
+
+    #[test]
+    fn validate_issue40_zero_fill_right_width_precision() {
+        let spec = FieldSpec {
+            field_type: FieldType::String,
+            fill: Some('0'),
+            alignment: Some('>'),
+            width: Some(18),
+            precision: Some(18),
+            ..Default::default()
+        };
+        assert!(validate_alignment_precision(&spec, "000000000000100000"));
     }
 
     #[test]
