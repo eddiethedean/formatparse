@@ -109,7 +109,9 @@ impl Results {
         })
     }
 
-    /// Convert to list (forces conversion of all items)
+    /// Convert to list (forces conversion of all items).
+    /// Name matches the `parse` library Python API (`results.to_list()`).
+    #[allow(clippy::wrong_self_convention)] // `to_*` + `&mut self` is required by pymethods / API parity
     fn to_list(&mut self, py: Python) -> PyResult<PyObject> {
         self.convert_all(py)
     }

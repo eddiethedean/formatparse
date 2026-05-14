@@ -6,7 +6,6 @@
 #![allow(clippy::if_same_then_else)] // Parser mirrors symmetric branches intentionally
 #![allow(clippy::too_many_arguments)] // PyO3 entry points and format spec plumbing
 #![allow(clippy::type_complexity)] // PyO3-heavy signatures
-#![allow(clippy::wrong_self_convention)] // `to_py_object` mirrors Python naming
 
 use lru::LruCache;
 use once_cell::sync::Lazy;
