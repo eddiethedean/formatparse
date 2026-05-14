@@ -10,8 +10,7 @@ on:
 
 env:
   MATURIN_PROFILE: release
-  # maturin 1.13+ errors on `sdist` without a repo-root `_formatparse` artifact; 1.12.x matches pyproject and builds sdist from the workspace root.
-  MATURIN_PIP_SPEC: "maturin>=1.12.6,<1.13"
+  MATURIN_PIP_SPEC: "maturin>=1.12.6,<2.0"
 
 jobs:
   build-wheels:

@@ -50,7 +50,7 @@ jobs:
         run: |
           source .venv/bin/activate
           # formatparse is already installed by maturin develop; avoid `pip install -e .`
-          # which runs maturin pep517 from the repo root and fails the python-source check.
+          # which would re-run the maturin build backend unnecessarily here.
           pip install \
             "hypothesis>=6.0" \
             "pytest-cov>=4.0" \
