@@ -43,7 +43,7 @@ jobs:
       - name: Build extension module
         run: |
           source .venv/bin/activate
-          maturin develop --manifest-path formatparse-pyo3/Cargo.toml --release
+          cd formatparse-pyo3 && maturin develop --release
 
       - name: Install package with test dependencies
         run: |
