@@ -314,22 +314,25 @@ pub fn normalize_field_name(
     normalized
 }
 
-/// Reject `:ml` combined with numeric-only format specifiers (GitHub issues #8, #70).
+/// Reject `:ml` / `:blk` combined with numeric-only format specifiers (GitHub issues #8, #69, #70).
 ///
-/// Width, precision, alignment, and fill are supported for multiline fields; ``sign``,
-/// ``zero_pad``, and ``=`` alignment remain unsupported.
+/// Width, precision, alignment, and fill are supported for multiline and indent-block fields;
+/// ``sign``, ``zero_pad``, and ``=`` alignment remain unsupported.
 pub fn validate_multiline_mvp(spec: &FieldSpec) -> PyResult<()> {
-    if !matches!(spec.field_type, FieldType::Multiline) {
+    if !matches!(
+        spec.field_type,
+        FieldType::Multiline | FieldType::IndentBlock
+    ) {
         return Ok(());
     }
     if spec.sign.is_some() || spec.zero_pad {
         return Err(error::pattern_error(
-            "Multiline type :ml does not support sign or zero-padding",
+            "Multiline types :ml and :blk do not support sign or zero-padding",
         ));
     }
     if spec.alignment == Some('=') {
         return Err(error::pattern_error(
-            "Multiline type :ml does not support '=' alignment",
+            "Multiline types :ml and :blk do not support '=' alignment",
         ));
     }
     Ok(())
@@ -597,6 +600,8 @@ pub fn parse_format_spec(
             FieldType::BracedContent
         } else if type_name == "ml" {
             FieldType::Multiline
+        } else if type_name == "blk" {
+            FieldType::IndentBlock
         } else if type_name.len() > 1 {
             // Multi-character - always custom type
             FieldType::Custom(type_name)

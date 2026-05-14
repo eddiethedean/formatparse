@@ -29,6 +29,9 @@ pub enum FieldType {
     /// Multiline text between anchors; format specifier `:ml` (issues #8, #70). Supports
     /// width, precision, alignment, and fill like strings; sign / zero-padding / ``=`` align not supported.
     Multiline,
+    /// Indented block: same match boundaries as ``:ml``, then strip common leading spaces/tabs
+    /// per line (issue #69). Format specifier ``:blk``.
+    IndentBlock,
     Custom(String),
 }
 

@@ -13,124 +13,171 @@ use std::collections::HashMap;
 /// - Total width (including fill chars) should not exceed specified width when width is specified
 /// - Content length (after removing fill chars) should not exceed precision
 pub fn validate_alignment_precision(spec: &FieldSpec, value: &str) -> bool {
-    if let FieldType::String = &spec.field_type {
-        if let (Some(prec), Some(align)) = (spec.precision, spec.alignment) {
-            // When width == precision == captured length and the field is zero-filled
-            // right-aligned, leading/trailing '0' cannot be distinguished from content
-            // (GitHub issue #40; parse parity).
-            if align == '>'
-                && spec.fill == Some('0')
-                && spec.width == Some(prec)
-                && Some(value.len()) == spec.width
-            {
-                return true;
+    if !matches!(
+        &spec.field_type,
+        FieldType::String | FieldType::Multiline | FieldType::IndentBlock
+    ) {
+        return true;
+    }
+    if let (Some(prec), Some(align)) = (spec.precision, spec.alignment) {
+        // When width == precision == captured length and the field is zero-filled
+        // right-aligned, leading/trailing '0' cannot be distinguished from content
+        // (GitHub issue #40; parse parity).
+        if align == '>'
+            && spec.fill == Some('0')
+            && spec.width == Some(prec)
+            && Some(value.len()) == spec.width
+        {
+            return true;
+        }
+
+        let fill_ch = spec.fill.unwrap_or(' ');
+        let has_leading_fill = value.starts_with(fill_ch);
+        let has_trailing_fill = value.ends_with(fill_ch);
+
+        // Count leading and trailing fill characters
+        let leading_count = value.chars().take_while(|&c| c == fill_ch).count();
+        let trailing_count = value.chars().rev().take_while(|&c| c == fill_ch).count();
+        // Avoid underflow: if all chars are fill, content_len is 0
+        let content_len = if leading_count + trailing_count >= value.len() {
+            0
+        } else {
+            value.len() - leading_count - trailing_count
+        };
+
+        // Special case: if all chars are fill (content_len == 0), allow it if total length equals width
+        if content_len == 0 {
+            if let Some(width) = spec.width {
+                if value.len() == width {
+                    return true; // Valid: empty content, all fill, total = width
+                }
             }
+            return false; // Invalid: all fill but doesn't match width
+        }
 
-            let fill_ch = spec.fill.unwrap_or(' ');
-            let has_leading_fill = value.starts_with(fill_ch);
-            let has_trailing_fill = value.ends_with(fill_ch);
-
-            // Count leading and trailing fill characters
-            let leading_count = value.chars().take_while(|&c| c == fill_ch).count();
-            let trailing_count = value.chars().rev().take_while(|&c| c == fill_ch).count();
-            // Avoid underflow: if all chars are fill, content_len is 0
-            let content_len = if leading_count + trailing_count >= value.len() {
-                0
-            } else {
-                value.len() - leading_count - trailing_count
-            };
-
-            // Special case: if all chars are fill (content_len == 0), allow it if total length equals width
-            if content_len == 0 {
+        match align {
+            '>' => {
+                // Right-aligned: fill chars should only be on the left
+                // Reject if fill char on both sides (invalid) - but only if there's actual content
+                if has_leading_fill && has_trailing_fill {
+                    return false;
+                }
+                // Reject if fill char on right (should only be on left)
+                if has_trailing_fill {
+                    return false;
+                }
+                // Reject if content exceeds precision
+                if content_len > prec {
+                    return false;
+                }
+                // Reject if width is specified and total width exceeds it
+                // When width is specified with precision, total should not exceed width
                 if let Some(width) = spec.width {
-                    if value.len() == width {
-                        return true; // Valid: empty content, all fill, total = width
-                    }
-                }
-                return false; // Invalid: all fill but doesn't match width
-            }
-
-            match align {
-                '>' => {
-                    // Right-aligned: fill chars should only be on the left
-                    // Reject if fill char on both sides (invalid) - but only if there's actual content
-                    if has_leading_fill && has_trailing_fill {
+                    if value.len() > width {
                         return false;
                     }
-                    // Reject if fill char on right (should only be on left)
-                    if has_trailing_fill {
-                        return false;
-                    }
-                    // Reject if content exceeds precision
-                    if content_len > prec {
-                        return false;
-                    }
-                    // Reject if width is specified and total width exceeds it
-                    // When width is specified with precision, total should not exceed width
-                    if let Some(width) = spec.width {
-                        if value.len() > width {
-                            return false;
-                        }
-                    } else {
-                        // No width specified, but precision is: reject if fill enables extra content
-                        if has_leading_fill && value.len() > prec {
-                            let leading_count = value.chars().take_while(|&c| c == fill_ch).count();
-                            let content_len = value.len() - leading_count;
-                            if content_len > prec {
-                                return false;
-                            }
-                        }
-                    }
-                }
-                '<' => {
-                    // Left-aligned: fill chars should only be on the right
-                    // Reject if fill char on left (should only be on right)
-                    if has_leading_fill {
-                        return false;
-                    }
-                    // Reject if content exceeds precision
-                    if content_len > prec {
-                        return false;
-                    }
-                    // Reject if width is specified and total width exceeds it
-                    if let Some(width) = spec.width {
-                        if value.len() > width {
-                            return false;
-                        }
-                    } else {
-                        // No width specified, but precision is: reject if fill enables extra content
-                        if has_trailing_fill && value.len() > prec {
-                            let trailing_count =
-                                value.chars().rev().take_while(|&c| c == fill_ch).count();
-                            let content_len = value.len() - trailing_count;
-                            if content_len > prec {
-                                return false;
-                            }
-                        }
-                    }
-                }
-                '^' => {
-                    // Center-aligned: reject if content exceeds precision
-                    if content_len > prec {
-                        return false;
-                    }
-                    // Reject if width is specified and total width exceeds it
-                    if let Some(width) = spec.width {
-                        if value.len() > width {
-                            return false;
-                        }
-                    } else {
-                        // No width specified, but precision is: reject if content exceeds precision
+                } else {
+                    // No width specified, but precision is: reject if fill enables extra content
+                    if has_leading_fill && value.len() > prec {
+                        let leading_count = value.chars().take_while(|&c| c == fill_ch).count();
+                        let content_len = value.len() - leading_count;
                         if content_len > prec {
                             return false;
                         }
                     }
                 }
-                _ => {}
             }
+            '<' => {
+                // Left-aligned: fill chars should only be on the right
+                // Reject if fill char on left (should only be on right)
+                if has_leading_fill {
+                    return false;
+                }
+                // Reject if content exceeds precision
+                if content_len > prec {
+                    return false;
+                }
+                // Reject if width is specified and total width exceeds it
+                if let Some(width) = spec.width {
+                    if value.len() > width {
+                        return false;
+                    }
+                } else {
+                    // No width specified, but precision is: reject if fill enables extra content
+                    if has_trailing_fill && value.len() > prec {
+                        let trailing_count =
+                            value.chars().rev().take_while(|&c| c == fill_ch).count();
+                        let content_len = value.len() - trailing_count;
+                        if content_len > prec {
+                            return false;
+                        }
+                    }
+                }
+            }
+            '^' => {
+                // Center-aligned: reject if content exceeds precision
+                if content_len > prec {
+                    return false;
+                }
+                // Reject if width is specified and total width exceeds it
+                if let Some(width) = spec.width {
+                    if value.len() > width {
+                        return false;
+                    }
+                } else {
+                    // No width specified, but precision is: reject if content exceeds precision
+                    if content_len > prec {
+                        return false;
+                    }
+                }
+            }
+            _ => {}
         }
     }
     true
+}
+
+/// Trim fill / whitespace for string-like fields that support alignment (``String``, ``Multiline``, ``IndentBlock``).
+pub(crate) fn trim_string_or_multiline_value<'a>(
+    spec: &FieldSpec,
+    value: &'a str,
+) -> std::borrow::Cow<'a, str> {
+    use std::borrow::Cow;
+    if spec.alignment.is_none() {
+        return Cow::Borrowed(value);
+    }
+    let trimmed = match spec.alignment {
+        Some('<') => {
+            if spec.width.is_some() {
+                value
+            } else if let Some(fill_ch) = spec.fill {
+                value.trim_end_matches(fill_ch).trim_end()
+            } else {
+                value.trim_end()
+            }
+        }
+        Some('>') => {
+            if spec.fill == Some('0')
+                && spec.width == spec.precision
+                && spec.width == Some(value.len())
+            {
+                value
+            } else if let Some(fill_ch) = spec.fill {
+                value.trim_start_matches(fill_ch).trim_start()
+            } else {
+                value.trim_start()
+            }
+        }
+        Some('^') => {
+            if let Some(fill_ch) = spec.fill {
+                value.trim_matches(fill_ch).trim()
+            } else {
+                value.trim()
+            }
+        }
+        _ => value,
+    };
+    Cow::Borrowed(trimmed)
 }
 
 pub fn convert_value(
@@ -168,6 +215,7 @@ pub fn convert_value(
             FieldType::DateTimeStrftime => "strftime",
             FieldType::BracedContent => "brace",
             FieldType::Multiline => "ml",
+            FieldType::IndentBlock => "blk",
         };
 
         // If there's a custom converter for this type name, use it instead of built-in
@@ -179,50 +227,21 @@ pub fn convert_value(
 
     // Use built-in conversion
     match &spec.field_type {
-        FieldType::String | FieldType::Multiline => {
-            // Fast path: no alignment means no trimming needed
+        FieldType::String => {
             if spec.alignment.is_none() {
                 Ok(value.into_py_any(py)?)
             } else {
-                // Strip fill characters and whitespace based on alignment
-                let trimmed = match spec.alignment {
-                    Some('<') => {
-                        // With a fixed width, the capture includes intentional trailing
-                        // fill (often spaces); match parse and keep it (issue #39).
-                        // Without width, strip trailing fill / spaces like parse does.
-                        if spec.width.is_some() {
-                            value
-                        } else if let Some(fill_ch) = spec.fill {
-                            value.trim_end_matches(fill_ch).trim_end()
-                        } else {
-                            value.trim_end()
-                        }
-                    }
-                    Some('>') => {
-                        // Zero-filled right align, fixed cell: keep full capture (issue #40, parse parity).
-                        if spec.fill == Some('0')
-                            && spec.width == spec.precision
-                            && spec.width == Some(value.len())
-                        {
-                            value
-                        } else if let Some(fill_ch) = spec.fill {
-                            value.trim_start_matches(fill_ch).trim_start()
-                        } else {
-                            value.trim_start()
-                        }
-                    }
-                    Some('^') => {
-                        // Center-aligned: strip both leading and trailing fill chars, then spaces
-                        if let Some(fill_ch) = spec.fill {
-                            value.trim_matches(fill_ch).trim()
-                        } else {
-                            value.trim()
-                        }
-                    }
-                    _ => value, // No alignment: keep as-is
-                };
+                let trimmed = trim_string_or_multiline_value(spec, value);
                 Ok(trimmed.into_py_any(py)?)
             }
+        }
+        FieldType::Multiline => {
+            let trimmed = trim_string_or_multiline_value(spec, value);
+            Ok(trimmed.into_py_any(py)?)
+        }
+        FieldType::IndentBlock => {
+            let trimmed = trim_string_or_multiline_value(spec, value);
+            Ok(formatparse_core::strip_common_indent(trimmed.as_ref()).into_py_any(py)?)
         }
         FieldType::Integer => {
             // Fast path: common case - decimal integer, no special formatting
