@@ -435,3 +435,28 @@ pub fn parse_strftime_datetime(py: Python, value: &str, format_str: &str) -> PyR
         }
     }
 }
+
+/// Parse multiple strftime fragments (same logical field, pattern order) as one
+/// datetime by joining values and formats with spaces and delegating to
+/// [`parse_strftime_datetime`].
+pub fn parse_merged_strftime_datetime(
+    py: Python<'_>,
+    parts: &[(String, String)],
+) -> PyResult<PyObject> {
+    if parts.is_empty() {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "merged strftime: empty fragment list",
+        ));
+    }
+    let merged_fmt = parts
+        .iter()
+        .map(|(f, _)| f.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let merged_val = parts
+        .iter()
+        .map(|(_, v)| v.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    parse_strftime_datetime(py, merged_val.as_str(), merged_fmt.as_str())
+}

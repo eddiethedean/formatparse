@@ -31,7 +31,7 @@ pub use global::parse_global_datetime;
 pub use http::parse_http_datetime;
 pub use iso::parse_iso_datetime;
 pub use rfc2822::parse_rfc2822_datetime;
-pub use strftime::parse_strftime_datetime;
+pub use strftime::{parse_merged_strftime_datetime, parse_strftime_datetime};
 pub use system::parse_system_datetime;
 pub use time::parse_time;
 pub use us::parse_us_datetime;

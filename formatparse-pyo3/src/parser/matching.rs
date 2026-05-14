@@ -2,7 +2,7 @@ use crate::error;
 use crate::match_rs::Match;
 use crate::parser::raw_match::{RawMatchData, RawValue};
 use crate::result::ParseResult;
-use formatparse_core::{count_capturing_groups, FieldSpec};
+use formatparse_core::{count_capturing_groups, FieldSpec, FieldType};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use regex::{Captures, Regex};
@@ -143,6 +143,78 @@ pub fn extract_capture<'a>(
             captures.get(capture_group_index)
         }
     }
+}
+
+/// For each field index, `(actual_capture_index, group_offset)` at the start of
+/// processing that field, matching the main match loops' bookkeeping.
+fn per_field_capture_geometry(
+    field_specs: &[FieldSpec],
+    normalized_names: &[Option<String>],
+    py: Python<'_>,
+    custom_converters: &HashMap<String, PyObject>,
+    precomputed_pattern_groups: Option<&[usize]>,
+) -> PyResult<Vec<(usize, usize)>> {
+    let mut aci = 1usize;
+    let mut go = 0usize;
+    let mut out = Vec::with_capacity(field_specs.len());
+    for (i, spec) in field_specs.iter().enumerate() {
+        let pattern_groups = if let Some(pc) = precomputed_pattern_groups {
+            pc.get(i).copied().unwrap_or(0)
+        } else if !custom_converters.is_empty() {
+            validate_custom_type_pattern(spec, custom_converters, py)?
+        } else {
+            0
+        };
+        out.push((aci, go));
+        if normalized_names.get(i).and_then(|n| n.as_ref()).is_none() {
+            aci += 1;
+        } else {
+            aci += 1;
+        }
+        if spec.alignment.is_some() {
+            go += 1;
+        }
+        if pattern_groups > 0 {
+            go += pattern_groups;
+        }
+    }
+    Ok(out)
+}
+
+/// `entry[i] == Some(L)` when field `i` merges with others under the same flat name `L`
+/// (smallest index in the group). Issue #4 / parse#197.
+pub(crate) fn strftime_merge_leader_per_field(
+    field_specs: &[FieldSpec],
+    field_names: &[Option<String>],
+) -> Vec<Option<usize>> {
+    let n = field_specs.len();
+    let mut out = vec![None; n];
+    let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
+    for (i, spec) in field_specs.iter().enumerate() {
+        if !matches!(spec.field_type, FieldType::DateTimeStrftime) {
+            continue;
+        }
+        if spec.strftime_format.is_none() {
+            continue;
+        }
+        let Some(name) = field_names.get(i).and_then(|x| x.as_ref()) else {
+            continue;
+        };
+        if name.contains('[') {
+            continue;
+        }
+        by_name.entry(name.clone()).or_default().push(i);
+    }
+    for indices in by_name.into_values() {
+        if indices.len() < 2 {
+            continue;
+        }
+        let leader = *indices.iter().min().unwrap();
+        for idx in indices {
+            out[idx] = Some(leader);
+        }
+    }
+    out
 }
 
 /// Validate custom type pattern and return number of groups it adds
@@ -330,6 +402,15 @@ pub fn match_with_captures(
     let start = full_match.start(); // Already absolute position in full string
     let end = full_match.end(); // Already absolute position in full string
 
+    let strftime_merge_leader = strftime_merge_leader_per_field(field_specs, field_names);
+    let capture_geom = per_field_capture_geometry(
+        field_specs,
+        normalized_names,
+        py,
+        custom_converters,
+        Some(custom_type_groups),
+    )?;
+
     // Pre-allocate with capacity based on expected field count
     let field_count = field_specs.len();
     // Fast path: for single-field patterns, use optimized allocation
@@ -382,71 +463,146 @@ pub fn match_with_captures(
             // For evaluate_result=True, we don't need to store raw captures, saving allocations
 
             if evaluate_result {
-                // Validate alignment+precision constraints (issue #3)
-                // This prevents invalid cases where fill characters are in wrong positions
                 if !crate::types::conversion::validate_alignment_precision(spec, value_str) {
                     return Ok(None);
                 }
 
-                let converted = crate::types::conversion::convert_value(
-                    spec,
-                    value_str,
-                    py,
-                    custom_converters,
-                )?;
+                let merge_leader_i = strftime_merge_leader.get(i).copied().flatten();
+                let is_merge_follower = merge_leader_i.is_some_and(|leader_idx| leader_idx != i);
+                let is_merge_leader = merge_leader_i == Some(i);
 
-                // Use original field name (with hyphens/dots) for the result
-                if let Some(ref original_name) = field_names[i] {
-                    // Use pre-computed flag to avoid contains('[') check in hot path
-                    if has_nested_dict_fields.get(i).copied().unwrap_or(false) {
-                        // Parse the path and insert into nested dict structure
-                        let path = crate::parser::pattern::parse_field_path(original_name);
-                        // Check for repeated field names - compare values if path already exists
-                        if let Some(existing_value) = get_nested_dict_value(&named, &path, py)? {
-                            // Compare values using Python's equality (batch GIL operation)
-                            let are_equal: bool = {
-                                let existing_obj = existing_value.bind(py);
-                                let converted_obj = converted.bind(py);
-                                existing_obj.eq(converted_obj).unwrap_or(false)
-                            };
-                            if !are_equal {
-                                // Values don't match for repeated name
-                                return Ok(None);
+                if is_merge_follower {
+                    // Merge leader performs conversion and inserts `named` / `field_spans`.
+                } else if is_merge_leader {
+                    let mut parts: Vec<(String, String)> = Vec::new();
+                    let mut span_lo = usize::MAX;
+                    let mut span_hi = 0usize;
+                    for (j, spec_j) in field_specs.iter().enumerate() {
+                        if strftime_merge_leader.get(j).copied().flatten() != Some(i) {
+                            continue;
+                        }
+                        let (aci, goj) = capture_geom[j];
+                        let cap_j =
+                            extract_capture(captures, j, normalized_names, spec_j, aci, goj);
+                        let Some(cap_j) = cap_j else {
+                            return Ok(None);
+                        };
+                        let vs = cap_j.as_str();
+                        if !crate::types::conversion::validate_alignment_precision(spec_j, vs) {
+                            return Ok(None);
+                        }
+                        let Some(fmt) = spec_j.strftime_format.as_ref() else {
+                            return Ok(None);
+                        };
+                        parts.push((fmt.clone(), vs.to_string()));
+                        span_lo = span_lo.min(cap_j.start());
+                        span_hi = span_hi.max(cap_j.end());
+                    }
+                    let converted = crate::datetime::parse_merged_strftime_datetime(py, &parts)?;
+                    let field_start = span_lo;
+                    let field_end = span_hi;
+
+                    if let Some(ref original_name) = field_names[i] {
+                        if has_nested_dict_fields.get(i).copied().unwrap_or(false) {
+                            let path = crate::parser::pattern::parse_field_path(original_name);
+                            if let Some(existing_value) = get_nested_dict_value(&named, &path, py)?
+                            {
+                                let are_equal: bool = {
+                                    let existing_obj = existing_value.bind(py);
+                                    let converted_obj = converted.bind(py);
+                                    existing_obj.eq(converted_obj).unwrap_or(false)
+                                };
+                                if !are_equal {
+                                    return Ok(None);
+                                }
+                            }
+                            insert_nested_dict(&mut named, &path, converted, py)?;
+                        } else {
+                            match named.get(original_name) {
+                                Some(existing_value) => {
+                                    let are_equal: bool = {
+                                        let existing_obj = existing_value.to_object(py);
+                                        let converted_obj = converted.to_object(py);
+                                        existing_obj
+                                            .bind(py)
+                                            .eq(converted_obj.bind(py))
+                                            .unwrap_or(false)
+                                    };
+                                    if !are_equal {
+                                        return Ok(None);
+                                    }
+                                }
+                                None => {
+                                    named.insert(original_name.clone(), converted);
+                                }
                             }
                         }
-                        insert_nested_dict(&mut named, &path, converted, py)?;
+                        field_spans.insert(original_name.clone(), (field_start, field_end));
                     } else {
-                        // Regular flat field name
-                        // Fast path: most fields are not repeated, so check first
-                        // Use get() directly instead of contains_key + get (one less lookup)
-                        match named.get(original_name) {
-                            Some(existing_value) => {
-                                // Field exists - check if values match (repeated name case)
+                        fixed.push(converted);
+                    }
+                } else {
+                    let converted = crate::types::conversion::convert_value(
+                        spec,
+                        value_str,
+                        py,
+                        custom_converters,
+                    )?;
+
+                    // Use original field name (with hyphens/dots) for the result
+                    if let Some(ref original_name) = field_names[i] {
+                        // Use pre-computed flag to avoid contains('[') check in hot path
+                        if has_nested_dict_fields.get(i).copied().unwrap_or(false) {
+                            // Parse the path and insert into nested dict structure
+                            let path = crate::parser::pattern::parse_field_path(original_name);
+                            // Check for repeated field names - compare values if path already exists
+                            if let Some(existing_value) = get_nested_dict_value(&named, &path, py)?
+                            {
+                                // Compare values using Python's equality (batch GIL operation)
                                 let are_equal: bool = {
-                                    let existing_obj = existing_value.to_object(py);
-                                    let converted_obj = converted.to_object(py);
-                                    existing_obj
-                                        .bind(py)
-                                        .eq(converted_obj.bind(py))
-                                        .unwrap_or(false)
+                                    let existing_obj = existing_value.bind(py);
+                                    let converted_obj = converted.bind(py);
+                                    existing_obj.eq(converted_obj).unwrap_or(false)
                                 };
                                 if !are_equal {
                                     // Values don't match for repeated name
                                     return Ok(None);
                                 }
                             }
-                            None => {
-                                // New field - insert it
-                                named.insert(original_name.clone(), converted);
+                            insert_nested_dict(&mut named, &path, converted, py)?;
+                        } else {
+                            // Regular flat field name
+                            // Fast path: most fields are not repeated, so check first
+                            // Use get() directly instead of contains_key + get (one less lookup)
+                            match named.get(original_name) {
+                                Some(existing_value) => {
+                                    // Field exists - check if values match (repeated name case)
+                                    let are_equal: bool = {
+                                        let existing_obj = existing_value.to_object(py);
+                                        let converted_obj = converted.to_object(py);
+                                        existing_obj
+                                            .bind(py)
+                                            .eq(converted_obj.bind(py))
+                                            .unwrap_or(false)
+                                    };
+                                    if !are_equal {
+                                        // Values don't match for repeated name
+                                        return Ok(None);
+                                    }
+                                }
+                                None => {
+                                    // New field - insert it
+                                    named.insert(original_name.clone(), converted);
+                                }
                             }
                         }
-                    }
 
-                    // Store field span (already absolute position in original string)
-                    field_spans.insert(original_name.clone(), (field_start, field_end));
-                } else {
-                    // Positional field
-                    fixed.push(converted);
+                        // Store field span (already absolute position in original string)
+                        field_spans.insert(original_name.clone(), (field_start, field_end));
+                    } else {
+                        // Positional field
+                        fixed.push(converted);
+                    }
                 }
             }
         }
@@ -509,6 +665,10 @@ pub fn match_with_regex(
         let start = full_match.start();
         let end = full_match.end();
 
+        let strftime_merge_leader = strftime_merge_leader_per_field(field_specs, field_names);
+        let capture_geom =
+            per_field_capture_geometry(field_specs, normalized_names, py, custom_converters, None)?;
+
         let mut fixed_index = 0;
         let mut group_offset = 0;
         // Track the actual capture group index (accounts for both named and unnamed groups)
@@ -555,79 +715,168 @@ pub fn match_with_regex(
                 }
 
                 if evaluate_result {
-                    // Validate alignment+precision constraints (issue #3)
-                    // This prevents invalid cases where fill characters are in wrong positions
                     if !crate::types::conversion::validate_alignment_precision(spec, value_str) {
                         return Ok(None);
                     }
 
-                    let converted = crate::types::conversion::convert_value(
-                        spec,
-                        value_str,
-                        py,
-                        custom_converters,
-                    )?;
+                    let merge_leader_i = strftime_merge_leader.get(i).copied().flatten();
+                    let is_merge_follower =
+                        merge_leader_i.is_some_and(|leader_idx| leader_idx != i);
+                    let is_merge_leader = merge_leader_i == Some(i);
 
-                    // Use original field name (with hyphens/dots) for the result
-                    if let Some(ref original_name) = field_names[i] {
-                        // Check if this is a dict-style field name (contains [])
-                        if original_name.contains('[') {
-                            // Parse the path and insert into nested dict structure
-                            let path = crate::parser::pattern::parse_field_path(original_name);
-                            // Check for repeated field names - compare values if path already exists
-                            if let Some(existing_value) = get_nested_dict_value(&named, &path, py)?
-                            {
-                                // Compare values using Python's equality (batch GIL operation)
-                                let are_equal: bool = {
-                                    let existing_obj = existing_value.bind(py);
-                                    let converted_obj = converted.bind(py);
-                                    existing_obj.eq(converted_obj).unwrap_or(false)
-                                };
-                                if !are_equal {
-                                    // Values don't match for repeated name
-                                    return Ok(None);
+                    if is_merge_follower {
+                        // Typed conversion happens on the merge leader only.
+                    } else if is_merge_leader {
+                        let mut parts: Vec<(String, String)> = Vec::new();
+                        let mut span_lo = usize::MAX;
+                        let mut span_hi = 0usize;
+                        for (j, spec_j) in field_specs.iter().enumerate() {
+                            if strftime_merge_leader.get(j).copied().flatten() != Some(i) {
+                                continue;
+                            }
+                            let (aci, goj) = capture_geom[j];
+                            let cap_j =
+                                extract_capture(&captures, j, normalized_names, spec_j, aci, goj);
+                            let Some(cap_j) = cap_j else {
+                                return Ok(None);
+                            };
+                            let vs = cap_j.as_str();
+                            if !crate::types::conversion::validate_alignment_precision(spec_j, vs) {
+                                return Ok(None);
+                            }
+                            let Some(fmt) = spec_j.strftime_format.as_ref() else {
+                                return Ok(None);
+                            };
+                            parts.push((fmt.clone(), vs.to_string()));
+                            span_lo = span_lo.min(cap_j.start());
+                            span_hi = span_hi.max(cap_j.end());
+                        }
+                        let converted =
+                            crate::datetime::parse_merged_strftime_datetime(py, &parts)?;
+                        let field_start = span_lo;
+                        let field_end = span_hi;
+
+                        if let Some(ref original_name) = field_names[i] {
+                            if original_name.contains('[') {
+                                let path = crate::parser::pattern::parse_field_path(original_name);
+                                if let Some(existing_value) =
+                                    get_nested_dict_value(&named, &path, py)?
+                                {
+                                    let are_equal: bool = {
+                                        let existing_obj = existing_value.bind(py);
+                                        let converted_obj = converted.bind(py);
+                                        existing_obj.eq(converted_obj).unwrap_or(false)
+                                    };
+                                    if !are_equal {
+                                        return Ok(None);
+                                    }
+                                }
+                                insert_nested_dict(&mut named, &path, converted, py)?;
+                            } else {
+                                match named.get(original_name) {
+                                    Some(existing_value) => {
+                                        let are_equal: bool = {
+                                            let existing_obj = existing_value.to_object(py);
+                                            let converted_obj = converted.to_object(py);
+                                            existing_obj
+                                                .bind(py)
+                                                .eq(converted_obj.bind(py))
+                                                .unwrap_or(false)
+                                        };
+                                        if !are_equal {
+                                            return Ok(None);
+                                        }
+                                        field_spans.insert(
+                                            original_name.clone(),
+                                            (field_start, field_end),
+                                        );
+                                    }
+                                    None => {
+                                        let name_for_named = original_name.clone();
+                                        named.insert(name_for_named.clone(), converted);
+                                        field_spans
+                                            .insert(name_for_named, (field_start, field_end));
+                                    }
                                 }
                             }
-                            insert_nested_dict(&mut named, &path, converted, py)?;
                         } else {
-                            // Regular flat field name
-                            // Fast path: most fields are not repeated, so check first
-                            // Use get() directly instead of contains_key + get (one less lookup)
-                            match named.get(original_name) {
-                                Some(existing_value) => {
-                                    // Field exists - check if values match (repeated name case)
+                            fixed.push(converted);
+                            field_spans.insert(fixed_index.to_string(), (field_start, field_end));
+                            fixed_index += 1;
+                        }
+                    } else {
+                        let converted = crate::types::conversion::convert_value(
+                            spec,
+                            value_str,
+                            py,
+                            custom_converters,
+                        )?;
+
+                        // Use original field name (with hyphens/dots) for the result
+                        if let Some(ref original_name) = field_names[i] {
+                            // Check if this is a dict-style field name (contains [])
+                            if original_name.contains('[') {
+                                // Parse the path and insert into nested dict structure
+                                let path = crate::parser::pattern::parse_field_path(original_name);
+                                // Check for repeated field names - compare values if path already exists
+                                if let Some(existing_value) =
+                                    get_nested_dict_value(&named, &path, py)?
+                                {
                                     // Compare values using Python's equality (batch GIL operation)
                                     let are_equal: bool = {
-                                        let existing_obj = existing_value.to_object(py);
-                                        let converted_obj = converted.to_object(py);
-                                        existing_obj
-                                            .bind(py)
-                                            .eq(converted_obj.bind(py))
-                                            .unwrap_or(false)
+                                        let existing_obj = existing_value.bind(py);
+                                        let converted_obj = converted.bind(py);
+                                        existing_obj.eq(converted_obj).unwrap_or(false)
                                     };
                                     if !are_equal {
                                         // Values don't match for repeated name
                                         return Ok(None);
                                     }
-                                    // Store span for repeated name
-                                    field_spans
-                                        .insert(original_name.clone(), (field_start, field_end));
                                 }
-                                None => {
-                                    // First occurrence - just insert (common case)
-                                    // Reuse the clone for both insertions
-                                    let name_for_named = original_name.clone();
-                                    named.insert(name_for_named.clone(), converted);
-                                    field_spans.insert(name_for_named, (field_start, field_end));
+                                insert_nested_dict(&mut named, &path, converted, py)?;
+                            } else {
+                                // Regular flat field name
+                                // Fast path: most fields are not repeated, so check first
+                                // Use get() directly instead of contains_key + get (one less lookup)
+                                match named.get(original_name) {
+                                    Some(existing_value) => {
+                                        // Field exists - check if values match (repeated name case)
+                                        // Compare values using Python's equality (batch GIL operation)
+                                        let are_equal: bool = {
+                                            let existing_obj = existing_value.to_object(py);
+                                            let converted_obj = converted.to_object(py);
+                                            existing_obj
+                                                .bind(py)
+                                                .eq(converted_obj.bind(py))
+                                                .unwrap_or(false)
+                                        };
+                                        if !are_equal {
+                                            // Values don't match for repeated name
+                                            return Ok(None);
+                                        }
+                                        // Store span for repeated name
+                                        field_spans.insert(
+                                            original_name.clone(),
+                                            (field_start, field_end),
+                                        );
+                                    }
+                                    None => {
+                                        // First occurrence - just insert (common case)
+                                        // Reuse the clone for both insertions
+                                        let name_for_named = original_name.clone();
+                                        named.insert(name_for_named.clone(), converted);
+                                        field_spans
+                                            .insert(name_for_named, (field_start, field_end));
+                                    }
                                 }
                             }
+                        } else {
+                            fixed.push(converted);
+                            // Store span by fixed index (only if needed - most cases don't need spans)
+                            // Use format! only when necessary to avoid allocation
+                            field_spans.insert(fixed_index.to_string(), (field_start, field_end));
+                            fixed_index += 1;
                         }
-                    } else {
-                        fixed.push(converted);
-                        // Store span by fixed index (only if needed - most cases don't need spans)
-                        // Use format! only when necessary to avoid allocation
-                        field_spans.insert(fixed_index.to_string(), (field_start, field_end));
-                        fixed_index += 1;
                     }
                 } else {
                     // Store span even when not evaluating

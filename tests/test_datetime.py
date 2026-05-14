@@ -1,6 +1,9 @@
 """Comprehensive tests for datetime parsing formats"""
 
 from datetime import datetime, time
+
+import pytest
+
 from formatparse import parse, FixedTzOffset
 
 
@@ -373,3 +376,23 @@ def test_http_date_various_formats():
         assert result is not None
         dt = result.named["dt"]
         assert dt.year == 2023 or dt.year == 2024
+
+
+def test_repeated_strftime_same_name_merged_issue_4():
+    """Same logical datetime field split across strftime fragments (issue #4 / parse#197)."""
+    ref = datetime(2024, 3, 15, 14, 30, 0)
+    pattern = (
+        "On {d:%B} {d:%d}, {d:%Y} at {d:%H}:{d:%M} we recorded the event"
+    )
+    text = pattern.format(d=ref)
+    result = parse(pattern, text)
+    assert result is not None
+    got = result.named["d"]
+    assert got == ref
+
+
+def test_repeated_strftime_same_name_invalid_calendar_raises_valueerror():
+    """Invalid merged calendar date raises ValueError (same as single strftime field)."""
+    pattern = "x {d:%Y} {d:%m} {d:%d}"
+    with pytest.raises(ValueError, match="Invalid date format"):
+        parse(pattern, "x 2024 02 30")
