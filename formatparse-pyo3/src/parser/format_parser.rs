@@ -1,4 +1,7 @@
 use crate::error;
+use crate::parser::matching::{
+    match_with_captures, match_with_captures_raw, CapturedMatchContext, FieldCaptureSlices,
+};
 use formatparse_core::parser::{validate_input_length, validate_pattern_length, MAX_FIELDS};
 use formatparse_core::FieldSpec;
 use pyo3::exceptions::PyValueError;
@@ -7,6 +10,7 @@ use pyo3::types::{PyString, PyTuple};
 use pyo3::IntoPyObjectExt;
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[pyclass(module = "_formatparse")]
 /// Compiled format pattern for parsing strings.
@@ -483,6 +487,59 @@ impl FormatParser {
         self.search_pattern(string, case_sensitive, merged_extra_types, evaluate_result)
     }
 
+    /// Yield non-overlapping matches from ``string`` one at a time.
+    ///
+    /// Same matching rules as :func:`findall`, but each ``__next__`` converts at most one
+    /// match, lowering peak memory when you stream results. This does **not** read
+    /// arbitrary file chunks with backtracking; pair with line-based file iteration only
+    /// when matches cannot span line breaks (see GitHub issue #13).
+    #[pyo3(signature = (string, case_sensitive=false, extra_types=None, evaluate_result=true))]
+    fn findall_iter(
+        &self,
+        py: Python<'_>,
+        string: &str,
+        case_sensitive: bool,
+        extra_types: Option<HashMap<String, PyObject>>,
+        evaluate_result: bool,
+    ) -> PyResult<Py<FindallIter>> {
+        validate_input_length(string).map_err(PyValueError::new_err)?;
+
+        if string.contains('\0') {
+            return Err(PyValueError::new_err("Input string contains null byte"));
+        }
+
+        let merged_extra_types =
+            Python::with_gil(|py| -> PyResult<Option<HashMap<String, PyObject>>> {
+                let mut merged = if let Some(ref stored) = self.stored_extra_types {
+                    stored
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                        .collect()
+                } else {
+                    HashMap::new()
+                };
+                if let Some(ref provided) = extra_types {
+                    for (k, v) in provided {
+                        merged.insert(k.clone(), v.clone_ref(py));
+                    }
+                }
+                Ok(Some(merged))
+            })?;
+
+        let merged_map = merged_extra_types.unwrap_or_default();
+        let arc = std::sync::Arc::new(self.clone());
+        Py::new(
+            py,
+            FindallIter::new(
+                arc,
+                string.to_string(),
+                case_sensitive,
+                evaluate_result,
+                merged_map,
+            ),
+        )
+    }
+
     /// Pickle support: rebuild with ``compile(pattern)`` only (no ``extra_types``).
     ///
     /// Custom type converters cannot be serialized reliably; use
@@ -556,5 +613,152 @@ impl Format {
             format_method.call1((args,))?
         };
         result.extract()
+    }
+}
+
+/// Incremental iterator over ``findall``-style matches (issue #13 MVP).
+///
+/// Yields one match at a time using the same non-overlapping scan as :func:`findall`,
+/// without building a full :class:`Results` or list first. This lowers peak memory when
+/// you only consume matches sequentially. It does **not** implement arbitrary chunked
+/// file I/O or cross-chunk backtracking; use line-by-line reads only when your pattern
+/// cannot span physical line breaks.
+#[pyclass(module = "_formatparse", name = "FindallIter")]
+pub struct FindallIter {
+    parser: Arc<FormatParser>,
+    haystack: String,
+    case_sensitive: bool,
+    evaluate_result: bool,
+    fast_path: bool,
+    extra_types: HashMap<String, PyObject>,
+    last_end: usize,
+    search_pos: usize,
+}
+
+impl FindallIter {
+    pub fn new(
+        parser: Arc<FormatParser>,
+        haystack: String,
+        case_sensitive: bool,
+        evaluate_result: bool,
+        extra_types: HashMap<String, PyObject>,
+    ) -> Self {
+        let has_custom_converters = !extra_types.is_empty();
+        let has_nested_dicts = parser.has_nested_dict_fields.iter().any(|&b| b);
+        let fast_path = !has_custom_converters && evaluate_result && !has_nested_dicts;
+        Self {
+            parser,
+            haystack,
+            case_sensitive,
+            evaluate_result,
+            fast_path,
+            extra_types,
+            last_end: 0,
+            search_pos: 0,
+        }
+    }
+}
+
+#[pymethods]
+impl FindallIter {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<'_, Self>, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        if slf.fast_path {
+            loop {
+                if slf.search_pos > slf.haystack.len() {
+                    return Ok(None);
+                }
+                let search_regex = slf.parser.get_search_regex(slf.case_sensitive);
+                let Some(caps) = search_regex.captures_at(&slf.haystack, slf.search_pos) else {
+                    return Ok(None);
+                };
+                let m0 = caps.get(0).unwrap();
+                let match_start = m0.start();
+                let match_end = m0.end();
+
+                if match_start < slf.last_end {
+                    slf.search_pos = slf.last_end.max(match_start.saturating_add(1));
+                    continue;
+                }
+
+                let slices = FieldCaptureSlices {
+                    field_specs: &slf.parser.field_specs,
+                    field_names: &slf.parser.field_names,
+                    normalized_names: &slf.parser.normalized_names,
+                    custom_type_groups: &slf.parser.custom_type_groups,
+                    has_nested_dict_fields: &slf.parser.has_nested_dict_fields,
+                };
+
+                match match_with_captures_raw(&caps, &slf.haystack, match_start, &slices) {
+                    Ok(Some(raw_data)) => {
+                        slf.last_end = match_end;
+                        if match_start == match_end {
+                            slf.last_end += 1;
+                        }
+                        slf.search_pos = slf.last_end;
+                        let pr = raw_data.to_parse_result(py)?;
+                        return Ok(Some(pr.into_py_any(py)?));
+                    }
+                    Ok(None) | Err(_) => {
+                        slf.search_pos = match_start.saturating_add(1);
+                        continue;
+                    }
+                }
+            }
+        }
+
+        loop {
+            if slf.search_pos > slf.haystack.len() {
+                return Ok(None);
+            }
+            let search_regex = slf.parser.get_search_regex(slf.case_sensitive);
+            let Some(caps) = search_regex.captures_at(&slf.haystack, slf.search_pos) else {
+                return Ok(None);
+            };
+            let m0 = caps.get(0).unwrap();
+            let match_start = m0.start();
+            let match_end = m0.end();
+
+            if match_start < slf.last_end {
+                slf.search_pos = slf.last_end.max(match_start.saturating_add(1));
+                continue;
+            }
+
+            let ctx = CapturedMatchContext {
+                pattern: &slf.parser.pattern,
+                fields: FieldCaptureSlices {
+                    field_specs: &slf.parser.field_specs,
+                    field_names: &slf.parser.field_names,
+                    normalized_names: &slf.parser.normalized_names,
+                    custom_type_groups: &slf.parser.custom_type_groups,
+                    has_nested_dict_fields: &slf.parser.has_nested_dict_fields,
+                },
+                py,
+                custom_converters: &slf.extra_types,
+                evaluate_result: slf.evaluate_result,
+            };
+
+            match match_with_captures(&caps, &ctx)? {
+                Some(result) => {
+                    slf.last_end = match_end;
+                    if match_start == match_end {
+                        slf.last_end += 1;
+                    }
+                    slf.search_pos = slf.last_end;
+                    return Ok(Some(result));
+                }
+                None => {
+                    slf.search_pos = match_start.saturating_add(1);
+                    continue;
+                }
+            }
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        "<FindallIter>".to_string()
     }
 }

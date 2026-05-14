@@ -25,7 +25,7 @@ mod results;
 mod types;
 
 pub use datetime::FixedTzOffset;
-pub use parser::{Format, FormatParser};
+pub use parser::{FindallIter, Format, FormatParser};
 pub use result::*;
 pub use results::Results;
 pub use types::conversion::*;
@@ -395,6 +395,67 @@ fn findall(
     })
 }
 
+/// Iterator over non-overlapping matches (same scan as :func:`findall`, one item per step).
+///
+/// See :class:`FindallIter` for memory semantics and limitations (issue #13 MVP).
+#[pyfunction]
+#[pyo3(signature = (pattern, string, extra_types=None, case_sensitive=false, evaluate_result=true))]
+fn findall_iter(
+    py: Python<'_>,
+    pattern: &str,
+    string: &str,
+    extra_types: Option<HashMap<String, PyObject>>,
+    case_sensitive: bool,
+    evaluate_result: bool,
+) -> PyResult<Py<FindallIter>> {
+    formatparse_core::validate_pattern_length(pattern)
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+    formatparse_core::validate_input_length(string)
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+
+    if pattern.contains('\0') {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Pattern contains null byte",
+        ));
+    }
+    if string.contains('\0') {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Input string contains null byte",
+        ));
+    }
+
+    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+        extra_types.as_ref().map(|et| {
+            et.iter()
+                .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                .collect()
+        })
+    });
+    let parser = get_or_create_parser(pattern, extra_types_cloned)?;
+
+    let et_map = Python::with_gil(|py| -> HashMap<String, PyObject> {
+        extra_types
+            .as_ref()
+            .map(|et| {
+                et.iter()
+                    .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                    .collect()
+            })
+            .unwrap_or_default()
+    });
+
+    Py::new(
+        py,
+        FindallIter::new(
+            parser,
+            string.to_string(),
+            case_sensitive,
+            evaluate_result,
+            et_map,
+        ),
+    )
+}
+
 /// Compile a pattern into a FormatParser for reuse.
 ///
 /// Uses the same LRU cache as the `parse`, `search`, and `findall` bindings:
@@ -543,6 +604,7 @@ fn _formatparse(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse, m)?)?;
     m.add_function(wrap_pyfunction!(search, m)?)?;
     m.add_function(wrap_pyfunction!(findall, m)?)?;
+    m.add_function(wrap_pyfunction!(findall_iter, m)?)?;
     m.add_function(wrap_pyfunction!(compile, m)?)?;
     m.add_function(wrap_pyfunction!(extract_format, m)?)?;
     m.add_class::<ParseResult>()?;
@@ -551,5 +613,6 @@ fn _formatparse(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FixedTzOffset>()?;
     m.add_class::<Match>()?;
     m.add_class::<Results>()?;
+    m.add_class::<FindallIter>()?;
     Ok(())
 }

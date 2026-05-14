@@ -16,6 +16,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterator,
     List,
     Optional,
     Protocol,
@@ -45,9 +46,11 @@ from _formatparse import (  # type: ignore[import-not-found, import-untyped]
     parse as _parse,
     search as _search,
     findall as _findall,
+    findall_iter as _findall_iter,
     compile as _compile,
     ParseResult,
     FormatParser,
+    FindallIter,
     FixedTzOffset as _FixedTzOffset,
     Results,
 )
@@ -323,6 +326,35 @@ def findall(
         3
     """
     return _findall(pattern, string, extra_types, case_sensitive, evaluate_result)
+
+
+def findall_iter(
+    pattern: str,
+    string: str,
+    extra_types: Optional[ExtraTypes] = None,
+    case_sensitive: bool = False,
+    evaluate_result: bool = True,
+) -> Iterator[Any]:
+    """Yield non-overlapping matches for ``pattern`` in ``string``, one at a time.
+
+    Semantics match :func:`findall` (same ``extra_types``, ``case_sensitive``, and
+    ``evaluate_result``), but each step converts at most one match. This lowers peak
+    memory when you stream results instead of building a full :class:`Results` or list.
+
+    This is a **partial** answer to `issue #13 <https://github.com/eddiethedean/formatparse/issues/13>`_:
+    it does **not** implement arbitrary chunked file reads with backtracking across
+    chunk boundaries. For logs, a common pattern is line-sized strings (matches must not
+    span lines)::
+
+        parser = compile("ID:{id:d}")
+        with open("log.txt") as f:
+            for line in f:
+                for m in parser.findall_iter(line.strip()):
+                    process(m.named["id"])
+
+    :returns: Iterator of :class:`ParseResult` or :class:`Match` (same as ``findall``)
+    """
+    return _findall_iter(pattern, string, extra_types, case_sensitive, evaluate_result)
 
 
 # Create a tzinfo-compatible wrapper for FixedTzOffset
@@ -882,5 +914,7 @@ __all__ = [
     "parse",
     "search",
     "findall",
+    "findall_iter",
+    "FindallIter",
     "with_pattern",
 ]
