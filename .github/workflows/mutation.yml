@@ -46,10 +46,18 @@ jobs:
           source .venv/bin/activate
           cd formatparse-pyo3 && maturin develop --release
 
-      - name: Install package with test dependencies
+      - name: Install test and mutation dependencies
         run: |
           source .venv/bin/activate
-          pip install -e ".[test,dev]"
+          # formatparse is already installed by maturin develop; avoid `pip install -e .`
+          # which runs maturin pep517 from the repo root and fails the python-source check.
+          pip install \
+            "hypothesis>=6.0" \
+            "pytest-cov>=4.0" \
+            "pytest-benchmark>=4.0" \
+            "pympler>=0.9" \
+            "memory_profiler>=0.60" \
+            "mutmut>=2.0"
 
       - name: Run mutation tests
         run: |
