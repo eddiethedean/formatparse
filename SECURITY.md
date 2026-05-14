@@ -6,8 +6,8 @@ We actively support the following versions with security updates:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.5.1   | :white_check_mark: |
-| < 0.5.1 | :x:                |
+| 0.7.x   | :white_check_mark: |
+| < 0.7.0 | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -91,7 +91,7 @@ However, users should still:
 
 ## Security Updates
 
-Security updates will be released as patch versions (e.g., 0.4.2 → 0.4.3) when possible. Critical security issues may require a new minor version.
+Security updates will be released as patch versions (e.g., 0.7.0 → 0.7.1) when possible. Critical security issues may require a new minor version.
 
 Subscribe to GitHub releases to be notified of security updates.
 

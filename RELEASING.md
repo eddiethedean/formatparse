@@ -20,6 +20,8 @@ The GitHub Actions workflow will **automatically** trigger when you push the tag
 - Build wheels for all platforms and Python versions
 - Publish to PyPI
 
+**Wheel metadata:** `[tool.maturin] compatibility = "linux"` in `pyproject.toml` sets the manylinux / auditwheel policy for **Linux** wheels built during publish. It does not restrict wheels for other platforms or local development builds.
+
 **Note:** Creating a GitHub release is optional but recommended for better visibility and release notes.
 
 ## Manual Release

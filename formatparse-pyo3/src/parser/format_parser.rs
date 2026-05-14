@@ -8,6 +8,11 @@ use regex::Regex;
 use std::collections::HashMap;
 
 #[pyclass(module = "_formatparse")]
+/// Compiled format pattern for parsing strings.
+///
+/// **Pickling:** Only the pattern string is serialized. If the parser was built
+/// with ``extra_types``, those converters are **not** restored after unpickling;
+/// call ``compile(pattern, extra_types=...)`` again with the same mapping.
 pub struct FormatParser {
     #[pyo3(get)]
     // Note: This field is actually used in __getstate__, format getter, and accessed from Python.
@@ -396,8 +401,10 @@ impl FormatParser {
         self.search_pattern(string, case_sensitive, extra_types, evaluate_result)
     }
 
-    /// Pickle support: rebuild with `compile(pattern)` so unpickling never relies on
-    /// `FormatParser.__new__` argument conventions across PyO3 / pickle versions.
+    /// Pickle support: rebuild with ``compile(pattern)`` only (no ``extra_types``).
+    ///
+    /// Custom type converters cannot be serialized reliably; use
+    /// ``compile(pattern, extra_types=...)`` after unpickling if you need them.
     fn __reduce__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let m = py.import("_formatparse")?;
         let compile_fn = m.getattr("compile")?;
@@ -405,7 +412,7 @@ impl FormatParser {
         Ok(PyTuple::new_bound(py, [compile_fn.as_any(), args.as_any()]).into_py(py))
     }
 
-    /// Get state for pickling
+    /// Pickle state: pattern string only (see class doc for ``extra_types``).
     fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
         use pyo3::types::PyDict;
         let state = PyDict::new(py);
@@ -413,7 +420,7 @@ impl FormatParser {
         Ok(state.into_py(py))
     }
 
-    /// Set state from pickle - reconstructs the parser
+    /// Restore from pickle state (pattern only; ``extra_types`` are not recovered).
     fn __setstate__(&mut self, _py: Python, state: &Bound<'_, PyAny>) -> PyResult<()> {
         use pyo3::types::PyDict;
         let dict = state.downcast::<PyDict>()?;

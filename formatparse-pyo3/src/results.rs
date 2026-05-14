@@ -68,12 +68,20 @@ impl Results {
             // Single item access - convert only this item
             self.convert_item(index, py)
         } else if let Ok(index) = key.extract::<isize>() {
-            // Handle negative indices (Python-style)
-            let len = self.raw_data.len() as isize;
+            let len = self.raw_data.len();
             let actual_index = if index < 0 {
-                (len + index) as usize
+                match (len as i128).checked_add(index as i128) {
+                    Some(sum) if sum >= 0 && (sum as usize) < len => sum as usize,
+                    _ => {
+                        return Err(PyIndexError::new_err("list index out of range"));
+                    }
+                }
             } else {
-                index as usize
+                let u = index as usize;
+                if u >= len {
+                    return Err(PyIndexError::new_err("list index out of range"));
+                }
+                u
             };
             self.convert_item(actual_index, py)
         } else if key.is_instance_of::<pyo3::types::PySlice>() {

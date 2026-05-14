@@ -113,6 +113,11 @@ def compile(pattern: str, extra_types: Optional[ExtraTypes] = None) -> FormatPar
     :raises RepeatedNameError: If a repeated field name has mismatched types
     :raises ValueError: If pattern is invalid
 
+    **Pickling:** A :class:`FormatParser` only round-trips the pattern string.
+    If you compiled with ``extra_types``, unpickling yields a parser **without**
+    those converters; call :func:`compile` again with the same ``extra_types``
+    if you need them after ``pickle.loads``.
+
     Example::
 
         >>> parser = compile("{name}: {age:d}")

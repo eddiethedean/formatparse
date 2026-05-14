@@ -48,16 +48,47 @@ pub use match_rs::Match;
 static PATTERN_CACHE: Lazy<Mutex<LruCache<u64, Arc<FormatParser>>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(1000).unwrap())));
 
-/// Create a cache key hash from pattern and extra_types
-fn create_cache_key_hash(pattern: &str, extra_types: &Option<HashMap<String, PyObject>>) -> u64 {
+/// Create a cache key hash from pattern and `extra_types`.
+///
+/// Must match what affects compilation in [`FormatParser::new_with_extra_types`]:
+/// each converter's `pattern` string and `regex_group_count` (via
+/// `validate_custom_type_pattern`). Keys alone are insufficient (same key, different
+/// `with_pattern` / group count would incorrectly share a cached parser).
+fn create_cache_key_hash(
+    py: Python<'_>,
+    pattern: &str,
+    extra_types: &Option<HashMap<String, PyObject>>,
+) -> u64 {
     let mut hasher = DefaultHasher::new();
     pattern.hash(&mut hasher);
     if let Some(extra_types) = extra_types {
-        // Sort keys for consistent hashing
-        let mut keys: Vec<&String> = extra_types.keys().collect();
-        keys.sort();
-        for key in keys {
-            key.hash(&mut hasher);
+        let mut entries: Vec<(&String, &PyObject)> = extra_types.iter().collect();
+        entries.sort_by_key(|(k, _)| *k);
+        for (name, converter_obj) in entries {
+            name.hash(&mut hasher);
+            let converter_ref = converter_obj.bind(py);
+            let pat = converter_ref
+                .getattr("pattern")
+                .ok()
+                .and_then(|a| a.extract::<String>().ok())
+                .unwrap_or_default();
+            pat.hash(&mut hasher);
+            // Distinct from any valid regex_group_count (non-negative).
+            const GC_MISSING: i64 = -1;
+            const GC_NONE: i64 = -2;
+            let gc_tag = match converter_ref.getattr("regex_group_count") {
+                Ok(v) => {
+                    if v.is_none() {
+                        GC_NONE
+                    } else if let Ok(n) = v.extract::<i64>() {
+                        n
+                    } else {
+                        GC_MISSING
+                    }
+                }
+                Err(_) => GC_MISSING,
+            };
+            gc_tag.hash(&mut hasher);
         }
     }
     hasher.finish()
@@ -68,7 +99,7 @@ fn get_or_create_parser(
     pattern: &str,
     extra_types: Option<HashMap<String, PyObject>>,
 ) -> PyResult<Arc<FormatParser>> {
-    let cache_key = create_cache_key_hash(pattern, &extra_types);
+    let cache_key = Python::with_gil(|py| create_cache_key_hash(py, pattern, &extra_types));
 
     // Try to get from cache (minimize lock scope)
     let cached = {

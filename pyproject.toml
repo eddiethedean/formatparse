@@ -6,6 +6,8 @@ build-backend = "maturin"
 module-name = "_formatparse"
 python-source = "."
 bindings = "pyo3"
+# Linux wheel tag policy for PyPI (auditwheel/manylinux). Does not limit macOS/Windows
+# wheels or local `maturin develop`.
 compatibility = "linux"
 manifest-path = "formatparse-pyo3/Cargo.toml"
 include = ["formatparse/**/*.py", "formatparse/py.typed"]

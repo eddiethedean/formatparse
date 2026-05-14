@@ -1,4 +1,5 @@
 import formatparse as parse
+import pytest
 
 
 def test_findall():
@@ -159,3 +160,12 @@ def test_findall_performance_lazy():
     assert len(items) == 1000
     assert items[0] == 0
     assert items[999] == 999
+
+
+def test_findall_results_negative_index():
+    """Negative indices on Results must match list semantics (no wraparound)."""
+    r = parse.findall("v:{id:d}", "v:1 v:2 v:3")
+    assert r[-1].named["id"] == 3
+    assert r[-3].named["id"] == 1
+    with pytest.raises(IndexError):
+        _ = r[-4]
