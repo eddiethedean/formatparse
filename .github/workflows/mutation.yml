@@ -10,6 +10,7 @@ on:
     paths:
       - 'formatparse/**'
       - 'tests/**'
+      - '.github/workflows/mutation.yml'
 
 jobs:
   mutation:
