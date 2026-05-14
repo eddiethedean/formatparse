@@ -314,20 +314,22 @@ pub fn normalize_field_name(
     normalized
 }
 
-/// Reject `:ml` combined with width, precision, alignment, etc. (MVP; GitHub issue #8).
+/// Reject `:ml` combined with numeric-only format specifiers (GitHub issues #8, #70).
+///
+/// Width, precision, alignment, and fill are supported for multiline fields; ``sign``,
+/// ``zero_pad``, and ``=`` alignment remain unsupported.
 pub fn validate_multiline_mvp(spec: &FieldSpec) -> PyResult<()> {
     if !matches!(spec.field_type, FieldType::Multiline) {
         return Ok(());
     }
-    if spec.width.is_some()
-        || spec.precision.is_some()
-        || spec.alignment.is_some()
-        || spec.fill.is_some()
-        || spec.sign.is_some()
-        || spec.zero_pad
-    {
+    if spec.sign.is_some() || spec.zero_pad {
         return Err(error::pattern_error(
-            "Multiline type :ml does not support width, precision, alignment, fill, sign, or zero-padding",
+            "Multiline type :ml does not support sign or zero-padding",
+        ));
+    }
+    if spec.alignment == Some('=') {
+        return Err(error::pattern_error(
+            "Multiline type :ml does not support '=' alignment",
         ));
     }
     Ok(())

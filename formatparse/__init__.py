@@ -9,9 +9,10 @@ with :func:`with_pattern`. See :func:`compile` and the `Custom types user guide
 <https://formatparse.readthedocs.io/en/latest/user_guides/custom_types.html>`_.
 
 **Multiline text:** use ``{name:ml}`` when a single field may span newlines; the
-capture is non-greedy up to the next literal or field in the pattern. Width,
-precision, and alignment are not supported with ``:ml`` in the current release
-(see `GitHub issue #8 <https://github.com/eddiethedean/formatparse/issues/8>`_).
+capture is non-greedy up to the next literal or field. Width, precision, alignment,
+and fill are supported like plain string fields (see `GitHub issue #70
+<https://github.com/eddiethedean/formatparse/issues/70>`_); sign, zero-padding, and
+``=`` alignment are not supported with ``:ml``.
 
 **Composition (sub-parsers):** use :func:`composed_type` to wrap a compiled
 :class:`FormatParser` and pass it in ``extra_types`` so one field is parsed by the

@@ -106,8 +106,39 @@ impl FieldSpec {
                 }
             }
             FieldType::Multiline => {
-                // Non-greedy any-char including newlines; does not rely on DOTALL for this fragment.
-                r"[\s\S]+?".to_string()
+                // Same layout as strings, but ``.`` cannot span newlines in Rust regex; use ``[\s\S]``.
+                const ML: &str = "[\\s\\S]";
+                if let Some(prec) = self.precision {
+                    if let Some(align) = self.alignment {
+                        let fill_ch = self.fill.unwrap_or(' ');
+                        let fill_escaped = regex::escape(&fill_ch.to_string());
+                        match align {
+                            '<' => format!("{}{{{}}}(?:{}*)", ML, prec, fill_escaped),
+                            '>' => format!("(?:{}*){}{{{}}}", fill_escaped, ML, prec),
+                            '^' => format!(
+                                "(?:{}*){}{{{}}}(?:{}*)",
+                                fill_escaped, ML, prec, fill_escaped
+                            ),
+                            _ => format!("{}{{{}}}", ML, prec),
+                        }
+                    } else {
+                        format!("{}{{{}}}", ML, prec)
+                    }
+                } else if let Some(width) = self.width {
+                    match next_field_is_greedy {
+                        Some(false) => format!("{}{{{}}}", ML, width),
+                        _ => format!("{}{{{},}}", ML, width),
+                    }
+                } else if self.alignment.is_some() {
+                    match self.alignment {
+                        Some('<') => format!("({}+?)(?:\\s*)", ML),
+                        Some('>') => format!(" *({}+?)", ML),
+                        Some('^') => format!("(?:\\s*)({}+?)(?:\\s*)", ML),
+                        _ => format!("{}+?", ML),
+                    }
+                } else {
+                    r"[\s\S]+?".to_string()
+                }
             }
             FieldType::Integer => {
                 let sign = self
@@ -400,11 +431,41 @@ mod tests {
     }
 
     #[test]
-    fn test_field_spec_multiline() {
+    fn test_field_spec_multiline_with_width() {
         let mut spec = FieldSpec::new();
         spec.field_type = FieldType::Multiline;
+        spec.width = Some(3);
         let pattern = spec.to_regex_pattern(&HashMap::new(), None);
-        assert_eq!(pattern, r"[\s\S]+?");
+        assert_eq!(pattern, r"[\s\S]{3,}");
+    }
+
+    #[test]
+    fn test_field_spec_multiline_with_width_exact_next_field() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Multiline;
+        spec.width = Some(4);
+        let pattern = spec.to_regex_pattern(&HashMap::new(), Some(false));
+        assert_eq!(pattern, r"[\s\S]{4}");
+    }
+
+    #[test]
+    fn test_field_spec_multiline_align_right() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Multiline;
+        spec.alignment = Some('>');
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        assert_eq!(pattern, r" *([\s\S]+?)");
+    }
+
+    #[test]
+    fn test_field_spec_multiline_precision_left_fill() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Multiline;
+        spec.precision = Some(3);
+        spec.alignment = Some('<');
+        spec.fill = Some('.');
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        assert_eq!(pattern, r"[\s\S]{3}(?:\.*)");
     }
 
     #[test]
