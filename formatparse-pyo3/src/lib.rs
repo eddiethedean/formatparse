@@ -4,7 +4,6 @@
 
 use lru::LruCache;
 use once_cell::sync::Lazy;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::IntoPyObjectExt;
@@ -20,6 +19,7 @@ mod datetime;
 mod error;
 mod match_rs;
 mod parser;
+mod pattern_normalize;
 mod result;
 mod results;
 mod types;
@@ -92,7 +92,8 @@ fn get_or_create_parser(
     pattern: &str,
     extra_types: Option<HashMap<String, PyObject>>,
 ) -> PyResult<Arc<FormatParser>> {
-    let cache_key = Python::with_gil(|py| create_cache_key_hash(py, pattern, &extra_types));
+    let normalized = pattern_normalize::prepare_compiled_pattern(pattern)?;
+    let cache_key = Python::with_gil(|py| create_cache_key_hash(py, &normalized, &extra_types));
 
     // Try to get from cache (minimize lock scope)
     let cached = {
@@ -105,7 +106,10 @@ fn get_or_create_parser(
     }
 
     // Not in cache, create new parser
-    let parser = Arc::new(FormatParser::new_with_extra_types(pattern, extra_types)?);
+    let parser = Arc::new(FormatParser::new_with_extra_types(
+        &normalized,
+        extra_types,
+    )?);
 
     // Store in cache (minimize lock scope)
     {
@@ -127,17 +131,10 @@ fn parse(
     evaluate_result: bool,
 ) -> PyResult<Option<PyObject>> {
     // Validate input lengths
-    formatparse_core::validate_pattern_length(pattern)
-        .map_err(pyo3::exceptions::PyValueError::new_err)?;
     formatparse_core::validate_input_length(string)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
 
     // Check for null bytes in inputs
-    if pattern.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "Pattern contains null byte",
-        ));
-    }
     if string.contains('\0') {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Input string contains null byte",
@@ -189,14 +186,6 @@ fn parse_batch(
     case_sensitive: bool,
     evaluate_result: bool,
 ) -> PyResult<PyObject> {
-    formatparse_core::validate_pattern_length(pattern)
-        .map_err(pyo3::exceptions::PyValueError::new_err)?;
-    if pattern.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "Pattern contains null byte",
-        ));
-    }
-
     for s in &strings {
         formatparse_core::validate_input_length(s)
             .map_err(pyo3::exceptions::PyValueError::new_err)?;
@@ -277,17 +266,10 @@ fn search(
     }
 
     // Validate input lengths
-    formatparse_core::validate_pattern_length(pattern)
-        .map_err(pyo3::exceptions::PyValueError::new_err)?;
     formatparse_core::validate_input_length(string)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
 
     // Check for null bytes in inputs
-    if pattern.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "Pattern contains null byte",
-        ));
-    }
     if string.contains('\0') {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Input string contains null byte",
@@ -336,17 +318,10 @@ fn findall(
     evaluate_result: bool,
 ) -> PyResult<PyObject> {
     // Validate input lengths
-    formatparse_core::validate_pattern_length(pattern)
-        .map_err(pyo3::exceptions::PyValueError::new_err)?;
     formatparse_core::validate_input_length(string)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
 
     // Check for null bytes in inputs
-    if pattern.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "Pattern contains null byte",
-        ));
-    }
     if string.contains('\0') {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Input string contains null byte",
@@ -488,16 +463,9 @@ fn findall_iter(
     case_sensitive: bool,
     evaluate_result: bool,
 ) -> PyResult<Py<FindallIter>> {
-    formatparse_core::validate_pattern_length(pattern)
-        .map_err(pyo3::exceptions::PyValueError::new_err)?;
     formatparse_core::validate_input_length(string)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
 
-    if pattern.contains('\0') {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "Pattern contains null byte",
-        ));
-    }
     if string.contains('\0') {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Input string contains null byte",
@@ -547,14 +515,6 @@ fn compile(
     pattern: &str,
     extra_types: Option<HashMap<String, PyObject>>,
 ) -> PyResult<FormatParser> {
-    // Validate pattern length
-    formatparse_core::validate_pattern_length(pattern).map_err(PyValueError::new_err)?;
-
-    // Check for null bytes in pattern
-    if pattern.contains('\0') {
-        return Err(PyValueError::new_err("Pattern contains null byte"));
-    }
-
     let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
         extra_types.as_ref().map(|et| {
             et.iter()

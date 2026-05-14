@@ -3,7 +3,7 @@ use crate::parser::matching::{
     match_with_captures, match_with_captures_raw, CapturedMatchContext, FieldCaptureSlices,
 };
 use formatparse_core::count_capturing_groups;
-use formatparse_core::parser::{validate_input_length, validate_pattern_length, MAX_FIELDS};
+use formatparse_core::parser::{validate_input_length, MAX_FIELDS};
 use formatparse_core::FieldSpec;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -56,15 +56,7 @@ impl FormatParser {
         pattern: &str,
         extra_types: Option<HashMap<String, PyObject>>,
     ) -> PyResult<Self> {
-        // Validate pattern length
-        validate_pattern_length(pattern).map_err(PyValueError::new_err)?;
-
-        // Check for null bytes in pattern
-        if pattern.contains('\0') {
-            return Err(PyValueError::new_err("Pattern contains null byte"));
-        }
-
-        // Extract patterns from converter functions and build custom_patterns map
+        let pattern_owned = crate::pattern_normalize::prepare_compiled_pattern(pattern)?;
         let custom_patterns = Python::with_gil(|py| -> PyResult<HashMap<String, String>> {
             let mut patterns = HashMap::new();
             if let Some(ref extra_types_map) = extra_types {
@@ -89,7 +81,11 @@ impl FormatParser {
             normalized_names,
             name_mapping,
             allows_empty_default_string_match,
-        ) = crate::parser::pattern::parse_pattern(pattern, extra_types.as_ref(), &custom_patterns)?;
+        ) = crate::parser::pattern::parse_pattern(
+            &pattern_owned,
+            extra_types.as_ref(),
+            &custom_patterns,
+        )?;
 
         // Validate field count
         if field_specs.len() > MAX_FIELDS {
@@ -147,7 +143,7 @@ impl FormatParser {
             formatparse_core::build_search_regex(regex.as_str(), false).ok();
 
         Ok(Self {
-            pattern: pattern.to_string(),
+            pattern: pattern_owned,
             regex,
             regex_str,
             regex_case_insensitive,
@@ -319,11 +315,7 @@ impl FormatParser {
         extra_types: Option<HashMap<String, PyObject>>,
     ) -> PyResult<Self> {
         match pattern {
-            Some(p) => {
-                // Validate pattern length if provided
-                validate_pattern_length(p).map_err(PyValueError::new_err)?;
-                Self::new_with_extra_types(p, extra_types)
-            }
+            Some(p) => Self::new_with_extra_types(p, extra_types),
             None => {
                 // Create a dummy instance for unpickling - __setstate__ will initialize it properly
                 // We need to create a valid but minimal instance

@@ -14,6 +14,11 @@ and fill are supported like plain string fields (see `GitHub issue #70
 <https://github.com/eddiethedean/formatparse/issues/70>`_); sign, zero-padding, and
 ``=`` alignment are not supported with ``:ml``.
 
+**Long patterns:** a backslash immediately before the end of a line continues the
+pattern on the next line (``\\r\\n`` or ``\\n``); doubled backslashes keep a literal
+newline. Leading spaces and tabs on the continued line are stripped (see `GitHub
+issue #68 <https://github.com/eddiethedean/formatparse/issues/68>`_).
+
 **Composition (sub-parsers):** use :func:`composed_type` to wrap a compiled
 :class:`FormatParser` and pass it in ``extra_types`` so one field is parsed by the
 child parser and returns a nested :class:`ParseResult`. The parent pickle story is
