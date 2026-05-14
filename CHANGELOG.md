@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-05-15
+
+### Fixed
+
+- Post-parse validation: `_validator_field_value` returned `None` for valid `fixed` indices (indentation bug under the bounds check).
+- `ValidationPipeline` in `collect` mode now runs all hooks even when field validators fail and merges field then hook errors in one `MultipleValidationErrors`.
+
+### Changed
+
+- PyO3: `extension-module` is an explicit Cargo feature (enabled by Maturin for wheels / `maturin develop`); `cargo test` / `cargo clippy` on `formatparse-pyo3` link libPython without extra linker configuration.
+
+### Maintenance
+
+- Pytest: skip `test_indent_block` when the installed `_formatparse` does not implement `:blk` / multiline validation (avoids false failures before `maturin develop`).
+- CI, Makefile, wheel publish: pass `--features extension-module` when Maturin is run from `formatparse-pyo3/` so builds match root `pip install` behavior.
+
 ## [0.7.0] - 2026-05-14
 
 ### PyPI publish (post-tag workflow fix)
@@ -37,4 +53,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: load `pytest-cov` when `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`; bump `cargo-audit` in the main CI Ubuntu step for advisory DB compatibility.
 - Dependency updates (e.g. `lru` for RustSec advisories), formatting, and Clippy cleanups.
 
+[0.8.0]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.0
 [0.7.0]: https://github.com/eddiethedean/formatparse/releases/tag/v0.7.0

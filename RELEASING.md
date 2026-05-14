@@ -22,10 +22,10 @@ Use the release script (from repo root, on `main`, clean working tree):
 ./scripts/release.sh X.Y.Z
 ```
 
-Example for a patch after 0.7.0:
+Example for a patch after 0.8.0:
 
 ```bash
-./scripts/release.sh 0.7.1
+./scripts/release.sh 0.8.1
 ```
 
 This will:
