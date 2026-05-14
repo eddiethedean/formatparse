@@ -1,5 +1,6 @@
 use formatparse_core::{FieldSpec, FieldType};
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
 
 /// Raw match data without Python objects (for batch processing)
@@ -237,10 +238,10 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
 impl RawValue {
     pub fn to_py_object(&self, py: Python) -> PyObject {
         match self {
-            RawValue::String(s) => s.to_object(py),
-            RawValue::Integer(n) => n.to_object(py),
-            RawValue::Float(f) => f.to_object(py),
-            RawValue::Boolean(b) => b.to_object(py),
+            RawValue::String(s) => s.into_py_any(py).unwrap(),
+            RawValue::Integer(n) => n.into_py_any(py).unwrap(),
+            RawValue::Float(f) => f.into_py_any(py).unwrap(),
+            RawValue::Boolean(b) => b.into_py_any(py).unwrap(),
             RawValue::None => py.None(),
         }
     }

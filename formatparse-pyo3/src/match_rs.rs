@@ -2,6 +2,7 @@ use crate::error;
 use crate::result::ParseResult;
 use crate::types::FieldSpec;
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
 
 /// Owned components for constructing a [`Match`].
@@ -78,8 +79,8 @@ impl Match {
                         // Regular flat field name
                         // Check for repeated field names - values must match
                         if let Some(existing_value) = named.get(original_name.as_str()) {
-                            let existing_obj = existing_value.to_object(py);
-                            let converted_obj = converted.to_object(py);
+                            let existing_obj = existing_value.clone_ref(py);
+                            let converted_obj = converted.clone_ref(py);
                             let are_equal: bool = existing_obj
                                 .bind(py)
                                 .eq(converted_obj.bind(py))
@@ -99,7 +100,7 @@ impl Match {
         let parse_result =
             ParseResult::new_with_spans(fixed, named, self.span, self.field_spans.clone());
         // Py::new() is already optimized when GIL is held
-        Ok(Py::new(py, parse_result)?.to_object(py))
+        Py::new(py, parse_result)?.into_py_any(py)
     }
 }
 

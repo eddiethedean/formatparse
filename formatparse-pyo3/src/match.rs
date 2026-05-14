@@ -39,8 +39,8 @@ impl Match {
                 if let Some(ref original_name) = self.field_names.get(i).and_then(|n| n.as_ref()) {
                     // Check for repeated field names - values must match
                     if let Some(existing_value) = named.get(original_name) {
-                        let existing_obj = existing_value.to_object(py);
-                        let converted_obj = converted.to_object(py);
+                        let existing_obj = existing_value.clone_ref(py);
+                        let converted_obj = converted.clone_ref(py);
                         let are_equal: bool = existing_obj.bind(py).eq(converted_obj.bind(py)).unwrap_or(false);
                         if !are_equal {
                             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(

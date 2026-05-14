@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::types::{PySlice, PyTuple};
+use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
 
 #[pyclass]
@@ -230,14 +231,14 @@ impl ParseResult {
             let dict = pyo3::types::PyDict::new(py);
             for (key, value) in &self.field_spans {
                 let py_key: PyObject = if let Ok(idx) = key.parse::<usize>() {
-                    idx.into_py(py)
+                    idx.into_py_any(py)?
                 } else {
-                    key.clone().into_py(py)
+                    key.clone().into_py_any(py)?
                 };
                 let py_value = PyTuple::new(py, [value.0, value.1])?;
                 dict.set_item(py_key.bind(py), py_value)?;
             }
-            Ok(dict.into_py(py))
+            dict.into_py_any(py)
         })
     }
 }

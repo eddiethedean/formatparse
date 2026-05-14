@@ -2,13 +2,12 @@
 //!
 //! formatparse-pyo3 provides Python bindings for the formatparse-core library.
 
-#![allow(deprecated)] // PyO3: ToPyObject::to_object pending migration to IntoPyObject
-
 use lru::LruCache;
 use once_cell::sync::Lazy;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use pyo3::IntoPyObjectExt;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -234,7 +233,7 @@ fn search(
                 let result_value = parse_result.borrow();
                 let adjusted = result_value.clone().with_offset(pos);
                 // Py::new() is already optimized when GIL is held
-                Ok(Some(Py::new(py, adjusted)?.into_py(py)))
+                Ok(Some(Py::new(py, adjusted)?.into_py_any(py)?))
             } else {
                 // It's a Match object - we need to adjust its span
                 // For now, just return it as-is (Match spans are relative to search start)
@@ -336,7 +335,7 @@ fn findall(
         // The Results object is lightweight - just stores raw data
         return Python::with_gil(|py| -> PyResult<PyObject> {
             let results = Results::new(raw_results);
-            Ok(Py::new(py, results)?.into_py(py))
+            Py::new(py, results)?.into_py_any(py)
         });
     }
 
@@ -534,7 +533,7 @@ fn extract_format(
             result.set_item("zero", true)?;
         }
 
-        Ok(result.into_py(py))
+        result.into_py_any(py)
     })
 }
 

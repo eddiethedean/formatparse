@@ -4,6 +4,7 @@ use formatparse_core::FieldSpec;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyString, PyTuple};
+use pyo3::IntoPyObjectExt;
 use regex::Regex;
 use std::collections::HashMap;
 
@@ -489,8 +490,8 @@ impl FormatParser {
     fn __reduce__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let m = py.import("_formatparse")?;
         let compile_fn = m.getattr("compile")?;
-        let args = PyTuple::new_bound(py, [&self.pattern]);
-        Ok(PyTuple::new_bound(py, [compile_fn.as_any(), args.as_any()]).into_py(py))
+        let args = PyTuple::new(py, [&self.pattern])?;
+        PyTuple::new(py, [compile_fn.as_any(), args.as_any()])?.into_py_any(py)
     }
 
     /// Pickle state: pattern string only (see class doc for ``extra_types``).
@@ -498,7 +499,7 @@ impl FormatParser {
         use pyo3::types::PyDict;
         let state = PyDict::new(py);
         state.set_item("pattern", &self.pattern)?;
-        Ok(state.into_py(py))
+        state.into_py_any(py)
     }
 
     /// Restore from pickle state (pattern only; ``extra_types`` are not recovered).
@@ -544,7 +545,7 @@ impl Format {
     /// Format values into the pattern string using Python's format() method
     fn format(&self, py: Python, args: &Bound<'_, PyAny>) -> PyResult<String> {
         // Use Python's string format method to format values into the pattern
-        let pattern_obj = PyString::new_bound(py, &self.pattern);
+        let pattern_obj = PyString::new(py, &self.pattern);
         let format_method = pattern_obj.getattr("format")?;
 
         // Call format with the args (can be a single value, tuple, or *args)
