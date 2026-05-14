@@ -107,19 +107,8 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
                 if trimmed_str.starts_with('-') || trimmed_str.starts_with('+') {
                     let sign_char = &trimmed_str[..1];
                     let rest = &trimmed_str[1..];
-                    if rest.starts_with("0x")
-                        || rest.starts_with("0X")
-                        || rest.starts_with("0o")
-                        || rest.starts_with("0O")
-                        || rest.starts_with("0b")
-                        || rest.starts_with("0B")
-                    {
-                        let rest_trimmed = rest.trim_start_matches(fill_ch);
-                        trimmed_str = format!("{}{}", sign_char, rest_trimmed);
-                    } else {
-                        let rest_trimmed = rest.trim_start_matches(fill_ch);
-                        trimmed_str = format!("{}{}", sign_char, rest_trimmed);
-                    }
+                    let rest_trimmed = rest.trim_start_matches(fill_ch);
+                    trimmed_str = format!("{}{}", sign_char, rest_trimmed);
                 } else {
                     trimmed_str = trimmed_str.trim_start_matches(fill_ch).to_string();
                 }
