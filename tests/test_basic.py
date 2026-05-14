@@ -1,7 +1,14 @@
 """Basic tests for formatparse"""
 
+import re
+
 import pytest
-from formatparse import parse, search, findall
+from formatparse import __version__, parse, search, findall
+
+
+def test___version__():
+    assert isinstance(__version__, str)
+    assert re.fullmatch(r"\d+\.\d+\.\d+.*", __version__) is not None, __version__
 
 
 def test_simple_string():
