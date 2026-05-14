@@ -24,6 +24,8 @@ pub enum FieldType {
     DateTimeTime,        // 'tt' - Time format
     DateTimeSystem,      // 'ts' - Linux system log format
     DateTimeStrftime,    // For %Y-%m-%d style patterns
+    /// Match `{...}` in the input; capture inner text (non-greedy to first `}`). Issue #15 / parse#146.
+    BracedContent,
     Custom(String),
 }
 
