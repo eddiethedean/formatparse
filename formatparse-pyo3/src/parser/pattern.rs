@@ -4,12 +4,10 @@ use pyo3::prelude::*;
 use regex;
 use std::collections::HashMap;
 
-/// Parse a format pattern string into regex parts, field specs, and names
-pub fn parse_pattern(
-    pattern: &str,
-    extra_types: Option<&HashMap<String, PyObject>>,
-    custom_patterns: &HashMap<String, String>,
-) -> PyResult<(
+/// Result tuple from [`parse_pattern`]: compiled pattern string, search regex string, field
+/// specs, original and normalized field names, normalized-to-original name map, and whether
+/// `""` may match when every field is a default unconstrained string.
+pub type ParsedPatternParts = (
     String,
     String,
     Vec<FieldSpec>,
@@ -17,7 +15,14 @@ pub fn parse_pattern(
     Vec<Option<String>>,
     HashMap<String, String>,
     bool,
-)> {
+);
+
+/// Parse a format pattern string into regex parts, field specs, and names
+pub fn parse_pattern(
+    pattern: &str,
+    extra_types: Option<&HashMap<String, PyObject>>,
+    custom_patterns: &HashMap<String, String>,
+) -> PyResult<ParsedPatternParts> {
     // Pre-allocate with estimated capacity based on pattern length
     let estimated_fields = pattern.matches('{').count();
     let mut regex_parts = Vec::with_capacity(estimated_fields * 2);

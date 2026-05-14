@@ -3,7 +3,6 @@
 //! formatparse-pyo3 provides Python bindings for the formatparse-core library.
 
 #![allow(deprecated)] // PyO3: ToPyObject::to_object pending migration to IntoPyObject
-#![allow(clippy::type_complexity)] // PyO3-heavy signatures
 
 use lru::LruCache;
 use once_cell::sync::Lazy;
