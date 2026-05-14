@@ -29,6 +29,11 @@ pattern on the next line (``\\r\\n`` or ``\\n``); doubled backslashes keep a lit
 newline. Leading spaces and tabs on the continued line are stripped (see `GitHub
 issue #68 <https://github.com/eddiethedean/formatparse/issues/68>`_).
 
+**Float zero precision:** for ``f`` / ``F`` fields with ``.0`` precision (e.g. ``{:02.0f}``),
+``str.format`` often emits digits only (no decimal point). Parsing accepts that same
+integer-like text as well as forms with a trailing dot or trailing fractional zeros
+(see `GitHub issue #84 <https://github.com/eddiethedean/formatparse/issues/84>`_).
+
 **Composition (sub-parsers):** use :func:`composed_type` to wrap a compiled
 :class:`FormatParser` and pass it in ``extra_types`` so one field is parsed by the
 child parser and returns a nested :class:`ParseResult`. The parent pickle story is
