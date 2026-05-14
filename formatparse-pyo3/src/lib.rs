@@ -3,7 +3,6 @@
 //! formatparse-pyo3 provides Python bindings for the formatparse-core library.
 
 #![allow(deprecated)] // PyO3: ToPyObject::to_object pending migration to IntoPyObject
-#![allow(dead_code)] // Public / reserved helpers (e.g. error constructors, datetime parsers)
 #![allow(clippy::if_same_then_else)] // Parser mirrors symmetric branches intentionally
 #![allow(clippy::too_many_arguments)] // PyO3 entry points and format spec plumbing
 #![allow(clippy::type_complexity)] // PyO3-heavy signatures

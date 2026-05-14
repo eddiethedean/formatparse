@@ -320,9 +320,8 @@ impl FormatParser {
             None => {
                 // Create a dummy instance for unpickling - __setstate__ will initialize it properly
                 // We need to create a valid but minimal instance
-                let empty_regex = Regex::new("^$").map_err(|e| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid regex: {}", e))
-                })?;
+                let empty_regex =
+                    Regex::new("^$").map_err(|e| crate::error::regex_error(&e.to_string()))?;
                 Ok(Self {
                     pattern: String::new(),
                     regex: empty_regex.clone(),

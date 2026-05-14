@@ -1,4 +1,5 @@
 use crate::datetime::common::get_month_map;
+use crate::error::regex_error;
 use pyo3::prelude::*;
 use regex::Regex;
 
@@ -104,9 +105,7 @@ fn parse_strftime_fallback(py: Python, value: &str, format_str: &str) -> PyResul
     }
 
     let full_regex = format!("^{}$", regex_parts.join(""));
-    let re = Regex::new(&full_regex).map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid regex: {}", e))
-    })?;
+    let re = Regex::new(&full_regex).map_err(|e| regex_error(&e.to_string()))?;
 
     let captures = re.captures(value).ok_or_else(|| {
         PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(

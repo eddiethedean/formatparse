@@ -7,6 +7,7 @@ use std::collections::HashMap;
 /// Match object that stores raw regex captures without type conversion
 #[pyclass]
 pub struct Match {
+    #[pyo3(get)]
     pattern: String,
     field_specs: Vec<FieldSpec>,
     field_names: Vec<Option<String>>,
