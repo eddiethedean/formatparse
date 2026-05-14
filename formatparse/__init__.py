@@ -12,6 +12,13 @@ with :func:`with_pattern`. See :func:`compile` and the `Custom types user guide
 capture is non-greedy up to the next literal or field in the pattern. Width,
 precision, and alignment are not supported with ``:ml`` in the current release
 (see `GitHub issue #8 <https://github.com/eddiethedean/formatparse/issues/8>`_).
+
+**Composition (sub-parsers):** use :func:`composed_type` to wrap a compiled
+:class:`FormatParser` and pass it in ``extra_types`` so one field is parsed by the
+child parser and returns a nested :class:`ParseResult`. The parent pickle story is
+unchanged (only the parent pattern string is restored); re-supply ``extra_types``
+after unpickling, including any composed child parsers (see `GitHub issue #7
+<https://github.com/eddiethedean/formatparse/issues/7>`_).
 """
 
 from __future__ import annotations
@@ -561,6 +568,66 @@ def with_pattern(
     return decorator
 
 
+class ComposedType:
+    """Wrap a compiled :class:`FormatParser` for use as one ``extra_types`` converter.
+
+    Instances expose ``pattern`` and ``regex_group_count`` for the parent's regex
+    builder (GitHub issue #7). Prefer constructing via :func:`composed_type`.
+
+    Pickling a parent :class:`FormatParser` still does not restore ``extra_types``;
+    rebuild composed mappings after unpickling.
+    """
+
+    __slots__ = ("_parser", "pattern", "regex_group_count")
+
+    def __init__(self, parser: FormatParser) -> None:
+        self._parser = parser
+        self.pattern = parser.regex_subpattern
+        self.regex_group_count = parser.regex_capturing_group_count
+
+    def __call__(self, text: str) -> ParseResult:
+        result = self._parser.parse(text)
+        if result is None:
+            raise ValueError(
+                "Composed sub-parser did not match the captured text; the child "
+                "pattern must accept the substring matched by the parent field."
+            )
+        return result
+
+
+def composed_type(parser: FormatParser) -> ComposedType:
+    """Wrap a compiled parser for embedding in another pattern's ``extra_types``.
+
+    The parent pattern refers to a custom type name; the value is this wrapper,
+    which delegates parsing of the captured substring to ``parser``.
+
+    Example::
+
+        >>> from formatparse import compile, composed_type
+        >>> ts = compile("{year:d}-{month:02d}-{day:02d}")
+        >>> log = compile(
+        ...     "{ts:Timestamp} [{level}] {msg}",
+        ...     extra_types={"Timestamp": composed_type(ts)},
+        ... )
+        >>> r = log.parse("2024-01-15 [ERROR] oops")
+        >>> r.named["level"]
+        'ERROR'
+        >>> r.named["msg"]
+        'oops'
+        >>> inner = r.named["ts"]
+        >>> inner.named["year"], inner.named["month"], inner.named["day"]
+        (2024, 1, 15)
+
+    :param parser: Child parser produced by :func:`compile`.
+    :returns: Callable with ``pattern`` / ``regex_group_count`` set for composition.
+
+    .. note::
+        Pattern ``+``, inheritance, and flattening nested fields into the parent
+        result are not implemented yet (see issue #7).
+    """
+    return ComposedType(parser)
+
+
 class BidirectionalPattern:
     """A bidirectional pattern that can parse and format strings.
 
@@ -961,4 +1028,6 @@ __all__ = [
     "findall_iter",
     "FindallIter",
     "with_pattern",
+    "composed_type",
+    "ComposedType",
 ]

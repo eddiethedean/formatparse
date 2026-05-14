@@ -2,6 +2,7 @@ use crate::error;
 use crate::parser::matching::{
     match_with_captures, match_with_captures_raw, CapturedMatchContext, FieldCaptureSlices,
 };
+use formatparse_core::count_capturing_groups;
 use formatparse_core::parser::{validate_input_length, validate_pattern_length, MAX_FIELDS};
 use formatparse_core::FieldSpec;
 use pyo3::exceptions::PyValueError;
@@ -402,6 +403,26 @@ impl FormatParser {
             .iter()
             .filter_map(|n| n.clone())
             .collect()
+    }
+
+    /// Raw regex body for this pattern (no ``^``/``$``, no ``(?s)`` prefix).
+    ///
+    /// Intended for **composition** (GitHub issue #7): embed this string as a custom
+    /// type’s ``pattern`` when building a parent pattern via ``extra_types``. Do not use
+    /// :meth:`_expression` for that purpose; it applies display-oriented transforms that are
+    /// not guaranteed to be valid regex fragments.
+    #[getter]
+    fn regex_subpattern(&self) -> String {
+        self.regex_str.clone()
+    }
+
+    /// Number of capturing groups in :meth:`regex_subpattern`.
+    ///
+    /// Use as ``regex_group_count`` on a converter object when composing (see
+    /// :func:`formatparse.composed_type`).
+    #[getter]
+    fn regex_capturing_group_count(&self) -> usize {
+        count_capturing_groups(&self.regex_str)
     }
 
     /// Get the internal regex expression string (for testing)
