@@ -141,6 +141,23 @@ You can combine alignment, width, and precision:
    >>> result.named['value']
    'Hello'
 
+Integer width and precision (``#82`` / ``parse#107``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Python’s ``str.format`` does not allow a ``.precision`` on integer ``d`` presentation types.
+formatparse still accepts ``width.precision`` in patterns: **width** is treated as a **minimum**
+number of significant digits and **precision** as a **maximum** (inclusive), matching the
+`parse <https://github.com/r1chardj0n3s/parse>`_ library documentation. That yields bounded
+digit runs so several adjacent integer fields do not consume the string greedily.
+
+.. code-block:: python
+
+   from formatparse import parse
+
+   assert parse("#{:2.2x}{:2.2x}{:2.2x}", "#FFFFFF").fixed == (255, 255, 255)
+   assert parse("{:2.2d}{:2.2d}{:2.2d}", "123456").fixed == (12, 34, 56)
+   assert parse("{:2.2d}{:2.2d}{:2.2d}", "9999") is None
+
 Positional vs Named Fields
 --------------------------
 

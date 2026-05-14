@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Integer and radix fields with both width and precision** (e.g. ``"{:2.2d}{:2.2d}"``, ``"#{:2.2x}{:2.2x}"``): digit runs use inclusive min/max bounds (parse semantics: width = minimum digits, precision = maximum) so adjacent fields no longer steal digits with a greedy ``+`` (#82; upstream `parse#107 <https://github.com/r1chardj0n3s/parse/issues/107>`_). Patterns that previously matched too loosely on short inputs may now return no match.
 - **String fields with alignment + precision before a fixed-width integer** (e.g. ``"{n:>10.10}{x:02d}"``): leading fill in the regex is non-greedy so the slice for ``.{precision}`` is left for the following digit field (#88; related `parse#218 <https://github.com/r1chardj0n3s/parse/issues/218>`_).
 - **Default string fields next to literals** (e.g. ``"/{name}"``): an empty capture is allowed when it matches ``str.format`` output such as ``"/"`` for ``name=""`` (#83; upstream `parse#136 <https://github.com/r1chardj0n3s/parse/issues/136>`_). Applies to full-string **parse** / **compile().parse**; **search** / **findall** still use ``.+?`` for those segments so unanchored matching does not stop early.
 - **Integer `d`**: leading spaces and tabs before decimal digits are accepted (e.g. ``parse("{a:d}", "    0")``) for parity with padded ``str.format`` output (#81; upstream `parse#133 <https://github.com/r1chardj0n3s/parse/issues/133>`_).
