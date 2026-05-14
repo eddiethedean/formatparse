@@ -165,6 +165,7 @@ pub fn convert_value(
             FieldType::DateTimeTime => "tt",
             FieldType::DateTimeSystem => "ts",
             FieldType::DateTimeStrftime => "strftime",
+            FieldType::BracedContent => "brace",
         };
 
         // If there's a custom converter for this type name, use it instead of built-in
@@ -413,6 +414,7 @@ pub fn convert_value(
                 Ok(value.to_object(py))
             }
         }
+        FieldType::BracedContent => Ok(value.to_object(py)),
         FieldType::Custom(_) => {
             // Already handled above
             Ok(value.to_object(py))

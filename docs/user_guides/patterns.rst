@@ -58,6 +58,34 @@ Type specifiers control how the matched text is converted. Common types include:
    >>> result.named['active']
    0
 
+Brace-delimited text in the input (``:brace``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``{name:brace}`` when the **source text** contains a literal ``{`` … ``}``
+pair and you want the **inner** text as a string—including when it is empty
+(``{}``). The inner match is **non-greedy**; if literal text in the pattern
+follows the closing ``}``, the regex engine may match a **later** ``}`` so
+the remainder of the string still matches (same rules as a normal regular
+expression). Deeply nested ``{`` … ``}`` inside the payload is not supported
+as a separate MVP (see `#15`).
+
+.. doctest::
+
+   >>> from formatparse import parse
+   >>> line = "v:1 t:CON c:PUT i:cdcb {} [ Observe:0 ]"
+   >>> pat = "v:1 t:CON c:PUT i:cdcb {payload:brace} [ Observe:0 ]"
+   >>> r = parse(pat, line)
+   >>> r.named["payload"]
+   ''
+   >>> line2 = "v:1 t:CON c:PUT i:cdcb {telemetry} [ Observe:0 ]"
+   >>> pat2 = "v:1 t:CON c:PUT i:cdcb {payload:brace} [ Observe:0 ]"
+   >>> parse(pat2, line2).named["payload"]
+   'telemetry'
+
+Pattern literals still use doubled braces ``{{`` and ``}}`` for a single
+literal brace in the *pattern* string; ``:brace`` is only for matching
+brace-wrapped **payload** in the **input**.
+
 Format Specifiers
 -----------------
 

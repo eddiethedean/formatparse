@@ -317,6 +317,10 @@ impl FieldSpec {
                     r".+?".to_string()
                 }
             }
+            FieldType::BracedContent => {
+                // Placeholder: named patterns use special regex in the PyO3 pattern compiler.
+                r".*?".to_string()
+            }
             FieldType::Boolean => {
                 "true|false|True|False|TRUE|FALSE|1|0|yes|no|Yes|No|YES|NO|on|off|On|Off|ON|OFF"
                     .to_string()
@@ -589,6 +593,14 @@ mod tests {
         let pattern = spec.to_regex_pattern(&HashMap::new(), None);
         // Should default to non-whitespace
         assert_eq!(pattern, r"\S+");
+    }
+
+    #[test]
+    fn test_field_spec_braced_content_placeholder_regex() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::BracedContent;
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        assert_eq!(pattern, r".*?");
     }
 
     #[test]

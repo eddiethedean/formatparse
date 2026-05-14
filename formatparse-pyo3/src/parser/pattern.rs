@@ -155,17 +155,30 @@ pub fn parse_pattern(
                     }
                 }
 
-                // Handle name normalization for regex groups
-                if let Some(ref original_name) = name {
+                // Issue #15 / parse#146: `{name:brace}` — capture text inside `{`…`}` in the input
+                // (non-greedy `.*?`; later pattern literals may force a later `}`). Supports empty `{}`.
+                // Requires a non-numbered name.
+                let group_pattern = if matches!(spec.field_type, FieldType::BracedContent) {
+                    let Some(ref original_name) = name else {
+                        return Err(error::pattern_error(
+                            "The :brace format requires a named field (e.g. {content:brace})",
+                        ));
+                    };
+                    if original_name.chars().all(|c| c.is_ascii_digit()) {
+                        return Err(error::pattern_error(
+                            "The :brace format cannot be used with numbered fields",
+                        ));
+                    }
+                    let normalized =
+                        normalize_field_name(original_name, &mut name_mapping, &normalized_names);
+                    format!("\\{{(?P<{}>.*?)\\}}", normalized)
+                } else if let Some(ref original_name) = name {
                     // Check if field name is numeric (numbered field like {0}, {1}) - these should be positional
                     let is_numeric = original_name.chars().all(|c| c.is_ascii_digit());
 
                     if is_numeric {
                         // Numbered fields are positional (unnamed groups), not named groups
-                        let group_pattern = format!("({})", pattern);
-                        regex_parts.push(group_pattern);
-                        field_names.push(None); // Store as None (positional)
-                        normalized_names.push(None);
+                        format!("({})", pattern)
                     } else {
                         // Normalize name: replace hyphens/dots with underscores, handle collisions
                         let normalized = normalize_field_name(
@@ -173,15 +186,33 @@ pub fn parse_pattern(
                             &mut name_mapping,
                             &normalized_names,
                         );
-                        let group_pattern = format!("(?P<{}>{})", normalized, pattern);
-                        regex_parts.push(group_pattern);
+                        format!("(?P<{}>{})", normalized, pattern)
+                    }
+                } else {
+                    format!("({})", pattern)
+                };
+
+                regex_parts.push(group_pattern);
+
+                // Handle name normalization for regex groups
+                if let Some(ref original_name) = name {
+                    // Check if field name is numeric (numbered field like {0}, {1}) - these should be positional
+                    let is_numeric = original_name.chars().all(|c| c.is_ascii_digit());
+
+                    if is_numeric {
+                        field_names.push(None); // Store as None (positional)
+                        normalized_names.push(None);
+                    } else {
+                        let normalized = normalize_field_name(
+                            original_name,
+                            &mut name_mapping,
+                            &normalized_names,
+                        );
                         field_names.push(Some(original_name.clone())); // Store original
                         normalized_names.push(Some(normalized.clone())); // Store normalized
                         name_mapping.insert(normalized, original_name.clone()); // Map normalized -> original
                     }
                 } else {
-                    let group_pattern = format!("({})", pattern);
-                    regex_parts.push(group_pattern);
                     field_names.push(None);
                     normalized_names.push(None);
                 }
@@ -535,6 +566,8 @@ pub fn parse_format_spec(
             FieldType::DateTimeTime
         } else if type_name == "ts" {
             FieldType::DateTimeSystem
+        } else if type_name == "brace" {
+            FieldType::BracedContent
         } else if type_name.len() > 1 {
             // Multi-character - always custom type
             FieldType::Custom(type_name)

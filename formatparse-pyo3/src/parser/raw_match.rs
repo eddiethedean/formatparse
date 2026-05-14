@@ -231,6 +231,7 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
                 Err(_) => Err(format!("Could not convert '{}' to percentage", value)),
             }
         }
+        FieldType::BracedContent => Ok(RawValue::String(value.to_string())),
         // DateTime types and Custom types need Python, so we'll handle them differently
         _ => {
             // For types that require Python (datetime, custom), we can't convert to raw
