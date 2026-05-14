@@ -153,7 +153,12 @@ fn parse(
         })
     });
     match get_or_create_parser(pattern, extra_types_cloned) {
-        Ok(parser) => parser.parse_internal(string, case_sensitive, extra_types, evaluate_result),
+        Ok(parser) => parser.parse_internal(
+            string,
+            case_sensitive,
+            extra_types.as_ref(),
+            evaluate_result,
+        ),
         Err(e) => {
             let err_msg = e.to_string();
             // Propagate NotImplementedError (for unsupported features like quoted keys)
@@ -168,6 +173,81 @@ fn parse(
             }
         }
     }
+}
+
+/// Parse many strings with the same pattern, compiling the pattern once.
+///
+/// Each input string uses the same semantics as `parse` (including
+/// `extra_types`, `case_sensitive`, and `evaluate_result`). Non-matches
+/// become Python `None` at that index in the returned list.
+#[pyfunction]
+#[pyo3(signature = (pattern, strings, extra_types=None, case_sensitive=false, evaluate_result=true))]
+fn parse_batch(
+    pattern: &str,
+    strings: Vec<String>,
+    extra_types: Option<HashMap<String, PyObject>>,
+    case_sensitive: bool,
+    evaluate_result: bool,
+) -> PyResult<PyObject> {
+    formatparse_core::validate_pattern_length(pattern)
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+    if pattern.contains('\0') {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Pattern contains null byte",
+        ));
+    }
+
+    for s in &strings {
+        formatparse_core::validate_input_length(s)
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
+        if s.contains('\0') {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Input string contains null byte",
+            ));
+        }
+    }
+
+    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+        extra_types.as_ref().map(|et| {
+            et.iter()
+                .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                .collect()
+        })
+    });
+
+    let parser = match get_or_create_parser(pattern, extra_types_cloned) {
+        Ok(p) => p,
+        Err(e) => {
+            let err_msg = e.to_string();
+            if err_msg.contains("not supported") {
+                return Err(e);
+            }
+            if err_msg.contains("Expected '}'") {
+                return Python::with_gil(|py| -> PyResult<PyObject> {
+                    let none_obj = py.None().into_py_any(py)?;
+                    let mut out: Vec<PyObject> = Vec::with_capacity(strings.len());
+                    for _ in 0..strings.len() {
+                        out.push(none_obj.clone_ref(py));
+                    }
+                    let items: Vec<_> = out.iter().map(|o| o.bind(py)).collect();
+                    PyList::new(py, items)?.into_py_any(py)
+                });
+            }
+            return Err(e);
+        }
+    };
+
+    Python::with_gil(|py| -> PyResult<PyObject> {
+        let mut out: Vec<PyObject> = Vec::with_capacity(strings.len());
+        for s in &strings {
+            match parser.parse_internal(s, case_sensitive, extra_types.as_ref(), evaluate_result)? {
+                Some(obj) => out.push(obj),
+                None => out.push(py.None().into_py_any(py)?),
+            }
+        }
+        let items: Vec<_> = out.iter().map(|o| o.bind(py)).collect();
+        PyList::new(py, items)?.into_py_any(py)
+    })
 }
 
 /// Search for a pattern in a string
@@ -541,6 +621,7 @@ fn extract_format(
 #[pymodule]
 fn _formatparse(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_batch, m)?)?;
     m.add_function(wrap_pyfunction!(search, m)?)?;
     m.add_function(wrap_pyfunction!(findall, m)?)?;
     m.add_function(wrap_pyfunction!(compile, m)?)?;

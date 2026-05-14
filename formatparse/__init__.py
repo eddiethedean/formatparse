@@ -19,6 +19,7 @@ from typing import (
     List,
     Optional,
     Protocol,
+    Sequence,
     Tuple,
     TypedDict,
     Union,
@@ -43,6 +44,7 @@ except PackageNotFoundError:
 # Import from the Rust extension module
 from _formatparse import (  # type: ignore[import-not-found, import-untyped]
     parse as _parse,
+    parse_batch as _parse_batch,
     search as _search,
     findall as _findall,
     compile as _compile,
@@ -210,6 +212,42 @@ def parse(
         ('Hello', 'World')
     """
     return _parse(pattern, string, extra_types, case_sensitive, evaluate_result)
+
+
+def parse_batch(
+    pattern: str,
+    strings: Sequence[str],
+    extra_types: Optional[ExtraTypes] = None,
+    case_sensitive: bool = False,
+    evaluate_result: bool = True,
+) -> List[Optional[ParseResult]]:
+    """Parse many strings with the same pattern (compile once, sequential apply).
+
+    This is intended for workloads that apply one pattern to many strings: the
+    compiled regex is resolved once (same LRU cache as :func:`parse` /
+    :func:`compile`) and each string is parsed in order. Non-matches appear as
+    ``None`` at the corresponding index.
+
+    ``strings`` is copied to a list of ``str`` on the Rust side (pass a
+    ``list`` or ``tuple`` of strings; a bare ``str`` is treated as an iterable
+    of characters, which is usually not what you want).
+
+    :param pattern: Format specification pattern
+    :param strings: Sequence of strings to parse (e.g. list or tuple)
+    :param extra_types: Same as :func:`parse`
+    :param case_sensitive: Same as :func:`parse`
+    :param evaluate_result: Same as :func:`parse`
+    :returns: List of :class:`ParseResult` or ``None`` per input string
+
+    Example::
+
+        >>> out = parse_batch("{:d}", ["1", "2", "x"])
+        >>> out[0].fixed[0]
+        1
+        >>> out[2] is None
+        True
+    """
+    return _parse_batch(pattern, list(strings), extra_types, case_sensitive, evaluate_result)
 
 
 def search(
@@ -880,6 +918,7 @@ class BidirectionalResult:
 __all__ = [
     "__version__",
     "parse",
+    "parse_batch",
     "search",
     "findall",
     "with_pattern",

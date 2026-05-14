@@ -205,21 +205,18 @@ impl FormatParser {
         &self,
         string: &str,
         case_sensitive: bool,
-        extra_types: Option<HashMap<String, PyObject>>,
+        extra_types: Option<&HashMap<String, PyObject>>,
         evaluate_result: bool,
     ) -> PyResult<Option<PyObject>> {
         Python::with_gil(|py| {
+            let empty = HashMap::<String, PyObject>::new();
+            let extra_types_ref = extra_types.unwrap_or(&empty);
+
             // Use existing regex (custom type handling is done in convert_value)
             let regex = if case_sensitive {
                 &self.regex
             } else {
                 self.regex_case_insensitive.as_ref().unwrap_or(&self.regex)
-            };
-
-            let extra_types_ref = if let Some(ref et) = extra_types {
-                et
-            } else {
-                &HashMap::new()
             };
 
             if string.is_empty()
@@ -385,7 +382,12 @@ impl FormatParser {
                 }
                 Ok(Some(merged))
             })?;
-        self.parse_internal(string, case_sensitive, merged_extra_types, evaluate_result)
+        self.parse_internal(
+            string,
+            case_sensitive,
+            merged_extra_types.as_ref(),
+            evaluate_result,
+        )
     }
 
     /// Get the list of named field names (returns normalized names for compatibility)
