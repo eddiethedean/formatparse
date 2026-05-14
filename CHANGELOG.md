@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.0] - 2026-05-14
 
+### PyPI publish (post-tag workflow fix)
+
+- Publish workflow: build sdist from repo root with `--manifest-path` (fixes “pyproject.toml not found” when run from `formatparse-pyo3/` only).
+- Pin Maturin to `>=1.12.6,<1.13` for publish and `pyproject.toml` build backend (1.13+ rejects `sdist` without a built `_formatparse` at the repo root).
+- Linux wheel for CPython 3.8: use `manylinux2014` + `--manylinux 2014` when `manylinux_2_28` no longer ships that interpreter (avoids exit 127).
+
 ### Added
 
 - `formatparse_core::count_capturing_groups` for validating custom `with_pattern` regexes, including correct handling of `(?P<name>...)` named capture groups.

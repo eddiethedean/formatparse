@@ -43,6 +43,8 @@ The [Publish to PyPI](.github/workflows/publish.yml) workflow runs on tag push a
 
 **Wheel metadata:** `[tool.maturin] compatibility = "linux"` in `pyproject.toml` sets the manylinux / auditwheel policy for **Linux** wheels built during publish. It does not restrict wheels for other platforms or local `maturin develop`.
 
+Publish workflows install **`maturin>=1.12.6,<1.13`** (see `pyproject.toml` `[build-system].requires`) so `maturin sdist` works with this repo layout; newer maturin 1.13.x currently errors unless a built `_formatparse` exists at the repository root.
+
 **Note:** Creating a GitHub **Release** (with notes) is optional but recommended; copy highlights from `CHANGELOG.md`.
 
 ## Tag without a version bump
