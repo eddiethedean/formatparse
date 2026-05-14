@@ -4,6 +4,18 @@ use crate::types::FieldSpec;
 use pyo3::prelude::*;
 use std::collections::HashMap;
 
+/// Owned components for constructing a [`Match`].
+pub struct MatchInit {
+    pub pattern: String,
+    pub field_specs: Vec<FieldSpec>,
+    pub field_names: Vec<Option<String>>,
+    pub normalized_names: Vec<Option<String>>,
+    pub captures: Vec<Option<String>>,
+    pub named_captures: HashMap<String, String>,
+    pub span: (usize, usize),
+    pub field_spans: HashMap<String, (usize, usize)>,
+}
+
 /// Match object that stores raw regex captures without type conversion
 #[pyclass]
 pub struct Match {
@@ -92,25 +104,16 @@ impl Match {
 }
 
 impl Match {
-    pub fn new(
-        pattern: String,
-        field_specs: Vec<FieldSpec>,
-        field_names: Vec<Option<String>>,
-        normalized_names: Vec<Option<String>>,
-        captures: Vec<Option<String>>,
-        named_captures: HashMap<String, String>,
-        span: (usize, usize),
-        field_spans: HashMap<String, (usize, usize)>,
-    ) -> Self {
+    pub fn new(init: MatchInit) -> Self {
         Self {
-            pattern,
-            field_specs,
-            field_names,
-            normalized_names,
-            captures,
-            named_captures,
-            span,
-            field_spans,
+            pattern: init.pattern,
+            field_specs: init.field_specs,
+            field_names: init.field_names,
+            normalized_names: init.normalized_names,
+            captures: init.captures,
+            named_captures: init.named_captures,
+            span: init.span,
+            field_spans: init.field_spans,
         }
     }
 }

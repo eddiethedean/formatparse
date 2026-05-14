@@ -3,7 +3,6 @@
 //! formatparse-pyo3 provides Python bindings for the formatparse-core library.
 
 #![allow(deprecated)] // PyO3: ToPyObject::to_object pending migration to IntoPyObject
-#![allow(clippy::too_many_arguments)] // PyO3 entry points and format spec plumbing
 #![allow(clippy::type_complexity)] // PyO3-heavy signatures
 
 use lru::LruCache;
@@ -316,11 +315,13 @@ fn findall(
                 &captures,
                 string,
                 match_start,
-                &parser.field_specs,
-                &parser.field_names,
-                &parser.normalized_names,
-                &parser.custom_type_groups,
-                &parser.has_nested_dict_fields,
+                &crate::parser::matching::FieldCaptureSlices {
+                    field_specs: &parser.field_specs,
+                    field_names: &parser.field_names,
+                    normalized_names: &parser.normalized_names,
+                    custom_type_groups: &parser.custom_type_groups,
+                    has_nested_dict_fields: &parser.has_nested_dict_fields,
+                },
             ) {
                 raw_results.push(raw_data);
                 last_end = match_end;
@@ -365,17 +366,19 @@ fn findall(
 
             if let Some(result) = crate::parser::matching::match_with_captures(
                 &captures,
-                string,
-                match_start,
-                &parser.pattern,
-                &parser.field_specs,
-                &parser.field_names,
-                &parser.normalized_names,
-                &parser.custom_type_groups,
-                &parser.has_nested_dict_fields,
-                py,
-                extra_types_ref,
-                evaluate_result,
+                &crate::parser::matching::CapturedMatchContext {
+                    pattern: &parser.pattern,
+                    fields: crate::parser::matching::FieldCaptureSlices {
+                        field_specs: &parser.field_specs,
+                        field_names: &parser.field_names,
+                        normalized_names: &parser.normalized_names,
+                        custom_type_groups: &parser.custom_type_groups,
+                        has_nested_dict_fields: &parser.has_nested_dict_fields,
+                    },
+                    py,
+                    custom_converters: extra_types_ref,
+                    evaluate_result,
+                },
             )? {
                 results.push(result);
                 last_end = match_end;
