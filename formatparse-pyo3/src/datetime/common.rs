@@ -211,12 +211,8 @@ pub fn parse_microseconds(micros_str: &str) -> Result<u32, PyErr> {
 
 /// Extract microseconds from a capture group, handling padding
 pub fn extract_microseconds(cap: Option<regex::Match>) -> u32 {
-    cap.map(|m| {
-        let s = m.as_str();
-        let padded = format!("{:0<6}", s);
-        padded[..6.min(padded.len())].parse().unwrap_or(0)
-    })
-    .unwrap_or(0)
+    cap.map(|m| parse_microseconds(m.as_str()).unwrap_or(0))
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
