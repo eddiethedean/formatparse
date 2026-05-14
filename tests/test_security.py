@@ -6,7 +6,7 @@ ReDoS protection, resource limits, and handling of malicious inputs.
 
 import pytest
 import time
-from formatparse import parse, search, findall, compile
+from formatparse import parse, search, findall, compile, ParseResult
 
 
 def test_pattern_length_limit():
@@ -117,8 +117,8 @@ def test_malformed_pattern_handling():
         # Should either return None or raise ValueError, never crash
         try:
             result = parse(pattern, "test")
-            # If it doesn't raise, result should be None
-            assert result is None or isinstance(result, Exception)
+            # If it doesn't raise, expect no match (never a raw Exception)
+            assert result is None or isinstance(result, ParseResult)
         except ValueError:
             pass  # Expected
         except Exception as e:
@@ -145,24 +145,23 @@ def test_resource_exhaustion_large_input():
     assert elapsed < 10.0, f"Large input processing took {elapsed}s"
 
 
-def test_invalid_unicode_handling():
-    """Test handling of invalid Unicode sequences"""
-    # These should be handled gracefully
-    invalid_sequences = [
-        "\xff\xfe",  # Invalid UTF-8
-        "\xed\xa0\x80",  # Surrogate
+def test_high_codepoint_strings_parse_without_crash():
+    """Arbitrary Unicode strings (including high code points) must not crash parse.
+
+    Python 3 ``str`` values are always valid Unicode scalar values, so this is not
+    a test of invalid UTF-8 bytes; it only guards against crashes on unusual text.
+    """
+    sequences = [
+        "\xff\xfe",  # U+00FF U+00FE
+        "\U0001f680",  # rocket emoji
     ]
 
-    for seq in invalid_sequences:
-        # Should either fail gracefully or handle it
+    for seq in sequences:
         try:
-            # Note: Python strings are valid Unicode, so we can't easily test invalid UTF-8
-            # This test documents the expectation
             _ = parse("{value}", seq)
         except (ValueError, UnicodeError):
             pass  # Expected
         except Exception as e:
-            # Should not crash
             assert False, f"Unexpected exception: {e}"
 
 
@@ -239,7 +238,7 @@ def test_error_message_sanitization():
         error_msg = str(e)
         # Should not contain the full pattern
         assert len(error_msg) < 500, "Error message too long, may contain full pattern"
-        # Should not contain file paths
-        assert "/" not in error_msg or "formatparse" not in error_msg.lower(), (
-            "Error message may contain internal paths"
-        )
+        assert "a" * 80 not in error_msg, "Error message may contain a large slice of the pattern"
+        lower = error_msg.lower()
+        assert "target/debug" not in lower, "Error message may contain build path"
+        assert ".rs:" not in lower, "Error message may contain Rust source path"

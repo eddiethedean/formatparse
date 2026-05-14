@@ -2,60 +2,11 @@ use crate::error;
 use crate::match_rs::Match;
 use crate::parser::raw_match::{RawMatchData, RawValue};
 use crate::result::ParseResult;
-use formatparse_core::FieldSpec;
+use formatparse_core::{count_capturing_groups, FieldSpec};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use regex::{Captures, Regex};
 use std::collections::HashMap;
-
-/// Count the number of capturing groups in a regex pattern
-pub fn count_capturing_groups(pattern: &str) -> usize {
-    let mut count = 0;
-    let mut i = 0;
-    let chars: Vec<char> = pattern.chars().collect();
-
-    while i < chars.len() {
-        if chars[i] == '\\' {
-            // Skip escaped character
-            i += 2;
-            if i > chars.len() {
-                break;
-            }
-            continue;
-        }
-        if chars[i] == '(' {
-            // Check if it's a non-capturing group
-            if i + 1 < chars.len() && chars[i + 1] == '?' {
-                // Non-capturing group: (?: ...), (?= ...), (?! ...), etc.
-                i += 2;
-                if i < chars.len()
-                    && (chars[i] == ':'
-                        || chars[i] == '='
-                        || chars[i] == '!'
-                        || chars[i] == '<'
-                        || (i > 0 && chars[i - 1] == '?' && chars[i] == 'P'))
-                    && chars[i] == 'P'
-                    && i + 1 < chars.len()
-                    && chars[i + 1] == '<'
-                {
-                    // Named group (?P<name>...), skip the name
-                    i += 2;
-                    while i < chars.len() && chars[i] != '>' {
-                        i += 1;
-                    }
-                    if i < chars.len() {
-                        i += 1;
-                    }
-                }
-                continue;
-            }
-            // It's a capturing group
-            count += 1;
-        }
-        i += 1;
-    }
-    count
-}
 
 /// Get a value from a nested dict structure in the named HashMap
 /// Returns None if the path doesn't exist or any intermediate value is not a dict

@@ -3,6 +3,10 @@ use regex::Regex;
 use std::time::Instant;
 
 /// Maximum time allowed for regex compilation (in milliseconds)
+///
+/// This is checked **after** `Regex::new` returns (wall-clock elapsed time). It does not
+/// interrupt compilation in progress and does not bound **matching** time. See project
+/// security documentation for ReDoS considerations.
 const MAX_REGEX_COMPILATION_TIME_MS: u128 = 200;
 
 /// Build a regex from a pattern string with DOTALL flag

@@ -8,8 +8,8 @@ pub mod parser;
 pub mod types;
 
 pub use parser::{
-    validate_field_name, validate_input_length, validate_pattern_length, MAX_FIELDS,
-    MAX_FIELD_NAME_LENGTH, MAX_INPUT_LENGTH, MAX_PATTERN_LENGTH,
+    count_capturing_groups, validate_field_name, validate_input_length, validate_pattern_length,
+    MAX_FIELDS, MAX_FIELD_NAME_LENGTH, MAX_INPUT_LENGTH, MAX_PATTERN_LENGTH,
 };
 // pub mod datetime;  // TODO: Extract pure Rust datetime utilities
 

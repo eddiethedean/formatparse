@@ -288,6 +288,18 @@ def test_boolean_false_lowercase():
     assert result.fixed[0] is False
 
 
+def test_custom_type_named_regex_group_counts_for_validation():
+    """``(?P<name>...)`` in a custom pattern is one capturing group (issue: under-counted)."""
+
+    @with_pattern(r"(?P<n>\d+)", regex_group_count=1)
+    def as_int(text):
+        return int(text)
+
+    r = parse("v {x:Int}", "v 42", extra_types={"Int": as_int})
+    assert r is not None
+    assert r.named["x"] == 42
+
+
 # String (s) tests
 def test_string_basic():
     """Test string format"""

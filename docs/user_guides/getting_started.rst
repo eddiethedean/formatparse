@@ -75,7 +75,7 @@ Understanding ParseResult
 -------------------------
 
 Both `parse()` and `search()` return a `ParseResult` object (or `None` if no match is found).
-`findall()` returns a `Results` object (list-like) containing `ParseResult` objects.
+`findall()` usually returns a `Results` object (list-like) containing `ParseResult` objects; with ``extra_types``, ``evaluate_result=False``, or nested dict field names it returns a plain Python ``list`` of the same element types.
 
 ParseResult has two main attributes:
 

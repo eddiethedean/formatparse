@@ -249,11 +249,14 @@ def findall(
     extra_types: Optional[ExtraTypes] = None,
     case_sensitive: bool = False,
     evaluate_result: bool = True,
-) -> Results:
+) -> Union[Results, List[Any]]:
     """Find all matches of a pattern in a string.
 
-    Searches for all non-overlapping occurrences of the pattern in the string
-    and returns a list-like Results object containing all matches.
+    Searches for all non-overlapping occurrences of the pattern in the string.
+    Returns a list-like :class:`Results` when the fast Rust path applies (no
+    ``extra_types``, ``evaluate_result`` is True, and no nested dict field names).
+    Otherwise returns a plain Python ``list`` of :class:`ParseResult` or
+    :class:`Match` objects (same values as the original ``parse`` library).
 
     :param pattern: Format specification pattern
     :type pattern: str
@@ -265,8 +268,8 @@ def findall(
     :type case_sensitive: bool
     :param evaluate_result: Whether to evaluate and convert result types (default: True)
     :type evaluate_result: bool
-    :returns: Results object (list-like) containing ParseResult objects
-    :rtype: Results
+    :returns: ``Results`` (preferred) or ``list`` of matches, depending on options
+    :rtype: Results | list
 
     Example::
 

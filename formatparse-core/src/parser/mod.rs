@@ -48,3 +48,73 @@ pub fn validate_field_name(field_name: &str) -> Result<(), String> {
 
     Ok(())
 }
+
+/// Count capturing groups in a regex pattern string (for validating `with_pattern` / custom types).
+///
+/// Handles `(?P<name>...)` named captures; other `(?...)` extensions are treated as non-capturing
+/// at the opening parenthesis (same rule of thumb as skipping `(?:...)`, `(?=...)`, etc.).
+pub fn count_capturing_groups(pattern: &str) -> usize {
+    let mut count = 0;
+    let mut i = 0;
+    let chars: Vec<char> = pattern.chars().collect();
+
+    while i < chars.len() {
+        if chars[i] == '\\' {
+            i += 2;
+            if i > chars.len() {
+                break;
+            }
+            continue;
+        }
+        if chars[i] == '(' {
+            if i + 1 < chars.len() && chars[i + 1] == '?' {
+                i += 2;
+                if i + 1 < chars.len() && chars[i] == 'P' && chars[i + 1] == '<' {
+                    i += 2;
+                    while i < chars.len() && chars[i] != '>' {
+                        i += 1;
+                    }
+                    if i < chars.len() {
+                        i += 1;
+                    }
+                    count += 1;
+                    continue;
+                }
+                continue;
+            }
+            count += 1;
+        }
+        i += 1;
+    }
+    count
+}
+
+#[cfg(test)]
+mod count_capturing_groups_tests {
+    use super::count_capturing_groups;
+
+    #[test]
+    fn named_group_counts_as_one() {
+        assert_eq!(count_capturing_groups(r"(?P<foo>\d+)"), 1);
+    }
+
+    #[test]
+    fn named_group_with_nested_capture() {
+        assert_eq!(count_capturing_groups(r"(?P<outer>\d(\d))"), 2);
+    }
+
+    #[test]
+    fn non_capturing_zero() {
+        assert_eq!(count_capturing_groups(r"(?:ab)"), 0);
+    }
+
+    #[test]
+    fn plain_capture_plus_named() {
+        assert_eq!(count_capturing_groups(r"(\w)(?P<n>\d+)"), 2);
+    }
+
+    #[test]
+    fn backreference_not_counted_as_capture_here() {
+        assert_eq!(count_capturing_groups(r"(?P<x>a)(?P=x)"), 1);
+    }
+}
