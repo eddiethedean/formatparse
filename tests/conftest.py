@@ -3,6 +3,44 @@
 import pytest
 from formatparse import with_pattern
 
+_INDENT_BLOCK_SKIP_REASON = (
+    "Indent-block :blk tests need a matching _formatparse build. From the repo root "
+    "run `maturin develop` or `pip install -e .`, then run pytest with that environment's Python."
+)
+
+
+def _native_indent_block_capable() -> bool:
+    """True when the extension implements :blk and multiline validation (issue #69)."""
+    try:
+        from formatparse import compile
+    except ImportError:
+        return False
+    try:
+        compile("{x:+blk}")
+    except ValueError as e:
+        msg = str(e).lower()
+        if "blk" not in msg and "multiline" not in msg:
+            return False
+    except Exception:
+        return False
+    else:
+        return False
+    try:
+        p = compile("{x:blk}")
+        r = p.parse("\n  hi\n  there")
+        return r is not None and r.named.get("x") == "hi\nthere"
+    except Exception:
+        return False
+
+
+def pytest_collection_modifyitems(config, items):
+    if _native_indent_block_capable():
+        return
+    skip_m = pytest.mark.skip(reason=_INDENT_BLOCK_SKIP_REASON)
+    for item in items:
+        if "test_indent_block.py" in item.nodeid:
+            item.add_marker(skip_m)
+
 
 @pytest.fixture
 def sample_patterns():
