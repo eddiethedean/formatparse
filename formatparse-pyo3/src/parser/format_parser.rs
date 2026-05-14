@@ -250,6 +250,31 @@ impl FormatParser {
     }
 }
 
+impl Clone for FormatParser {
+    fn clone(&self) -> Self {
+        Python::with_gil(|py| Self {
+            pattern: self.pattern.clone(),
+            regex: self.regex.clone(),
+            regex_str: self.regex_str.clone(),
+            regex_case_insensitive: self.regex_case_insensitive.clone(),
+            search_regex: self.search_regex.clone(),
+            search_regex_case_insensitive: self.search_regex_case_insensitive.clone(),
+            field_specs: self.field_specs.clone(),
+            field_names: self.field_names.clone(),
+            normalized_names: self.normalized_names.clone(),
+            name_mapping: self.name_mapping.clone(),
+            stored_extra_types: self.stored_extra_types.as_ref().map(|m| {
+                m.iter()
+                    .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                    .collect()
+            }),
+            custom_type_groups: self.custom_type_groups.clone(),
+            field_count: self.field_count,
+            has_nested_dict_fields: self.has_nested_dict_fields.clone(),
+        })
+    }
+}
+
 #[pymethods]
 impl FormatParser {
     #[new]

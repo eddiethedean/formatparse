@@ -398,7 +398,11 @@ fn findall(
     })
 }
 
-/// Compile a pattern into a FormatParser for reuse
+/// Compile a pattern into a FormatParser for reuse.
+///
+/// Uses the same LRU cache as the `parse`, `search`, and `findall` bindings:
+/// `compile` with the same pattern and equivalent `extra_types` keys avoids
+/// rebuilding compiled regexes (see GitHub issue #29).
 #[pyfunction]
 #[pyo3(signature = (pattern, extra_types=None))]
 fn compile(
@@ -413,7 +417,15 @@ fn compile(
         return Err(PyValueError::new_err("Pattern contains null byte"));
     }
 
-    FormatParser::new_with_extra_types(pattern, extra_types)
+    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+        extra_types.as_ref().map(|et| {
+            et.iter()
+                .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                .collect()
+        })
+    });
+    let arc = get_or_create_parser(pattern, extra_types_cloned)?;
+    Ok((*arc).clone())
 }
 
 /// Extract format specification components from a format string
