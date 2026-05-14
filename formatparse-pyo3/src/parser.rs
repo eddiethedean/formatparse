@@ -12,5 +12,5 @@ pub mod format_parser;
 pub mod matching;
 pub mod raw_match;
 
-pub use format_parser::{Format, FormatParser};
+pub use format_parser::{FindallIter, Format, FormatParser};
 pub use pattern::parse_field_path;
