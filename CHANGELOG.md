@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Integer `d`**: leading spaces and tabs before decimal digits are accepted (e.g. ``parse("{a:d}", "    0")``) for parity with padded ``str.format`` output (#81; upstream `parse#133 <https://github.com/r1chardj0n3s/parse/issues/133>`_).
+
 ## [0.8.0] - 2026-05-15
 
 ### Added
