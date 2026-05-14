@@ -26,6 +26,8 @@ pub enum FieldType {
     DateTimeStrftime,    // For %Y-%m-%d style patterns
     /// Match `{...}` in the input; capture inner text (non-greedy to first `}`). Issue #15 / parse#146.
     BracedContent,
+    /// Multiline text between anchors; format specifier `:ml` (GitHub issue #8). MVP: no width/align.
+    Multiline,
     Custom(String),
 }
 

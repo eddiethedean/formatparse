@@ -167,6 +167,7 @@ pub fn convert_value(
             FieldType::DateTimeSystem => "ts",
             FieldType::DateTimeStrftime => "strftime",
             FieldType::BracedContent => "brace",
+            FieldType::Multiline => "ml",
         };
 
         // If there's a custom converter for this type name, use it instead of built-in
@@ -178,7 +179,7 @@ pub fn convert_value(
 
     // Use built-in conversion
     match &spec.field_type {
-        FieldType::String => {
+        FieldType::String | FieldType::Multiline => {
             // Fast path: no alignment means no trimming needed
             if spec.alignment.is_none() {
                 Ok(value.into_py_any(py)?)

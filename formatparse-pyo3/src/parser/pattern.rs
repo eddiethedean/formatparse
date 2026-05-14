@@ -314,6 +314,25 @@ pub fn normalize_field_name(
     normalized
 }
 
+/// Reject `:ml` combined with width, precision, alignment, etc. (MVP; GitHub issue #8).
+pub fn validate_multiline_mvp(spec: &FieldSpec) -> PyResult<()> {
+    if !matches!(spec.field_type, FieldType::Multiline) {
+        return Ok(());
+    }
+    if spec.width.is_some()
+        || spec.precision.is_some()
+        || spec.alignment.is_some()
+        || spec.fill.is_some()
+        || spec.sign.is_some()
+        || spec.zero_pad
+    {
+        return Err(error::pattern_error(
+            "Multiline type :ml does not support width, precision, alignment, fill, sign, or zero-padding",
+        ));
+    }
+    Ok(())
+}
+
 /// Check if two field types match (for repeated name validation)
 pub fn field_types_match(t1: &FieldType, t2: &FieldType) -> bool {
     use std::mem::discriminant;
@@ -435,6 +454,7 @@ pub fn parse_field(
 
     // Parse format spec to extract alignment, width, precision, type, etc.
     parse_format_spec(&format_spec, &mut spec, extra_types);
+    validate_multiline_mvp(&spec)?;
 
     let name = if field_name.is_empty() {
         None
@@ -573,6 +593,8 @@ pub fn parse_format_spec(
             FieldType::DateTimeSystem
         } else if type_name == "brace" {
             FieldType::BracedContent
+        } else if type_name == "ml" {
+            FieldType::Multiline
         } else if type_name.len() > 1 {
             // Multi-character - always custom type
             FieldType::Custom(type_name)

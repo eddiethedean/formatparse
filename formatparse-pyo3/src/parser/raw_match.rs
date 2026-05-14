@@ -51,7 +51,7 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
     // For now, only handle built-in types
 
     match &spec.field_type {
-        FieldType::String => {
+        FieldType::String | FieldType::Multiline => {
             // Fast path: no alignment means no trimming needed
             if spec.alignment.is_none() {
                 Ok(RawValue::String(value.to_string()))

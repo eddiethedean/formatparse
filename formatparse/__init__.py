@@ -7,6 +7,11 @@ This is a Rust-backed implementation of the parse library for better performance
 pattern (e.g. ``{:Number}`` → key ``\"Number\"``) to a callable, usually decorated
 with :func:`with_pattern`. See :func:`compile` and the `Custom types user guide
 <https://formatparse.readthedocs.io/en/latest/user_guides/custom_types.html>`_.
+
+**Multiline text:** use ``{name:ml}`` when a single field may span newlines; the
+capture is non-greedy up to the next literal or field in the pattern. Width,
+precision, and alignment are not supported with ``:ml`` in the current release
+(see `GitHub issue #8 <https://github.com/eddiethedean/formatparse/issues/8>`_).
 """
 
 from __future__ import annotations
