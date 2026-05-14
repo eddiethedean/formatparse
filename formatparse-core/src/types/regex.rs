@@ -67,12 +67,15 @@ impl FieldSpec {
                                 format!(".{{{}}}(?:{}*)", prec, fill_escaped)
                             }
                             '>' => {
-                                // Right-aligned: optional leading fill chars + content (precision chars)
-                                format!("(?:{}*).{{{}}}", fill_escaped, prec)
+                                // Right-aligned: optional leading fill + exactly `prec` characters.
+                                // Leading fill must be non-greedy so we do not consume the entire slice
+                                // before `.{{prec}}` when another field follows (issue #88 / parse#218).
+                                format!("(?:{}*?).{{{}}}", fill_escaped, prec)
                             }
                             '^' => {
-                                // Center-aligned: optional leading fill + content + optional trailing fill
-                                format!("(?:{}*).{{{}}}(?:{}*)", fill_escaped, prec, fill_escaped)
+                                // Center-aligned: optional leading fill + content + optional trailing fill.
+                                // Non-greedy leading fill for the same boundary reason as `>`.
+                                format!("(?:{}*?).{{{}}}(?:{}*)", fill_escaped, prec, fill_escaped)
                             }
                             _ => format!(".{{{}}}", prec),
                         }
@@ -124,9 +127,9 @@ impl FieldSpec {
                         let fill_escaped = regex::escape(&fill_ch.to_string());
                         match align {
                             '<' => format!("{}{{{}}}(?:{}*)", ML, prec, fill_escaped),
-                            '>' => format!("(?:{}*){}{{{}}}", fill_escaped, ML, prec),
+                            '>' => format!("(?:{}*?){}{{{}}}", fill_escaped, ML, prec),
                             '^' => format!(
-                                "(?:{}*){}{{{}}}(?:{}*)",
+                                "(?:{}*?){}{{{}}}(?:{}*)",
                                 fill_escaped, ML, prec, fill_escaped
                             ),
                             _ => format!("{}{{{}}}", ML, prec),

@@ -147,3 +147,27 @@ def test_alignment_without_precision():
     result = parse("{s:<10}", "hello     ")
     assert result is not None
     assert result.named["s"] == "hello     "
+
+
+def test_issue88_aligned_string_then_zero_padded_int():
+    """Regression: right/zero-filled width+precision string + ``{:02d}`` (GitHub issue #88)."""
+    r = parse("{n:>10.10}{x:02d}", "000001000099")
+    assert r is not None
+    assert r.named["n"] == "0000010000"
+    assert r.named["x"] == 99
+
+    r = parse("{n:>10.10}{x:02d}", "     1000099")
+    assert r is not None
+    assert r.named["x"] == 99
+    assert r.named["n"] == "10000"
+
+    r = parse("{n:0>10.10}{x:02d}", "000001000099")
+    assert r is not None
+    assert r.named["n"] == "0000010000"
+    assert r.named["x"] == 99
+
+    r = parse("{s:<10.10}{n:0>10.10}{x:02d}", "0000bbbb  000001000099")
+    assert r is not None
+    assert r.named["s"] == "0000bbbb  "
+    assert r.named["n"] == "0000010000"
+    assert r.named["x"] == 99
