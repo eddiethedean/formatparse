@@ -272,10 +272,10 @@ pub fn convert_value(
 
             let trimmed = trimmed_str.as_str();
             // Handle negative numbers with prefixes (e.g., "-0o10")
-            let (is_negative, num_str) = if trimmed.starts_with('-') {
-                (true, &trimmed[1..])
-            } else if trimmed.starts_with('+') {
-                (false, &trimmed[1..])
+            let (is_negative, num_str) = if let Some(rest) = trimmed.strip_prefix('-') {
+                (true, rest)
+            } else if let Some(rest) = trimmed.strip_prefix('+') {
+                (false, rest)
             } else {
                 (false, trimmed)
             };

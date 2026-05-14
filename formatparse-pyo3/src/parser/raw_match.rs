@@ -126,10 +126,10 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
             }
 
             let trimmed = trimmed_str.as_str();
-            let (is_negative, num_str) = if trimmed.starts_with('-') {
-                (true, &trimmed[1..])
-            } else if trimmed.starts_with('+') {
-                (false, &trimmed[1..])
+            let (is_negative, num_str) = if let Some(rest) = trimmed.strip_prefix('-') {
+                (true, rest)
+            } else if let Some(rest) = trimmed.strip_prefix('+') {
+                (false, rest)
             } else {
                 (false, trimmed)
             };
