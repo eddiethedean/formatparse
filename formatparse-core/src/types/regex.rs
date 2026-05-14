@@ -105,6 +105,10 @@ impl FieldSpec {
                     r".+?".to_string()
                 }
             }
+            FieldType::Multiline => {
+                // Non-greedy any-char including newlines; does not rely on DOTALL for this fragment.
+                r"[\s\S]+?".to_string()
+            }
             FieldType::Integer => {
                 let sign = self
                     .sign
@@ -393,6 +397,14 @@ mod tests {
         let spec = FieldSpec::new();
         let pattern = spec.to_regex_pattern(&HashMap::new(), None);
         assert_eq!(pattern, r".+?");
+    }
+
+    #[test]
+    fn test_field_spec_multiline() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Multiline;
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None);
+        assert_eq!(pattern, r"[\s\S]+?");
     }
 
     #[test]
