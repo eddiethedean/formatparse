@@ -1,5 +1,5 @@
 use crate::error;
-use crate::match_rs::Match;
+use crate::match_rs::{Match, MatchInit};
 use crate::parser::raw_match::{RawMatchData, RawValue};
 use crate::result::ParseResult;
 use formatparse_core::{count_capturing_groups, FieldSpec, FieldType};
@@ -7,6 +7,36 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use regex::{Captures, Regex};
 use std::collections::HashMap;
+
+/// Precomputed field metadata slices passed into capture-based match helpers.
+pub struct FieldCaptureSlices<'a> {
+    pub field_specs: &'a [FieldSpec],
+    pub field_names: &'a [Option<String>],
+    pub normalized_names: &'a [Option<String>],
+    pub custom_type_groups: &'a [usize],
+    pub has_nested_dict_fields: &'a [bool],
+}
+
+/// Pattern, field layout, and Python conversion context for [`match_with_captures`].
+pub struct CapturedMatchContext<'a> {
+    pub pattern: &'a str,
+    pub fields: FieldCaptureSlices<'a>,
+    pub py: Python<'a>,
+    pub custom_converters: &'a HashMap<String, PyObject>,
+    pub evaluate_result: bool,
+}
+
+/// Inputs to [`match_with_regex`] beyond the compiled `Regex`.
+pub struct RegexMatchContext<'a> {
+    pub string: &'a str,
+    pub pattern: &'a str,
+    pub field_specs: &'a [FieldSpec],
+    pub field_names: &'a [Option<String>],
+    pub normalized_names: &'a [Option<String>],
+    pub py: Python<'a>,
+    pub custom_converters: &'a HashMap<String, PyObject>,
+    pub evaluate_result: bool,
+}
 
 /// Get a value from a nested dict structure in the named HashMap
 /// Returns None if the path doesn't exist or any intermediate value is not a dict
@@ -282,12 +312,14 @@ pub fn match_with_captures_raw(
     captures: &Captures,
     _string: &str,
     _match_start: usize,
-    field_specs: &[FieldSpec],
-    field_names: &[Option<String>],
-    normalized_names: &[Option<String>],
-    custom_type_groups: &[usize],
-    has_nested_dict_fields: &[bool],
+    fields: &FieldCaptureSlices<'_>,
 ) -> Result<Option<RawMatchData>, String> {
+    let field_specs = fields.field_specs;
+    let field_names = fields.field_names;
+    let normalized_names = fields.normalized_names;
+    let custom_type_groups = fields.custom_type_groups;
+    let has_nested_dict_fields = fields.has_nested_dict_fields;
+
     let full_match = captures.get(0).unwrap();
     let start = full_match.start();
     let end = full_match.end();
@@ -378,18 +410,18 @@ fn values_equal(a: &RawValue, b: &RawValue) -> bool {
 /// Note: captures are from the full string, so positions are already absolute
 pub fn match_with_captures(
     captures: &Captures,
-    _string: &str,
-    _match_start: usize,
-    pattern: &str,
-    field_specs: &[FieldSpec],
-    field_names: &[Option<String>],
-    normalized_names: &[Option<String>],
-    custom_type_groups: &[usize], // Pre-computed pattern_groups per field
-    has_nested_dict_fields: &[bool], // Pre-computed flags: does field name contain '['?
-    py: Python,
-    custom_converters: &HashMap<String, PyObject>,
-    evaluate_result: bool,
+    ctx: &CapturedMatchContext<'_>,
 ) -> PyResult<Option<PyObject>> {
+    let field_specs = ctx.fields.field_specs;
+    let field_names = ctx.fields.field_names;
+    let normalized_names = ctx.fields.normalized_names;
+    let custom_type_groups = ctx.fields.custom_type_groups;
+    let has_nested_dict_fields = ctx.fields.has_nested_dict_fields;
+    let pattern = ctx.pattern;
+    let py = ctx.py;
+    let custom_converters = ctx.custom_converters;
+    let evaluate_result = ctx.evaluate_result;
+
     let full_match = captures.get(0).unwrap();
     let start = full_match.start(); // Already absolute position in full string
     let end = full_match.end(); // Already absolute position in full string
@@ -618,32 +650,31 @@ pub fn match_with_captures(
         // Create Match object with raw captures
         // Note: pattern is static, but Match needs owned String - this is acceptable
         // as Match objects are only created when evaluate_result=False (less common)
-        let match_obj = Match::new(
-            pattern.to_string(),
-            field_specs.to_vec(),
-            field_names.to_vec(),
-            normalized_names.to_vec(),
-            captures_vec,
+        let match_obj = Match::new(MatchInit {
+            pattern: pattern.to_string(),
+            field_specs: field_specs.to_vec(),
+            field_names: field_names.to_vec(),
+            normalized_names: normalized_names.to_vec(),
+            captures: captures_vec,
             named_captures,
-            (start, end),
+            span: (start, end),
             field_spans,
-        );
+        });
         Ok(Some(Py::new(py, match_obj)?.to_object(py)))
     }
 }
 
 /// Match a regex against a string and extract results
-pub fn match_with_regex(
-    regex: &Regex,
-    string: &str,
-    pattern: &str,
-    field_specs: &[FieldSpec],
-    field_names: &[Option<String>],
-    normalized_names: &[Option<String>],
-    py: Python,
-    custom_converters: &HashMap<String, PyObject>,
-    evaluate_result: bool,
-) -> PyResult<Option<PyObject>> {
+pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<Option<PyObject>> {
+    let string = ctx.string;
+    let pattern = ctx.pattern;
+    let field_specs = ctx.field_specs;
+    let field_names = ctx.field_names;
+    let normalized_names = ctx.normalized_names;
+    let py = ctx.py;
+    let custom_converters = ctx.custom_converters;
+    let evaluate_result = ctx.evaluate_result;
+
     if let Some(captures) = regex.captures(string) {
         // Pre-allocate with capacity based on expected field count
         let field_count = field_specs.len();
@@ -900,16 +931,16 @@ pub fn match_with_regex(
             Ok(Some(Py::new(py, parse_result)?.to_object(py)))
         } else {
             // Create Match object with raw captures
-            let match_obj = Match::new(
-                pattern.to_string(),
-                field_specs.to_vec(),
-                field_names.to_vec(),
-                normalized_names.to_vec(),
-                captures_vec,
+            let match_obj = Match::new(MatchInit {
+                pattern: pattern.to_string(),
+                field_specs: field_specs.to_vec(),
+                field_names: field_names.to_vec(),
+                normalized_names: normalized_names.to_vec(),
+                captures: captures_vec,
                 named_captures,
-                (start, end),
+                span: (start, end),
                 field_spans,
-            );
+            });
             // Use Py::new_bound for better performance
             // Py::new() is already optimized when GIL is held
             Ok(Some(Py::new(py, match_obj)?.to_object(py)))
@@ -1019,16 +1050,16 @@ pub fn match_empty_default_string_parse(
         let parse_result = ParseResult::new_with_spans(fixed, named, (start, end), field_spans);
         Ok(Some(Py::new(py, parse_result)?.to_object(py)))
     } else {
-        let match_obj = Match::new(
-            pattern.to_string(),
-            field_specs.to_vec(),
-            field_names.to_vec(),
-            normalized_names.to_vec(),
-            captures_vec,
+        let match_obj = Match::new(MatchInit {
+            pattern: pattern.to_string(),
+            field_specs: field_specs.to_vec(),
+            field_names: field_names.to_vec(),
+            normalized_names: normalized_names.to_vec(),
+            captures: captures_vec,
             named_captures,
-            (start, end),
+            span: (start, end),
             field_spans,
-        );
+        });
         Ok(Some(Py::new(py, match_obj)?.to_object(py)))
     }
 }

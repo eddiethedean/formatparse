@@ -184,14 +184,16 @@ impl FormatParser {
                 };
                 return crate::parser::matching::match_with_regex(
                     search_regex,
-                    string,
-                    &self.pattern,
-                    &self.field_specs,
-                    &self.field_names,
-                    &self.normalized_names,
-                    py,
-                    extra_types_ref,
-                    evaluate_result,
+                    &crate::parser::matching::RegexMatchContext {
+                        string,
+                        pattern: &self.pattern,
+                        field_specs: &self.field_specs,
+                        field_names: &self.field_names,
+                        normalized_names: &self.normalized_names,
+                        py,
+                        custom_converters: extra_types_ref,
+                        evaluate_result,
+                    },
                 );
             }
             Ok(None)
@@ -238,14 +240,16 @@ impl FormatParser {
 
             crate::parser::matching::match_with_regex(
                 regex,
-                string,
-                &self.pattern,
-                &self.field_specs,
-                &self.field_names,
-                &self.normalized_names,
-                py,
-                extra_types_ref,
-                evaluate_result,
+                &crate::parser::matching::RegexMatchContext {
+                    string,
+                    pattern: &self.pattern,
+                    field_specs: &self.field_specs,
+                    field_names: &self.field_names,
+                    normalized_names: &self.normalized_names,
+                    py,
+                    custom_converters: extra_types_ref,
+                    evaluate_result,
+                },
             )
         })
     }
