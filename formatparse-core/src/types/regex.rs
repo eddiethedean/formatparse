@@ -195,9 +195,11 @@ impl FieldSpec {
                             format!("{}{}{}(?:0[bB][01]+|[01]+)", sign, fill_prefix, fill_suffix)
                         }
                         _ => {
-                            // Decimal: match decimal digits, or hex/octal/binary with prefix
+                            // Decimal: optional leading whitespace before digits (parse#133 / #81)
+                            // so values like "    0" match like str.format padding, without widening
+                            // the 0x/0o/0b branches.
                             format!(
-                                "{}{}{}(?:0[xX][0-9a-fA-F]+|0[oO][0-7]+|0[bB][01]+|[0-9]+)",
+                                "{}{}{}(?:0[xX][0-9a-fA-F]+|0[oO][0-7]+|0[bB][01]+|\\s*[0-9]+)",
                                 sign, fill_prefix, fill_suffix
                             )
                         }
@@ -566,7 +568,17 @@ mod tests {
         spec.field_type = FieldType::Integer;
         let pattern = spec.to_regex_pattern(&HashMap::new(), None);
         assert!(pattern.contains(r"[+-]?"));
-        assert!(pattern.contains(r"[0-9]+"));
+        assert!(pattern.contains(r"\s*[0-9]+") || pattern.contains(r"[0-9]+"));
+    }
+
+    #[test]
+    fn test_field_spec_integer_decimal_leading_whitespace_before_digits() {
+        let mut spec = FieldSpec::new();
+        spec.field_type = FieldType::Integer;
+        let p = spec.to_regex_pattern(&HashMap::new(), None);
+        let re = Regex::new(&format!("^{}$", p)).unwrap();
+        assert!(re.is_match("    0"));
+        assert!(re.is_match("  42"));
     }
 
     #[test]

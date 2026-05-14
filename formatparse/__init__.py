@@ -34,6 +34,10 @@ issue #68 <https://github.com/eddiethedean/formatparse/issues/68>`_).
 integer-like text as well as forms with a trailing dot or trailing fractional zeros
 (see `GitHub issue #84 <https://github.com/eddiethedean/formatparse/issues/84>`_).
 
+**Integer decimal ``d``:** optional leading spaces and tabs are allowed before the digit
+run so values such as ``"    0"`` match ``{a:d}`` when they mirror padded numeric output
+(see `GitHub issue #81 <https://github.com/eddiethedean/formatparse/issues/81>`_).
+
 **Composition (sub-parsers):** use :func:`composed_type` to wrap a compiled
 :class:`FormatParser` and pass it in ``extra_types`` so one field is parsed by the
 child parser and returns a nested :class:`ParseResult`. The parent pickle story is
