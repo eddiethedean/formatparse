@@ -26,6 +26,19 @@ impl Clone for ParseResult {
     }
 }
 
+/// Truncate by Unicode scalar values so we never split inside a codepoint.
+fn repr_trunc(s: &str, max_chars: usize) -> String {
+    if max_chars < 3 {
+        return "...".to_string();
+    }
+    let n = s.chars().count();
+    if n <= max_chars {
+        return s.to_string();
+    }
+    let take = max_chars.saturating_sub(3);
+    s.chars().take(take).collect::<String>() + "..."
+}
+
 impl ParseResult {
     pub fn new(
         fixed: Vec<PyObject>,
@@ -63,6 +76,52 @@ impl ParseResult {
             .map(|(k, (start, end))| (k, (start + offset, end + offset)))
             .collect();
         self
+    }
+
+    /// Rich but bounded string for `__repr__` / `__str__` (sorted `named` keys for stability).
+    fn format_display(&self, py: Python<'_>) -> PyResult<String> {
+        const MAX_KEYS: usize = 12;
+        const MAX_VAL_CHARS: usize = 120;
+        const MAX_FIXED: usize = 8;
+
+        let mut keys: Vec<_> = self.named.keys().cloned().collect();
+        keys.sort();
+
+        let mut named_parts = Vec::new();
+        for k in keys.iter().take(MAX_KEYS) {
+            let v = self.named.get(k).expect("key from sorted vec");
+            let r: String = v.bind(py).repr()?.extract()?;
+            named_parts.push(format!("{k:?}: {}", repr_trunc(&r, MAX_VAL_CHARS)));
+        }
+        let mut named_body = named_parts.join(", ");
+        if keys.len() > MAX_KEYS {
+            named_body.push_str(&format!(", ... (+{} more)", keys.len() - MAX_KEYS));
+        }
+        let named_display = format!("{{{}}}", named_body);
+
+        let fixed_display = if self.fixed.is_empty() {
+            "()".to_string()
+        } else {
+            let mut fp = Vec::new();
+            for obj in self.fixed.iter().take(MAX_FIXED) {
+                let r: String = obj.bind(py).repr()?.extract()?;
+                fp.push(repr_trunc(&r, MAX_VAL_CHARS));
+            }
+            if self.fixed.len() > MAX_FIXED {
+                format!(
+                    "({}, ... (+{} more))",
+                    fp.join(", "),
+                    self.fixed.len() - MAX_FIXED
+                )
+            } else {
+                format!("({})", fp.join(", "))
+            }
+        };
+
+        Ok(format!(
+            "<ParseResult span={:?} named={} fixed={}>",
+            self.span, named_display, fixed_display
+        ))
     }
 }
 
@@ -102,12 +161,12 @@ impl ParseResult {
         self.span.1
     }
 
-    fn __repr__(&self) -> String {
-        format!("<Result {} {}>", self.fixed.len(), self.named.len())
+    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        self.format_display(py)
     }
 
-    fn __str__(&self) -> String {
-        self.__repr__()
+    fn __str__(&self, py: Python<'_>) -> PyResult<String> {
+        self.format_display(py)
     }
 
     fn __getitem__(&self, key: &Bound<'_, PyAny>) -> PyResult<PyObject> {
