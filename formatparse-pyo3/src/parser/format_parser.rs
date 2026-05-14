@@ -10,6 +10,12 @@ use std::collections::HashMap;
 #[pyclass(module = "_formatparse")]
 /// Compiled format pattern for parsing strings.
 ///
+/// Construct with :func:`formatparse.compile` (or ``FormatParser(pattern, extra_types=...)`` in Python).
+///
+/// **Custom types:** converters passed as ``extra_types`` at compile time are stored
+/// and merged with any ``extra_types`` passed per call to ``parse`` or ``search``
+/// (per-call keys override stored keys).
+///
 /// **Pickling:** Only the pattern string is serialized. If the parser was built
 /// with ``extra_types``, those converters are **not** restored after unpickling;
 /// call ``compile(pattern, extra_types=...)`` again with the same mapping.
@@ -338,7 +344,10 @@ impl FormatParser {
         }
     }
 
-    /// Parse a string using this compiled pattern
+    /// Parse a string using this compiled pattern.
+    ///
+    /// Merges ``extra_types`` from compile time with any ``extra_types`` passed here
+    /// (call-time wins on duplicate keys).
     #[pyo3(signature = (string, case_sensitive=false, extra_types=None, evaluate_result=true))]
     fn parse(
         &self,
@@ -429,7 +438,10 @@ impl FormatParser {
         }
     }
 
-    /// Search for the pattern in a string
+    /// Search for the pattern in a string.
+    ///
+    /// Merges ``extra_types`` from compile time with any ``extra_types`` passed here
+    /// (call-time wins on duplicate keys), same as :meth:`parse`.
     #[pyo3(signature = (string, case_sensitive=true, extra_types=None, evaluate_result=true))]
     fn search(
         &self,
@@ -446,7 +458,25 @@ impl FormatParser {
             return Err(PyValueError::new_err("Input string contains null byte"));
         }
 
-        self.search_pattern(string, case_sensitive, extra_types, evaluate_result)
+        let merged_extra_types =
+            Python::with_gil(|py| -> PyResult<Option<HashMap<String, PyObject>>> {
+                let mut merged = if let Some(ref stored) = self.stored_extra_types {
+                    stored
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                        .collect()
+                } else {
+                    HashMap::new()
+                };
+                if let Some(ref provided) = extra_types {
+                    for (k, v) in provided {
+                        merged.insert(k.clone(), v.clone_ref(py));
+                    }
+                }
+                Ok(Some(merged))
+            })?;
+
+        self.search_pattern(string, case_sensitive, merged_extra_types, evaluate_result)
     }
 
     /// Pickle support: rebuild with ``compile(pattern)`` only (no ``extra_types``).

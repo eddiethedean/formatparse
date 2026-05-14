@@ -63,6 +63,23 @@ Extract data from delimited strings:
    >>> result.named['city']
    'NYC'
 
+Custom types (``extra_types``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :func:`with_pattern` and pass converters in ``extra_types`` (see the
+:doc:`../user_guides/custom_types` guide):
+
+.. doctest::
+
+   >>> from formatparse import parse, with_pattern
+   >>> @with_pattern(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")
+   ... def parse_email(text):
+   ...     return text.lower()
+   >>> r = parse("Contact {:Email}", "Contact User@Example.COM",
+   ...           extra_types={"Email": parse_email})
+   >>> r.fixed[0]
+   'user@example.com'
+
 Performance Tips
 ----------------
 

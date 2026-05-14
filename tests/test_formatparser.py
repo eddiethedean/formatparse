@@ -27,11 +27,9 @@ def test_compile_with_extra_types():
     def parse_number(text):
         return int(text)
 
-    # compile() doesn't take extra_types - pass them to parse() instead
-    # Pattern needs to include literal prefix
-    parser = compile("value: {value:Number}")
+    parser = compile("value: {value:Number}", extra_types={"Number": parse_number})
     assert parser is not None
-    result = parser.parse("value: 42", extra_types={"Number": parse_number})
+    result = parser.parse("value: 42")
     assert result is not None
     assert result.named["value"] == 42
 
@@ -90,6 +88,20 @@ def test_parser_parse_evaluate_result_false():
     # Should be a Match object, not ParseResult
     result = match.evaluate_result()
     assert result.named["name"] == "World"
+
+
+def test_parser_search_uses_stored_extra_types():
+    """search() merges compile-time extra_types like parse() (issue #17 / UX)."""
+    from formatparse import with_pattern
+
+    @with_pattern(r"\d+")
+    def parse_number(text):
+        return int(text)
+
+    parser = compile("n={:Number}", extra_types={"Number": parse_number})
+    result = parser.search("prefix n=42 suffix")
+    assert result is not None
+    assert result.fixed[0] == 42
 
 
 def test_parser_search_basic():
