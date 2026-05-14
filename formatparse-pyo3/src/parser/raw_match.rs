@@ -51,12 +51,18 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
     // For now, only handle built-in types
 
     match &spec.field_type {
-        FieldType::String | FieldType::Multiline => {
+        FieldType::String => {
             let t = crate::types::conversion::trim_string_or_multiline_value(spec, value);
             Ok(RawValue::String(t.into_owned()))
         }
+        FieldType::Multiline => {
+            let folded = formatparse_core::normalize_input_line_continuations(value);
+            let t = crate::types::conversion::trim_string_or_multiline_value(spec, folded.as_str());
+            Ok(RawValue::String(t.into_owned()))
+        }
         FieldType::IndentBlock => {
-            let t = crate::types::conversion::trim_string_or_multiline_value(spec, value);
+            let folded = formatparse_core::normalize_input_line_continuations(value);
+            let t = crate::types::conversion::trim_string_or_multiline_value(spec, folded.as_str());
             Ok(RawValue::String(formatparse_core::strip_common_indent(
                 t.as_ref(),
             )))

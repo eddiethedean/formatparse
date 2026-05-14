@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Input line continuations** for ``:ml`` and ``:blk`` captures: a backslash before end-of-line in the matched text joins lines (same odd/even backslash rules as pattern continuations in #68); leading spaces and tabs on the continued line are stripped (#80).
+
 ### Fixed
 
 - **String fields with alignment + precision before a fixed-width integer** (e.g. ``"{n:>10.10}{x:02d}"``): leading fill in the regex is non-greedy so the slice for ``.{precision}`` is left for the following digit field (#88; related `parse#218 <https://github.com/r1chardj0n3s/parse/issues/218>`_).

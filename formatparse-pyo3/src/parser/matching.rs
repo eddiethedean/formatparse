@@ -9,6 +9,18 @@ use pyo3::IntoPyObjectExt;
 use regex::{Captures, Regex};
 use std::collections::HashMap;
 
+/// String stored on `Match` when `evaluate_result` is false: fold input continuations for `:ml` / `:blk`.
+fn capture_string_for_match_storage(spec: &FieldSpec, raw: &str) -> String {
+    if matches!(
+        spec.field_type,
+        FieldType::Multiline | FieldType::IndentBlock
+    ) {
+        formatparse_core::normalize_input_line_continuations(raw)
+    } else {
+        raw.to_string()
+    }
+}
+
 /// Precomputed field metadata slices passed into capture-based match helpers.
 pub struct FieldCaptureSlices<'a> {
     pub field_specs: &'a [FieldSpec],
@@ -480,15 +492,18 @@ pub fn match_with_captures(
             // Store raw capture for Match object (only if needed)
             // Only allocate strings when evaluate_result=False (Match objects need owned strings)
             if !evaluate_result {
-                captures_vec.push(Some(value_str.to_string()));
+                captures_vec.push(Some(capture_string_for_match_storage(spec, value_str)));
                 if let Some(norm_name) = normalized_names.get(i).and_then(|n| n.as_ref()) {
-                    named_captures.insert(norm_name.clone(), value_str.to_string());
+                    named_captures.insert(
+                        norm_name.clone(),
+                        capture_string_for_match_storage(spec, value_str),
+                    );
                 }
             }
             // For evaluate_result=True, we don't need to store raw captures, saving allocations
 
             if evaluate_result {
-                if !crate::types::conversion::validate_alignment_precision(spec, value_str) {
+                if !crate::types::conversion::validate_alignment_precision_for_capture(spec, value_str) {
                     return Ok(None);
                 }
 
@@ -513,7 +528,7 @@ pub fn match_with_captures(
                             return Ok(None);
                         };
                         let vs = cap_j.as_str();
-                        if !crate::types::conversion::validate_alignment_precision(spec_j, vs) {
+                        if !crate::types::conversion::validate_alignment_precision_for_capture(spec_j, vs) {
                             return Ok(None);
                         }
                         let Some(fmt) = spec_j.strftime_format.as_ref() else {
@@ -730,16 +745,19 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                 let field_start = cap.start();
                 let field_end = cap.end();
 
-                // Store raw capture for Match object (only if needed)
+                // Store capture for Match object (only if needed); fold input continuations for :ml/:blk
                 if !evaluate_result {
-                    captures_vec.push(Some(value_str.to_string()));
+                    captures_vec.push(Some(capture_string_for_match_storage(spec, value_str)));
                     if let Some(norm_name) = normalized_names.get(i).and_then(|n| n.as_ref()) {
-                        named_captures.insert(norm_name.clone(), value_str.to_string());
+                        named_captures.insert(
+                            norm_name.clone(),
+                            capture_string_for_match_storage(spec, value_str),
+                        );
                     }
                 }
 
                 if evaluate_result {
-                    if !crate::types::conversion::validate_alignment_precision(spec, value_str) {
+                    if !crate::types::conversion::validate_alignment_precision_for_capture(spec, value_str) {
                         return Ok(None);
                     }
 
@@ -765,7 +783,7 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                                 return Ok(None);
                             };
                             let vs = cap_j.as_str();
-                            if !crate::types::conversion::validate_alignment_precision(spec_j, vs) {
+                            if !crate::types::conversion::validate_alignment_precision_for_capture(spec_j, vs) {
                                 return Ok(None);
                             }
                             let Some(fmt) = spec_j.strftime_format.as_ref() else {
@@ -989,7 +1007,7 @@ pub fn match_empty_default_string_parse(
         }
 
         if evaluate_result {
-            if !crate::types::conversion::validate_alignment_precision(spec, value_str) {
+            if !crate::types::conversion::validate_alignment_precision_for_capture(spec, value_str) {
                 return Ok(None);
             }
 

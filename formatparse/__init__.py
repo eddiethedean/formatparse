@@ -12,14 +12,18 @@ with :func:`with_pattern`. See :func:`compile` and the `Custom types user guide
 capture is non-greedy up to the next literal or field. Width, precision, alignment,
 and fill are supported like plain string fields (see `GitHub issue #70
 <https://github.com/eddiethedean/formatparse/issues/70>`_); sign, zero-padding, and
-``=`` alignment are not supported with ``:ml``.
+``=`` alignment are not supported with ``:ml``. Inside the matched text, a backslash
+immediately before end-of-line continues the line (same rules as long **patterns** in
+issue #68); doubled backslashes keep a literal newline (see `GitHub issue #80
+<https://github.com/eddiethedean/formatparse/issues/80>`_).
 
 **Indented blocks:** use ``{name:blk}`` when content is written as an indented block
 under a header: matching uses the same rules as ``:ml`` (non-greedy up to the next
 literal or field), then the captured text is **dedented** by removing the largest
 common prefix of spaces and tabs from each line (blank lines do not contribute to
 that margin; tabs count as single characters). See `GitHub issue #69
-<https://github.com/eddiethedean/formatparse/issues/69>`_. If a pattern literal ends
+<https://github.com/eddiethedean/formatparse/issues/69>`_. The same backslash line
+continuation rules as for ``:ml`` apply to matched input (issue #80). If a pattern literal ends
 with trailing whitespace before ``{...:blk}``, it is compiled as ``\\s+`` and may
 consume the block's leading spaces—keep the newline outside that literal chunk when
 you need a margin (e.g. ``key:{body:blk}\\nEND`` rather than ``key:\\n{body:blk}``).
