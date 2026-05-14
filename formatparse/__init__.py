@@ -29,8 +29,10 @@ Use :class:`ValidationPipeline` for per-field steps (:meth:`~ValidationPipeline.
 and whole-result hooks (:meth:`~ValidationPipeline.add_hook`), then
 :meth:`~ValidationPipeline.apply`. Field keys are names (``str``) or ``fixed`` indices
 (``int``). ``validation_mode='lenient'`` logs validator and hook failures with
-:func:`warnings.warn` and still returns the :class:`ParseResult`. Inline ``{...:validator(...)}``
-syntax and async pipelines are deferred.
+:func:`warnings.warn` and still returns the :class:`ParseResult`. Built-ins
+:func:`in_range`, :func:`non_empty_str`, :func:`is_valid_email`, and :func:`is_valid_url`
+help with common checks (email/URL are heuristic, not full RFC or security audits).
+Inline ``{...:validator(...)}`` syntax and async pipelines are deferred.
 """
 
 from __future__ import annotations
@@ -55,6 +57,7 @@ from typing import (
 import re
 import warnings
 from importlib.metadata import PackageNotFoundError, version as _package_version
+from urllib.parse import urlparse
 
 # PEP 440 string for the installed distribution; falls back to workspace Cargo.toml
 # when running from a source checkout without package metadata (see issue #38).
@@ -449,6 +452,43 @@ def non_empty_str(value: Any) -> None:
     """Reject ``None``, non-strings, or blank/whitespace-only strings."""
     if not isinstance(value, str) or not value.strip():
         raise ValidationError("expected non-empty string")
+
+
+# Practical ``user@host`` check (not full RFC 5322 / internationalized email).
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+
+
+def is_valid_email(value: Any) -> None:
+    """Reject values that are not plausible ``user@domain`` mailbox strings.
+
+    Uses a simple ASCII pattern suitable for post-parse validation only. It does
+    not implement full RFC 5322 (no quoted-string local parts, no comments) and is
+    not a deliverability or security check.
+
+    :raises ValidationError: If ``value`` is not a non-empty string matching the pattern.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError("expected a non-empty string for email")
+    if not _EMAIL_RE.fullmatch(value.strip()):
+        raise ValidationError("invalid email address")
+
+
+def is_valid_url(value: Any) -> None:
+    """Reject values that are not ``http`` or ``https`` URLs with a non-empty host.
+
+    Uses :func:`urllib.parse.urlparse`. This does not verify reachability, TLS, or
+    that the resource exists.
+
+    :raises ValidationError: If the string is empty, the scheme is not ``http``/``https``,
+        or the parsed URL has no network location (host).
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError("expected a non-empty string for URL")
+    parsed = urlparse(value.strip())
+    if parsed.scheme not in ("http", "https"):
+        raise ValidationError("expected URL with http or https scheme")
+    if not parsed.netloc:
+        raise ValidationError("invalid URL: missing host")
 
 
 def _validation_source_exclusive(
@@ -1431,6 +1471,8 @@ __all__ = [
     "ValidationPipeline",
     "in_range",
     "non_empty_str",
+    "is_valid_email",
+    "is_valid_url",
     "validator",
     "ValidatedParser",
 ]
