@@ -11,7 +11,7 @@ paths_to_mutate = [
 
 # Command to run tests
 # Note: Do not define tests_dir - mutmut will infer it from test_command
-test_command = "python -m pytest tests -x"
+test_command = "env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests -x"
 
 # Timeout for test runs (in seconds)
 test_timeout = 300

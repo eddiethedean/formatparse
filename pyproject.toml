@@ -42,6 +42,9 @@ Homepage = "https://github.com/eddiethedean/formatparse"
 Repository = "https://github.com/eddiethedean/formatparse"
 
 [tool.pytest.ini_options]
+# With PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 (see Makefile and CI), only these plugins load.
+# That avoids broken third-party pytest11 plugins (e.g. old pytest-asyncio) breaking startup.
+addopts = "-p benchmark -p hypothesispytest"
 markers = [
     "benchmark: marks tests as benchmarks",
     "slow: marks tests as slow running",
@@ -63,7 +66,7 @@ exclude_lines = [
 
 [tool.mutmut]
 paths_to_mutate = ["formatparse/"]
-test_command = "python -m pytest tests -x"
+test_command = "env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests -x"
 
 [tool.mypy]
 python_version = "3.8"
