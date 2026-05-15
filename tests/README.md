@@ -28,12 +28,12 @@ Pytest collects `tests/test_*.py`. Use the same environment as CI: build the nat
 
 ## CI vs local Rust
 
-GitHub Actions separates **compile** steps from **test** steps: `cargo build -p formatparse-core --all-targets` runs before the Python venv (fails fast on core compile errors). On **Ubuntu + CPython 3.11**, after `maturin develop` it runs `cargo build --workspace --all-targets` and `cargo test -p formatparse-pyo3 --features python-tests --no-run`, then installs pytest dependencies, then **runs** `cargo test` (full workspace plus `python-tests` execution), then **pytest**. Other matrix cells run `cargo test -p formatparse-core` only after the shared core compile step.
+GitHub Actions separates **Rust compile** from **Rust test** and **Python build** from **Python test** in the matrix job: `cargo build -p formatparse-core --all-targets` runs before the Python venv. **Python build** is `maturin build` (wheel into `dist/`) + `pip install` that wheel + an import check—**no pytest** in the venv until the Rust `cargo test` steps finish. **Python test** then installs pytest/Hypothesis/plugins and runs **pytest**. On **Ubuntu + CPython 3.11**, after the Python build it also runs `cargo build --workspace --all-targets` and `cargo test -p formatparse-pyo3 --features python-tests --no-run`, then **runs** `cargo test` (full workspace plus `python-tests` execution), then installs pytest deps, then **pytest**. Other matrix cells run `cargo test -p formatparse-core` only after the shared core compile step.
 
 A separate job **Rust · formatparse-core (Linux compile + test)** appears as its own row in the Actions run (parallel to the matrix). Open a matrix job and use the **Summary** tab for a phase table (compile vs test).
 
-**PyPy 3.11** on Ubuntu runs the same pytest path with a `maturin develop` build; it does not run the full-workspace `cargo test` job (see **PyO3 `python-tests`** below).
+**PyPy 3.11** on Ubuntu uses the same **maturin build** + wheel install + pytest flow; it does not run the full-workspace `cargo test` job (see **PyO3 `python-tests`** below).
 
 ## PyO3 `python-tests`
 
-Opt-in Rust tests that embed a Python interpreter (`RawValue::to_py_object`, etc.): `cargo test -p formatparse-pyo3 --features python-tests` with `PYO3_PYTHON` set to your venv interpreter. On **Ubuntu + CPython 3.11**, CI first compiles those targets with `cargo test … --no-run`, then runs the same `cargo test` without `--no-run` (same environment as `maturin develop` in that job).
+Opt-in Rust tests that embed a Python interpreter (`RawValue::to_py_object`, etc.): `cargo test -p formatparse-pyo3 --features python-tests` with `PYO3_PYTHON` set to your venv interpreter. On **Ubuntu + CPython 3.11**, CI first compiles those targets with `cargo test … --no-run`, then runs the same `cargo test` without `--no-run` (venv Python matches the wheel installed after `maturin build`).

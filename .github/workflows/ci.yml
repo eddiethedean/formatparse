@@ -179,10 +179,10 @@ jobs:
           | Phase | What runs |
           |-------|-----------|
           | **1 · Rust core compile** | `cargo build -p formatparse-core --all-targets` (no Python venv yet) |
-          | **2 · Native extension** | `maturin develop` (release + `extension-module`) |
+          | **2 · Python build** | venv + `maturin build` → wheel in `dist/` + `pip install` wheel + import check (no pytest yet) |
           | **3 · Extra Rust compile (Ubuntu CPython 3.11 only)** | `cargo build --workspace --all-targets` and `cargo test -p formatparse-pyo3 --features python-tests --no-run` |
           | **4 · Rust tests** | `cargo test` (full workspace on Ubuntu 3.11; core-only elsewhere) + execute `python-tests` on Ubuntu 3.11 |
-          | **5 · Python tests** | `pytest` (suite, security, coverage on Ubuntu 3.11) |
+          | **5 · Python test** | install pytest/Hypothesis/plugins, then `pytest` (suite, security, coverage on Ubuntu 3.11) — **after** all `cargo test` steps |
 
           A dedicated **Rust · formatparse-core (Linux compile + test)** job also runs in parallel for a clear compile+test signal on Linux.
           EOF
@@ -208,27 +208,47 @@ jobs:
         shell: bash
         run: cargo build -p formatparse-core --all-targets
 
-      - name: Create virtual environment
+      - name: Python · build — venv and maturin CLI only
         shell: bash
         run: |
           python -m venv .venv
           if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
             .venv/Scripts/python -m pip install --upgrade pip
-            .venv/Scripts/python -m pip install "maturin>=1.13.3,<2.0" pytest
+            .venv/Scripts/python -m pip install "maturin>=1.13.3,<2.0"
           else
             source .venv/bin/activate
             python -m pip install --upgrade pip
-            pip install "maturin>=1.13.3,<2.0" pytest
+            pip install "maturin>=1.13.3,<2.0"
           fi
 
-      - name: Compile and install native extension (maturin develop, release)
+      - name: Python · build — compile wheel (maturin build, release)
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
-            cd formatparse-pyo3 && ../.venv/Scripts/maturin develop --release --features extension-module
+            cd formatparse-pyo3 && ../.venv/Scripts/maturin build --out ../dist --release --features extension-module
           else
             source .venv/bin/activate
-            cd formatparse-pyo3 && maturin develop --release --features extension-module
+            cd formatparse-pyo3 && maturin build --out ../dist --release --features extension-module
+          fi
+
+      - name: Python · build — install wheel into venv (no test deps yet)
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
+            .venv/Scripts/python -m pip install --force-reinstall dist/formatparse*.whl
+          else
+            source .venv/bin/activate
+            pip install --force-reinstall dist/formatparse*.whl
+          fi
+
+      - name: Python · build — verify import (formatparse + _formatparse)
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
+            .venv/Scripts/python -c "import formatparse; import _formatparse; print('formatparse', getattr(formatparse, '__version__', ''))"
+          else
+            source .venv/bin/activate
+            python -c "import formatparse; import _formatparse; print('formatparse', getattr(formatparse, '__version__', ''))"
           fi
 
       # Ubuntu CPython 3.11: finish Rust compiles before pytest so the job groups compile vs test phases.
@@ -248,17 +268,7 @@ jobs:
           export PYO3_PYTHON="$(command -v python)"
           cargo test -p formatparse-pyo3 --features python-tests --no-run
 
-      - name: Install test dependencies
-        shell: bash
-        run: |
-          if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
-            .venv/Scripts/python -m pip install hypothesis pytest-cov pytest-benchmark pytest-xdist pympler memory_profiler
-          else
-            source .venv/bin/activate
-            pip install hypothesis pytest-cov pytest-benchmark pytest-xdist pympler memory_profiler
-          fi
-
-      # Rust test execution (after all Rust compiles above; before Python pytest).
+      # Rust test execution (after all Rust compiles above).
       - name: Run cargo tests (formatparse-core only)
         if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.11'
         shell: bash
@@ -280,7 +290,17 @@ jobs:
           export PYO3_PYTHON="$(command -v python)"
           cargo test -p formatparse-pyo3 --features python-tests
 
-      - name: Execute pytest suite
+      - name: Python · test — install pytest and test dependencies
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
+            .venv/Scripts/python -m pip install pytest hypothesis pytest-cov pytest-benchmark pytest-xdist pympler memory_profiler
+          else
+            source .venv/bin/activate
+            pip install pytest hypothesis pytest-cov pytest-benchmark pytest-xdist pympler memory_profiler
+          fi
+
+      - name: Python · test — pytest suite
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
@@ -290,7 +310,7 @@ jobs:
             python -m pytest tests/ -v
           fi
 
-      - name: Execute pytest (security)
+      - name: Python · test — pytest (security)
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
@@ -300,14 +320,14 @@ jobs:
             python -m pytest tests/test_security.py -v
           fi
 
-      - name: Execute pytest with coverage (Python 3.11, Ubuntu only)
+      - name: Python · test — pytest with coverage (Python 3.11, Ubuntu only)
         if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           source .venv/bin/activate
           python -m pytest tests/ --cov=formatparse --cov-report=term --cov-report=html --cov-report=xml
 
-      - name: Upload coverage reports
+      - name: Python · test — upload coverage reports
         if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v6
         with:
