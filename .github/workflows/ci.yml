@@ -169,7 +169,6 @@ jobs:
         run: |
           source .venv/bin/activate
           python -m pytest tests/ --cov=formatparse --cov-report=term --cov-report=html --cov-report=xml
-        continue-on-error: true
 
       - name: Upload coverage reports
         if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
@@ -182,10 +181,49 @@ jobs:
           verbose: true
 
       - name: Run cargo tests
-        run: cargo test --package formatparse-core
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ] && [ "${{ matrix.python-version }}" = "3.11" ]; then
+            source .venv/bin/activate
+            cargo test --workspace
+          else
+            cargo test -p formatparse-core
+          fi
+
+      - name: Run formatparse-pyo3 python-tests (Ubuntu 3.11)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        shell: bash
+        continue-on-error: true
+        run: |
+          source .venv/bin/activate
+          export PYO3_PYTHON="$(command -v python)"
+          cargo test -p formatparse-pyo3 --features python-tests
 
       - name: Run cargo audit (Ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: |
           cargo install cargo-audit --version 0.22.0 || cargo install cargo-audit
           cargo audit || true  # Don't fail CI, just report vulnerabilities
+
+  docs:
+    name: Documentation (Sphinx)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install documentation dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r docs/requirements.txt
+
+      - name: Build HTML (warnings are errors)
+        run: python -m sphinx -W -b html docs docs/_build/html
+
+      - name: Link check
+        run: python -m sphinx -b linkcheck docs docs/_build/linkcheck

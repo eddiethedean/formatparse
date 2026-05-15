@@ -31,6 +31,7 @@ Quick Start
    api/index
    examples/index
    security
+   changelog
 
 Indices and tables
 ==================

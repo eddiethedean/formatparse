@@ -3,85 +3,143 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+from __future__ import annotations
+
+import re
 import sys
+import types
 from pathlib import Path
 
 # Add the parent directory to the path so we can import formatparse
-sys.path.insert(0, str(Path(__file__).parent.parent))
+_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_ROOT))
 
-# Mock the _formatparse module if it's not available (for ReadTheDocs builds)
-# This must happen before formatparse/__init__.py tries to import it
+
+def _stub_type(name: str, bases: tuple[type, ...] = (object,)) -> type:
+    def __init__(self, *args: object, **kwargs: object) -> None:  # noqa: D401
+        """Accept construction like the real Rust-backed type (docs build stub)."""
+
+    return type(
+        name,
+        bases,
+        {
+            "__module__": "_formatparse",
+            "__doc__": f"Stub for {name} (extension not built).",
+            "__init__": __init__,
+        },
+    )
+
+
+def _stub_fn(name: str):
+    def _fn(*_a, **_k):
+        raise RuntimeError("_formatparse extension is not built (documentation stub).")
+
+    _fn.__name__ = _fn.__qualname__ = name
+    _fn.__module__ = "_formatparse"
+    _fn.__doc__ = f"Stub for {name} (extension not built)."
+    return _fn
+
+
+# Mock _formatparse if the Rust extension is not built (e.g. Read the Docs without maturin).
+# Must run before formatparse/__init__.py imports it. Use real types/callables (not
+# MagicMock) so sphinx-autodoc-typehints can inspect annotations safely.
+_FORMATPARSE_EXPORTS = (
+    "parse",
+    "parse_batch",
+    "search",
+    "findall",
+    "findall_iter",
+    "compile",
+    "ParseResult",
+    "FormatParser",
+    "FindallIter",
+    "FixedTzOffset",
+    "PatternParseMismatch",
+    "Results",
+)
+
 try:
-    import _formatparse
+    import _formatparse  # noqa: F401
 except ImportError:
-    import sys
-    from unittest.mock import MagicMock
+    from datetime import tzinfo
 
-    # Create a mock module with all the attributes that formatparse/__init__.py imports
-    _formatparse = MagicMock()
-    _formatparse.parse = MagicMock(name="parse")
-    _formatparse.search = MagicMock(name="search")
-    _formatparse.findall = MagicMock(name="findall")
-    _formatparse.compile = MagicMock(name="compile")
-
-    # Mock classes that are imported
-    _formatparse.ParseResult = MagicMock(name="ParseResult")
-    _formatparse.FormatParser = MagicMock(name="FormatParser")
-    _formatparse.FixedTzOffset = MagicMock(name="FixedTzOffset")
-
-    sys.modules["_formatparse"] = _formatparse
-
-# Also mock formatparse module itself to handle import errors gracefully
-autodoc_mock_imports = ["_formatparse"]
+    _mod = types.ModuleType("_formatparse")
+    for _name in _FORMATPARSE_EXPORTS:
+        if _name in (
+            "ParseResult",
+            "FormatParser",
+            "FindallIter",
+            "FixedTzOffset",
+            "PatternParseMismatch",
+            "Results",
+        ):
+            bases: tuple[type, ...]
+            if _name == "PatternParseMismatch":
+                bases = (ValueError,)
+            elif _name == "FixedTzOffset":
+                bases = (tzinfo,)
+            else:
+                bases = (object,)
+            setattr(_mod, _name, _stub_type(_name, bases))
+        else:
+            setattr(_mod, _name, _stub_fn(_name))
+    sys.modules["_formatparse"] = _mod
 
 # -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "formatparse"
-copyright = "2024, Odos Matthews"
+copyright = "2024-2026, Odos Matthews"
 author = "Odos Matthews"
 
-# Get version from Cargo.toml
+# Version: match formatparse.__init__ (Cargo.toml workspace package version in checkout)
+_release = "0.0.0-unknown"
 try:
-    import re
-
-    cargo_toml = Path(__file__).parent.parent / "Cargo.toml"
-    with open(cargo_toml) as f:
-        content = f.read()
-        match = re.search(r'version\s*=\s*"([^"]+)"', content)
-        if match:
-            release = match.group(1)
-        else:
-            release = "0.5.1"
-except Exception:
-    release = "0.5.1"
-
+    _cargo_text = (_ROOT / "Cargo.toml").read_text(encoding="utf-8")
+    _m = re.search(r'version\s*=\s*"([^"]+)"', _cargo_text)
+    if _m:
+        _release = _m.group(1)
+except OSError:
+    pass
+release = _release
 version = release
 
 # -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.extlinks",
     "sphinx.ext.napoleon",
+    "sphinx_autodoc_typehints",
     "sphinx.ext.doctest",
+    "sphinx_copybutton",
+    "myst_parser",
 ]
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
+
 # -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
+html_theme_options = {
+    "navigation_depth": 4,
+    "collapse_navigation": False,
+    "titles_only": False,
+}
 
 # -- Extension configuration -------------------------------------------------
 
-# Autodoc configuration
+autodoc_mock_imports = ["_formatparse"]
+
 autodoc_default_options = {
     "members": True,
     "member-order": "bysource",
@@ -90,29 +148,39 @@ autodoc_default_options = {
     "exclude-members": "__weakref__",
 }
 
-# Intersphinx configuration
+# Type hints in descriptions (readable on RTD)
+autodoc_typehints = "description"
+autodoc_typehints_description_target = "documented"
+
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
 }
 
-# Mock imports for autodoc (since we can't build the Rust extension on ReadTheDocs)
-autodoc_mock_imports = ["_formatparse"]
+# Release links in CHANGELOG may not exist until publish day.
+linkcheck_ignore = [
+    r"https://github\.com/eddiethedean/formatparse/releases/tag/v0\.8\.0$",
+]
 
-# Doctest configuration
-# Note: Doctests will be skipped on ReadTheDocs if the package isn't available
+extlinks = {
+    "repo": ("https://github.com/eddiethedean/formatparse/blob/main/%s", "%s"),
+}
+
+copybutton_prompt_text = r">>> |\.\.\. |\$ "
+copybutton_prompt_is_regexp = True
+
+myst_enable_extensions = ["colon_fence"]
+
 doctest_global_setup = """
 try:
     from formatparse import parse, search, findall, compile, with_pattern
     from formatparse import ParseResult, FormatParser, BidirectionalPattern, BidirectionalResult
     from formatparse import FixedTzOffset, RepeatedNameError
 except ImportError:
-    # Skip doctests if package isn't available
     pass
 """
 
 doctest_test_doctest_blocks = "default"
 
-# Napoleon configuration (for Google/NumPy style compatibility)
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = False

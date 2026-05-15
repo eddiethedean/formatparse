@@ -7,6 +7,8 @@ This section provides detailed API documentation for all formatparse functions a
    :maxdepth: 2
 
    core_functions
+   types_and_iterators
+   validation
    classes
    exceptions
 

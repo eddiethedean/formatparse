@@ -38,7 +38,7 @@ Type specifiers control how the matched text is converted. Common types include:
 - ``:b`` - Boolean
 
 Regex lookarounds after ``:d`` / ``:f`` (issue ``#9``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For **integer** and **float** fields only, you may append one or more parenthesis
 groups right after the type letter, using only non-capturing lookarounds:
@@ -131,7 +131,7 @@ literal brace in the *pattern* string; ``:brace`` is only for matching
 brace-wrapped **payload** in the **input**.
 
 Nested format patterns in a field spec (``#12``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When the text after ``:`` is itself a balanced brace pattern that looks like a
 mini format field (for example ``{inner:d}``), formatparse compiles it as an
@@ -299,3 +299,11 @@ Use ``:e`` for scientific notation:
    >>> result.named['value'] == 15000000000.0
    True
 
+See also
+--------
+
+- :doc:`multiline_and_blocks` — ``:ml`` and ``:blk`` fields, line continuations in matched text.
+- :doc:`nesting_and_composition` — nested ``{outer:{inner:d}}`` patterns and ``composed_type``.
+- :doc:`post_parse_validation` — validators and :class:`~formatparse.ValidationPipeline`.
+- :doc:`migration_from_parse` — differences from the original ``parse`` package and caching.
+- :doc:`performance` — benchmarking notes.

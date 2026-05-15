@@ -12,7 +12,7 @@ Always validate and sanitize user input before passing it to formatparse:
 
    import re
    from formatparse import parse
-   
+
    # Validate pattern length
    def safe_parse(pattern, text):
        # Stricter than the library maximum (10,000 characters for patterns); defense in depth.
@@ -20,11 +20,11 @@ Always validate and sanitize user input before passing it to formatparse:
            raise ValueError("Pattern too long")
        if len(text) > 1_000_000:  # Set your own limit
            raise ValueError("Input too long")
-       
+
        # Check for suspicious characters
        if '\0' in pattern or '\0' in text:
            raise ValueError("Null bytes not allowed")
-       
+
        return parse(pattern, text)
 
 Pattern Complexity
@@ -37,22 +37,23 @@ Be cautious when parsing patterns from untrusted sources:
    # Safe: Patterns from trusted sources
    pattern = "{name}: {age:d}"
    result = parse(pattern, "Alice: 30")
-   
+
    # Caution: Patterns from user input
    user_pattern = get_user_input()  # Validate before use
    if is_suspicious_pattern(user_pattern):
        raise ValueError("Pattern not allowed")
-   
+
    result = parse(user_pattern, user_text)
 
 The library includes built-in limits to help protect against malicious patterns:
+
 - Maximum pattern length: 10,000 characters
 - Maximum input length: 10MB
 - Maximum fields: 100
 - After each successful regex compilation, the library checks that compilation took at most 200ms of wall-clock time (this does not bound matching time; see below)
 
 Regular Expression Denial of Service (ReDoS)
----------------------------------------------
+--------------------------------------------
 
 **Compilation vs matching:** The 200ms check runs only *after* regex compilation completes. It does not interrupt compilation in progress, and it does **not** bound **matching** time for ``parse``, ``search``, ``findall``, or similar calls. Use application-level timeouts and simple patterns for untrusted input.
 
@@ -68,13 +69,13 @@ The library still enforces pattern and input size limits. You should still:
 
    import signal
    from formatparse import parse
-   
+
    class TimeoutError(Exception):
        pass
-   
+
    def timeout_handler(signum, frame):
        raise TimeoutError("Parsing timeout")
-   
+
    def safe_parse_with_timeout(pattern, text, timeout=1.0):
        signal.signal(signal.SIGALRM, timeout_handler)
        signal.alarm(int(timeout))
@@ -98,6 +99,7 @@ The library enforces the following limits:
 - **Post-compile timing check**: After each successful regex compilation, the library rejects the build if compilation took more than 200ms of wall-clock time (this is not a match-time or interruptible compile timeout; see the ReDoS section above)
 
 If you need different limits for your use case, consider:
+
 - Pre-validating inputs in your application
 - Processing large inputs in chunks
 - Using streaming parsers for very large inputs
@@ -110,7 +112,7 @@ Always handle errors appropriately:
 .. code-block:: python
 
    from formatparse import parse
-   
+
    try:
        result = parse(pattern, text)
        if result is None:
@@ -136,10 +138,10 @@ Keep your dependencies up to date:
 
    # Check for Rust vulnerabilities
    cargo audit
-   
+
    # Check for Python vulnerabilities
    pip-audit
-   
+
    # Update dependencies regularly
    pip install --upgrade formatparse
 
@@ -156,10 +158,10 @@ For best performance and security:
 .. code-block:: python
 
    from formatparse import compile
-   
+
    # Compile once, use many times
    parser = compile("{name}: {age:d}")
-   
+
    for text in many_texts:
        result = parser.parse(text)
        process_result(result)
@@ -175,8 +177,8 @@ Reporting Security Issues
 -------------------------
 
 If you discover a security vulnerability, please report it privately:
+
 - Email: odosmatthews@gmail.com
 - Do not open public GitHub issues for security vulnerabilities
 
-See :doc:`../SECURITY` for the full security policy.
-
+See the full policy in the repository: `Security policy (SECURITY.md) <https://github.com/eddiethedean/formatparse/blob/main/SECURITY.md>`_

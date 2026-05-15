@@ -720,7 +720,7 @@ def parse_with_validation(
     :param pipeline: Validation pipeline (required).
     :param validation_mode: Passed to :meth:`ValidationPipeline.apply`.
     :returns: Same as :meth:`FormatParser.parse` after validation, or ``None`` if parse failed.
-    In ``lenient`` mode, validation failures emit :exc:`ValidationWarning` and do not raise.
+        In ``lenient`` mode, validation failures emit :exc:`ValidationWarning` and do not raise.
     :raises ValidationError: In ``strict`` mode when validation fails.
     :raises MultipleValidationErrors: In ``collect`` mode when validation fails.
     """

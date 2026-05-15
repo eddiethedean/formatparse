@@ -23,6 +23,21 @@ findall
 
 .. autofunction:: formatparse.findall
 
+findall_iter
+------------
+
+.. autofunction:: formatparse.findall_iter
+
+parse_batch
+-----------
+
+.. autofunction:: formatparse.parse_batch
+
+parse_with_validation
+----------------------
+
+.. autofunction:: formatparse.parse_with_validation
+
 compile
 -------
 
