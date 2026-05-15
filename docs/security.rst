@@ -50,12 +50,12 @@ The library includes built-in limits to help protect against malicious patterns:
 - Maximum pattern length: 10,000 characters
 - Maximum input length: 10MB
 - Maximum fields: 100
-- After each successful regex compilation, the library checks that compilation took at most 200ms of wall-clock time (this does not bound matching time; see below)
+- After each successful regex compilation, the library checks that compilation took at most 500ms of wall-clock time (this does not bound matching time; see below)
 
 Regular Expression Denial of Service (ReDoS)
 --------------------------------------------
 
-**Compilation vs matching:** The 200ms check runs only *after* regex compilation completes. It does not interrupt compilation in progress, and it does **not** bound **matching** time for ``parse``, ``search``, ``findall``, or similar calls. Use application-level timeouts and simple patterns for untrusted input.
+**Compilation vs matching:** The 500ms check runs only *after* regex compilation completes. It does not interrupt compilation in progress, and it does **not** bound **matching** time for ``parse``, ``search``, ``findall``, or similar calls. Use application-level timeouts and simple patterns for untrusted input.
 
 **``findall``:** There is no fixed cap on how many matches can be returned within the maximum input length; consider bounding match count in your application when inputs are untrusted.
 
@@ -96,7 +96,7 @@ The library enforces the following limits:
 - **Input length**: 10,000,000 characters (10MB) maximum
 - **Field count**: 100 fields maximum
 - **Field name length**: 200 characters maximum
-- **Post-compile timing check**: After each successful regex compilation, the library rejects the build if compilation took more than 200ms of wall-clock time (this is not a match-time or interruptible compile timeout; see the ReDoS section above)
+- **Post-compile timing check**: After each successful regex compilation, the library rejects the build if compilation took more than 500ms of wall-clock time (this is not a match-time or interruptible compile timeout; see the ReDoS section above)
 
 If you need different limits for your use case, consider:
 

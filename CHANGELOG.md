@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CI:** Skip pympler-based memory tests on **PyPy** (`SummaryTracker` / `asizeof` raises `KeyError` on PyPy 3.11).
+- **CI / ReDoS guard:** Raise the post-regex-compile wall-clock cap from **200ms to 500ms** so slow shared runners (e.g. macOS Intel) do not spuriously reject valid patterns; documentation updated accordingly.
+
 - **Pattern LRU cache:** after a hash hit, the entry is checked against the full normalized pattern and ``extra_types`` fingerprint so a colliding key cannot return the wrong compiled parser.
 
 - **Fixed-width string fields with literals beside the field** (e.g. ``"{s:<5.5} "`` vs ``"abc   "``): when width and precision are equal, the compiled fragment is exactly ``prec`` characters so trailing (or leading) pattern space is not pulled into the capture (#97). **Right-aligned** fields with that same equal width and precision also accept an opaque fixed-width capture (including trailing spaces) so post-capture validation matches **parse** for those cells (#97).
