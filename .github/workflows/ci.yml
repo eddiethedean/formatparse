@@ -38,6 +38,29 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # Standalone row in the Actions UI (separate from the Python/OS matrix below).
+  rust-core-linux:
+    name: Rust · formatparse-core (Linux compile + test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: false
+          shared-key: rust-core-linux
+
+      - name: Compile formatparse-core (all targets, no tests executed)
+        run: cargo build -p formatparse-core --all-targets
+
+      - name: Run formatparse-core tests
+        run: cargo test -p formatparse-core
+
   test:
     name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -147,6 +170,23 @@ jobs:
             architecture: aarch64
 
     steps:
+      - name: Report job phases (Summary tab)
+        shell: bash
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
+          ## Phases in this matrix job (compile vs test)
+
+          | Phase | What runs |
+          |-------|-----------|
+          | **1 · Rust core compile** | `cargo build -p formatparse-core --all-targets` (no Python venv yet) |
+          | **2 · Native extension** | `maturin develop` (release + `extension-module`) |
+          | **3 · Extra Rust compile (Ubuntu CPython 3.11 only)** | `cargo build --workspace --all-targets` and `cargo test -p formatparse-pyo3 --features python-tests --no-run` |
+          | **4 · Rust tests** | `cargo test` (full workspace on Ubuntu 3.11; core-only elsewhere) + execute `python-tests` on Ubuntu 3.11 |
+          | **5 · Python tests** | `pytest` (suite, security, coverage on Ubuntu 3.11) |
+
+          A dedicated **Rust · formatparse-core (Linux compile + test)** job also runs in parallel for a clear compile+test signal on Linux.
+          EOF
+
       - name: Checkout repository
         uses: actions/checkout@v6
 

@@ -30,6 +30,8 @@ Pytest collects `tests/test_*.py`. Use the same environment as CI: build the nat
 
 GitHub Actions separates **compile** steps from **test** steps: `cargo build -p formatparse-core --all-targets` runs before the Python venv (fails fast on core compile errors). On **Ubuntu + CPython 3.11**, after `maturin develop` it runs `cargo build --workspace --all-targets` and `cargo test -p formatparse-pyo3 --features python-tests --no-run`, then installs pytest dependencies, then **runs** `cargo test` (full workspace plus `python-tests` execution), then **pytest**. Other matrix cells run `cargo test -p formatparse-core` only after the shared core compile step.
 
+A separate job **Rust · formatparse-core (Linux compile + test)** appears as its own row in the Actions run (parallel to the matrix). Open a matrix job and use the **Summary** tab for a phase table (compile vs test).
+
 **PyPy 3.11** on Ubuntu runs the same pytest path with a `maturin develop` build; it does not run the full-workspace `cargo test` job (see **PyO3 `python-tests`** below).
 
 ## PyO3 `python-tests`

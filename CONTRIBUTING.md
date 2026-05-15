@@ -280,7 +280,7 @@ The project uses GitHub Actions for CI/CD:
 
 - **Tests**: Run on all PRs across multiple Python versions and platforms
 - **Coverage**: Generated on Python 3.11, Ubuntu; `fail_under` from `pyproject.toml` is enforced on that job
-- **Rust**: CI runs explicit **compile** steps (`cargo build -p formatparse-core --all-targets`; on Ubuntu + CPython 3.11 also `cargo build --workspace --all-targets` and `cargo test -p formatparse-pyo3 --features python-tests --no-run`) before **running** `cargo test` (full workspace on Ubuntu 3.11, `formatparse-core` only elsewhere) and **pytest**. The `python-tests` step **must pass** (see **Rust Tests** below). Ubuntu **PyPy 3.11** runs pytest with a built extension like the CPython matrix.
+- **Rust**: CI includes a standalone job **Rust · formatparse-core (Linux compile + test)** (its own row in Actions). The Python/OS matrix still runs `cargo build` / `cargo test` / `pytest` in phases; open a matrix run’s **Summary** tab for the phase table. `cargo test --workspace` runs on Ubuntu + CPython 3.11; other cells run `cargo test -p formatparse-core` only. The `python-tests` step **must pass** (see **Rust Tests** below). Ubuntu **PyPy 3.11** runs pytest with a built extension like the CPython matrix.
 - **Benchmarks**: Run on PRs and main branch
 - **Doctests**: Run on Python 3.11, Ubuntu
 - **Mutation Testing**: Runs weekly on main branch
