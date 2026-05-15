@@ -33,6 +33,19 @@ pub struct FieldCaptureSlices<'a> {
     pub nested_parsers: &'a [Option<Arc<FormatParser>>],
 }
 
+impl<'a> FieldCaptureSlices<'a> {
+    pub fn from_parser(parser: &'a FormatParser) -> Self {
+        Self {
+            field_specs: &parser.field_specs,
+            field_names: &parser.field_names,
+            normalized_names: &parser.normalized_names,
+            custom_type_groups: &parser.custom_type_groups,
+            has_nested_dict_fields: &parser.has_nested_dict_fields,
+            nested_parsers: &parser.nested_parsers,
+        }
+    }
+}
+
 /// Pattern, field layout, and Python conversion context for [`match_with_captures`].
 pub struct CapturedMatchContext<'a> {
     pub pattern: &'a str,

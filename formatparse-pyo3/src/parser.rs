@@ -8,6 +8,7 @@
 
 pub mod pattern;
 // regex module is in formatparse-core
+pub mod findall_engine;
 pub mod format_parser;
 pub mod matching;
 pub mod raw_match;
