@@ -1,4 +1,5 @@
 /// Parser module for formatparse-core
+pub mod pattern;
 pub mod regex;
 
 /// Security constants for input validation

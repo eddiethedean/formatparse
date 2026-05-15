@@ -18,6 +18,10 @@ pub use lookaround::{
     parse_lookaround_tail, reject_lookaround_in_strftime,
     rewrite_field_fragments_for_engine_anchor, split_type_base_and_lookaround_tail,
 };
+pub use parser::pattern::{
+    field_types_match, parse_field, parse_field_path, parse_format_spec, parse_pattern,
+    validate_multiline_mvp, ParsedPatternParts, MAX_NESTED_FORMAT_DEPTH,
+};
 pub use parser::{
     count_capturing_groups, validate_field_name, validate_input_length, validate_pattern_length,
     MAX_FIELDS, MAX_FIELD_NAME_LENGTH, MAX_INPUT_LENGTH, MAX_PATTERN_LENGTH,

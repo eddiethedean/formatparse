@@ -8,9 +8,14 @@
 
 pub mod pattern;
 // regex module is in formatparse-core
+pub mod findall_engine;
+pub mod findall_iter;
 pub mod format_parser;
+pub mod format_parser_pymethods;
 pub mod matching;
 pub mod raw_match;
 
-pub use format_parser::{FindallIter, Format, FormatParser};
+pub use findall_iter::FindallIter;
+pub use format_parser::FormatParser;
+pub use format_parser_pymethods::Format;
 pub use pattern::parse_field_path;
