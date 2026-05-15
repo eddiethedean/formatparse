@@ -10,7 +10,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyString, PyTuple};
 use pyo3::IntoPyObjectExt;
-use regex::Regex;
+use fancy_regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -223,7 +223,11 @@ impl FormatParser {
         };
 
         Python::with_gil(|py| {
-            if search_regex.captures(string).is_some() {
+            if search_regex
+                .captures(string)
+                .map_err(crate::error::fancy_regex_match_error)?
+                .is_some()
+            {
                 let extra_types_ref = if let Some(ref et) = extra_types {
                     et
                 } else {
@@ -756,7 +760,10 @@ impl FindallIter {
                     return Ok(None);
                 }
                 let search_regex = slf.parser.get_search_regex(slf.case_sensitive);
-                let Some(caps) = search_regex.captures_at(&slf.haystack, slf.search_pos) else {
+                let Some(caps) = search_regex
+                    .captures_from_pos(&slf.haystack, slf.search_pos)
+                    .map_err(crate::error::fancy_regex_match_error)?
+                else {
                     return Ok(None);
                 };
                 let Some(m0) = caps.get(0) else {
@@ -804,7 +811,10 @@ impl FindallIter {
                 return Ok(None);
             }
             let search_regex = slf.parser.get_search_regex(slf.case_sensitive);
-            let Some(caps) = search_regex.captures_at(&slf.haystack, slf.search_pos) else {
+            let Some(caps) = search_regex
+                .captures_from_pos(&slf.haystack, slf.search_pos)
+                .map_err(crate::error::fancy_regex_match_error)?
+            else {
                 return Ok(None);
             };
             let Some(m0) = caps.get(0) else {

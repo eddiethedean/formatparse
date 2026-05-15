@@ -98,6 +98,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fancy-regex"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e24cb5a94bcae1e5408b0effca5cd7172ea3c5755049c5f3af4cd283a165298"
+dependencies = [
+ "bit-set",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -119,6 +130,7 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 name = "formatparse-core"
 version = "0.8.0"
 dependencies = [
+ "fancy-regex",
  "once_cell",
  "proptest",
  "regex",
@@ -128,6 +140,7 @@ dependencies = [
 name = "formatparse-pyo3"
 version = "0.8.0"
 dependencies = [
+ "fancy-regex",
  "formatparse-core",
  "lru",
  "once_cell",

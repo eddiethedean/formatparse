@@ -75,6 +75,18 @@ pub fn strftime_to_regex(format_str: &str) -> String {
     regex_parts.join("")
 }
 
+/// Prefix the field body with optional zero-width lookbehind (issue #9).
+/// Trailing lookahead is appended **outside** the named/numbered capture in the pattern
+/// builder so a full-string anchor (`$`) can still match asserted suffix text.
+#[inline]
+fn wrap_field_lookbehind(spec: &FieldSpec, core: String) -> String {
+    format!(
+        "{}{}",
+        spec.regex_lookbehind.as_deref().unwrap_or(""),
+        core
+    )
+}
+
 impl FieldSpec {
     /// `allow_empty_delimited`: for default unconstrained string fields only (no width,
     /// precision, alignment), use `.*?` instead of `.+?` so an empty capture is allowed when
@@ -294,7 +306,7 @@ impl FieldSpec {
                     }
                 };
 
-                base_pattern
+                wrap_field_lookbehind(self, base_pattern)
             }
             FieldType::Float => {
                 let sign = self
@@ -311,7 +323,7 @@ impl FieldSpec {
                 // For floats, precision affects how we match
                 // Width is mainly for formatting, but we need to handle it in parsing
                 // When width is specified, there may be leading/trailing spaces
-                if let Some(prec) = self.precision {
+                let inner = if let Some(prec) = self.precision {
                     // Precision specified — digits after the decimal when a decimal point appears.
                     // For prec == 0, str.format often emits no '.' (e.g. "{:02.0f}" → "20"); accept
                     // integer-looking text as well as "12." / ".5" forms (issue #84 / parse#159).
@@ -337,7 +349,8 @@ impl FieldSpec {
                     // Float must have a decimal point (not just an integer)
                     // Allow: 12.34, .34, 12., or scientific notation with decimal
                     format!(r"{}(?:\d+\.\d+|\.\d+|\d+\.)(?:[eE][+-]?\d+)?", sign)
-                }
+                };
+                wrap_field_lookbehind(self, inner)
             }
             FieldType::Letters => r"[a-zA-Z]+".to_string(),
             FieldType::Word => r"\w+".to_string(),
@@ -478,7 +491,7 @@ impl FieldSpec {
 mod tests {
     use super::*;
     use crate::types::definitions::{FieldSpec, FieldType};
-    use regex::Regex;
+    use fancy_regex::Regex;
 
     #[test]
     fn test_strftime_to_regex_year() {
@@ -677,8 +690,8 @@ mod tests {
         spec.field_type = FieldType::Integer;
         let p = spec.to_regex_pattern(&HashMap::new(), None, false);
         let re = Regex::new(&format!("^{}$", p)).unwrap();
-        assert!(re.is_match("    0"));
-        assert!(re.is_match("  42"));
+        assert!(re.is_match("    0").unwrap());
+        assert!(re.is_match("  42").unwrap());
     }
 
     #[test]
@@ -747,9 +760,9 @@ mod tests {
         spec.width = Some(2);
         let p = spec.to_regex_pattern(&HashMap::new(), None, false);
         let re = Regex::new(&format!("^{}$", p)).unwrap();
-        assert!(re.is_match("20"));
-        assert!(re.is_match(" 20"));
-        assert!(re.is_match("20.000"));
+        assert!(re.is_match("20").unwrap());
+        assert!(re.is_match(" 20").unwrap());
+        assert!(re.is_match("20.000").unwrap());
     }
 
     #[test]
@@ -862,8 +875,8 @@ mod tests {
         let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
         assert!(pattern.contains(r"[0-9]{2,2}"), "pattern: {}", pattern);
         let re = Regex::new(&format!("^{}$", pattern)).unwrap();
-        assert!(re.is_match("99"));
-        assert!(!re.is_match("999"));
+        assert!(re.is_match("99").unwrap());
+        assert!(!re.is_match("999").unwrap());
     }
 
     #[test]

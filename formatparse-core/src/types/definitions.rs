@@ -53,6 +53,10 @@ pub struct FieldSpec {
     pub nested_subpattern: Option<String>,
     /// Unanchored regex body for the inner pattern (filled after recursive compile; issue #12).
     pub nested_regex_body: Option<String>,
+    /// Concatenated `(?<=…)` / `(?<!…)` tokens after the type, before the field body (issue #9).
+    pub regex_lookbehind: Option<String>,
+    /// Concatenated `(?=…)` / `(?!…)` tokens after the type, after the field body (issue #9).
+    pub regex_lookahead: Option<String>,
 }
 
 impl Default for FieldSpec {
@@ -70,6 +74,8 @@ impl Default for FieldSpec {
             original_type_char: None,
             nested_subpattern: None,
             nested_regex_body: None,
+            regex_lookbehind: None,
+            regex_lookahead: None,
         }
     }
 }
@@ -157,6 +163,8 @@ mod tests {
             original_type_char: Some('d'),
             nested_subpattern: None,
             nested_regex_body: None,
+            regex_lookbehind: None,
+            regex_lookahead: None,
         };
 
         assert_eq!(spec.name, Some("test".to_string()));

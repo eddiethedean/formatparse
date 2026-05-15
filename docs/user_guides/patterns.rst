@@ -37,6 +37,50 @@ Type specifiers control how the matched text is converted. Common types include:
 - ``:s`` - String (default)
 - ``:b`` - Boolean
 
+Regex lookarounds after ``:d`` / ``:f`` (issue ``#9``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For **integer** and **float** fields only, you may append one or more parenthesis
+groups right after the type letter, using only non-capturing lookarounds:
+
+- **Lookahead:** ``(?=…)``, ``(?!…)``
+- **Lookbehind:** ``(?<=…)``, ``(?<!…)``
+
+They are compiled **inside** the field’s named capture, so **spans and values**
+refer only to the digits (or float text), not to the surrounding asserted text.
+Order is preserved: lookbehind tokens are applied before the numeric fragment,
+then lookahead tokens. Nested **capturing** parentheses inside a lookaround are
+rejected at compile time. Assertions are **not** supported on strftime ``%…``
+format types in this release.
+
+For compatibility with the bundled regex engine, **positive** lookarounds whose
+body is a simple literal (letters, digits, underscores, and ``\\`` escapes only)
+may be lowered to equivalent non-capturing groups in the compiled pattern; spans
+for the field are unchanged. Other lookaround bodies are kept as written (some
+combinations with full-string anchors may not match until the engine supports them).
+
+Examples (see also `parse#209 <https://github.com/r1chardj0n3s/parse/issues/209>`_):
+
+.. code-block:: python
+
+   from formatparse import parse
+
+   parse("{v:d(?=px)}", "100px").named["v"]  # 100
+   parse(r"{v:d(?<=\$)}", "$100").named["v"]  # 100
+
+.. doctest::
+
+   >>> from formatparse import parse
+   >>> parse("{v:d(?=px)}", "100px").named["v"]
+   100
+   >>> parse("{v:d(?=px)}", "100px").spans["v"]
+   (0, 3)
+   >>> r = parse(r"{v:d(?<=\$)}", "$42")
+   >>> r.named["v"]
+   42
+   >>> r.spans["v"]
+   (1, 3)
+
 .. doctest::
 
    >>> result = parse("{age:d}", "30")

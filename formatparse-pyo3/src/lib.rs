@@ -369,7 +369,8 @@ fn findall(
 
         // Collect all raw matches OUTSIDE GIL (no Python objects created yet)
         // This is the key optimization: all CPU work happens without GIL
-        for captures in search_regex.captures_iter(string) {
+        for cap_result in search_regex.captures_iter(string) {
+            let captures = cap_result.map_err(crate::error::fancy_regex_match_error)?;
             let Some(full_match) = captures.get(0) else {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(
                     "regex match missing capture group 0",
@@ -432,7 +433,8 @@ fn findall(
             &HashMap::new()
         };
 
-        for captures in search_regex.captures_iter(string) {
+        for cap_result in search_regex.captures_iter(string) {
+            let captures = cap_result.map_err(crate::error::fancy_regex_match_error)?;
             let Some(full_match) = captures.get(0) else {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(
                     "regex match missing capture group 0",
@@ -568,7 +570,7 @@ fn extract_format(
 
     // Parse the format spec string
     let mut spec = FieldSpec::new();
-    crate::parser::pattern::parse_format_spec(format_string, &mut spec, None);
+    crate::parser::pattern::parse_format_spec(format_string, &mut spec, None)?;
     crate::parser::pattern::validate_multiline_mvp(&spec)?;
 
     // Extract type from the original format_string (preserve original type chars like 'o', 'x', 'b')

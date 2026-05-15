@@ -48,6 +48,8 @@ let spec = FieldSpec {
     original_type_char: None,
     nested_subpattern: None,
     nested_regex_body: None,
+    regex_lookbehind: None,
+    regex_lookahead: None,
 };
 ```
 
