@@ -43,7 +43,7 @@ The [Publish to PyPI](.github/workflows/publish.yml) workflow runs on tag push a
 
 **Wheel metadata:** `[tool.maturin] compatibility = "linux"` in `pyproject.toml` sets the manylinux / auditwheel policy for **Linux** wheels built during publish. It does not restrict wheels for other platforms or local `maturin develop`.
 
-Publish workflows install **`maturin>=1.12.6,<2.0`** (see `pyproject.toml` `[build-system].requires`). Do not set `[tool.maturin] python-source` to the repo root for this layout: `maturin sdist` then expects a Python tree named `_formatparse` at the workspace root, which this PyO3-only crate never ships in git.
+Publish workflows install **`maturin>=1.13.3,<2.0`** (see `pyproject.toml` `[build-system].requires`). Do not set `[tool.maturin] python-source` to the repo root for this layout: `maturin sdist` then expects a Python tree named `_formatparse` at the workspace root, which this PyO3-only crate never ships in git.
 
 **Note:** Creating a GitHub **Release** (with notes) is optional but recommended; copy highlights from `CHANGELOG.md`.
 
