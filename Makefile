@@ -1,4 +1,4 @@
-.PHONY: test develop
+.PHONY: test test-fast develop
 
 PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 
@@ -9,3 +9,7 @@ develop:
 # Run the full test suite the same way CI does (explicit pytest plugins only).
 test:
 	PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) -m pytest tests/ $(PYTEST_ARGS)
+
+# Skip slow / stress / benchmark-marked tests for quicker local feedback.
+test-fast:
+	PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) -m pytest tests/ -m "not slow and not stress and not benchmark" $(PYTEST_ARGS)

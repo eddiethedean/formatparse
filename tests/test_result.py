@@ -1,10 +1,10 @@
 import pytest
 
-import formatparse as parse
+from formatparse import Result
 
 
 def test_fixed_access():
-    r = parse.Result((1, 2), {}, None)
+    r = Result((1, 2), {}, None)
     assert r[0] == 1
     assert r[1] == 2
     with pytest.raises(IndexError):
@@ -14,7 +14,7 @@ def test_fixed_access():
 
 
 def test_slice_access():
-    r = parse.Result((1, 2, 3, 4), {}, None)
+    r = Result((1, 2, 3, 4), {}, None)
     assert r[1:3] == (2, 3)
     assert r[-5:5] == (1, 2, 3, 4)
     assert r[:4:2] == (1, 3)
@@ -23,7 +23,7 @@ def test_slice_access():
 
 
 def test_named_access():
-    r = parse.Result((), {"spam": "ham"}, None)
+    r = Result((), {"spam": "ham"}, None)
     assert r["spam"] == "ham"
     with pytest.raises(KeyError):
         r["ham"]
@@ -32,7 +32,7 @@ def test_named_access():
 
 
 def test_contains():
-    r = parse.Result(("cat",), {"spam": "ham"}, None)
+    r = Result(("cat",), {"spam": "ham"}, None)
     assert "spam" in r
     assert "cat" not in r
     assert "ham" not in r

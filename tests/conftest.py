@@ -9,6 +9,26 @@ _INDENT_BLOCK_SKIP_REASON = (
 )
 
 
+@pytest.fixture
+def native_extension_loaded() -> bool:
+    """True when the native `_formatparse` extension loads and basic compile works."""
+    try:
+        from formatparse import compile as compile_fn
+
+        compile_fn("{}")
+        return True
+    except Exception:
+        return False
+
+
+@pytest.fixture
+def compiled_simple():
+    """A small compiled parser for tests that only need a working Parser instance."""
+    from formatparse import compile as compile_fn
+
+    return compile_fn("{name}: {age:d}")
+
+
 def _native_indent_block_capable() -> bool:
     """True when the native extension implements :blk (issue #69).
 

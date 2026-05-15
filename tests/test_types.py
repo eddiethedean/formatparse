@@ -1,37 +1,28 @@
 """Comprehensive tests for type conversion"""
 
-from formatparse import parse, with_pattern
 import math
+
+import pytest
+from formatparse import parse, with_pattern
 
 
 # Integer (d) tests
-def test_integer_decimal():
-    """Test integer decimal format"""
-    result = parse("value: {value:d}", "value: 42")
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("42", 42),
+        ("0b1010", 10),
+        ("0o755", 493),
+        ("0xFF", 255),
+    ],
+    ids=["decimal", "binary", "octal", "hex"],
+)
+def test_integer_radix_formats(text, expected):
+    """Integer :d parsing for decimal and common radix prefixes."""
+    result = parse("value: {value:d}", f"value: {text}")
     assert result is not None
-    assert result.named["value"] == 42
+    assert result.named["value"] == expected
     assert isinstance(result.named["value"], int)
-
-
-def test_integer_binary():
-    """Test integer binary format (0b)"""
-    result = parse("value: {value:d}", "value: 0b1010")
-    assert result is not None
-    assert result.named["value"] == 10
-
-
-def test_integer_octal():
-    """Test integer octal format (0o)"""
-    result = parse("value: {value:d}", "value: 0o755")
-    assert result is not None
-    assert result.named["value"] == 493
-
-
-def test_integer_hex():
-    """Test integer hex format (0x)"""
-    result = parse("value: {value:d}", "value: 0xFF")
-    assert result is not None
-    assert result.named["value"] == 255
 
 
 def test_integer_negative():
@@ -84,26 +75,20 @@ def test_integer_with_whitespace():
 
 
 # Float (f) tests
-def test_float_basic():
-    """Test basic float format"""
-    result = parse("value: {value:f}", "value: 3.14")
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("3.14", 3.14),
+        ("-3.14", -3.14),
+        ("+3.14", 3.14),
+    ],
+    ids=["basic", "negative", "positive_sign"],
+)
+def test_float_sign_variants(text, expected):
+    result = parse("value: {value:f}", f"value: {text}")
     assert result is not None
-    assert abs(result.named["value"] - 3.14) < 0.001
+    assert abs(result.named["value"] - expected) < 0.001
     assert isinstance(result.named["value"], float)
-
-
-def test_float_negative():
-    """Test negative float"""
-    result = parse("value: {value:f}", "value: -3.14")
-    assert result is not None
-    assert abs(result.named["value"] - (-3.14)) < 0.001
-
-
-def test_float_positive_sign():
-    """Test float with explicit positive sign"""
-    result = parse("value: {value:f}", "value: +3.14")
-    assert result is not None
-    assert abs(result.named["value"] - 3.14) < 0.001
 
 
 def test_float_no_integer_part():
@@ -149,16 +134,13 @@ def test_float_precision():
 
 
 # Scientific notation (e/E) tests
-def test_scientific_notation_lowercase():
-    """Test scientific notation with lowercase e"""
-    result = parse("value: {value:e}", "value: 1.5e10")
-    assert result is not None
-    assert abs(result.named["value"] - 1.5e10) < 1e9
-
-
-def test_scientific_notation_uppercase():
-    """Test scientific notation with uppercase E"""
-    result = parse("value: {value:e}", "value: 1.5E10")
+@pytest.mark.parametrize(
+    "text",
+    ["1.5e10", "1.5E10"],
+    ids=["lowercase_e", "uppercase_E"],
+)
+def test_scientific_notation_e_letter_case(text):
+    result = parse("value: {value:e}", f"value: {text}")
     assert result is not None
     assert abs(result.named["value"] - 1.5e10) < 1e9
 

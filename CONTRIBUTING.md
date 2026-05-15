@@ -39,10 +39,21 @@ Run all Python tests (uses `.venv/bin/python` when that interpreter exists):
 make test
 ```
 
+Faster feedback (skips `slow`, `stress`, and `benchmark` markers):
+```bash
+make test-fast
+```
+
 Or manually:
 ```bash
 export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1   # omit on a clean venv with no conflicting plugins
 pytest tests/ -v
+```
+
+Quick local run without slow tiers:
+```bash
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+pytest tests/ -v -m "not slow and not stress and not benchmark"
 ```
 
 Run specific test files:
@@ -77,23 +88,36 @@ pytest tests/test_property.py -v
 
 ### Rust Tests
 
-Run Rust unit tests:
+Run Rust unit tests for the core crate only (fast; used on most CI matrix cells):
 ```bash
-cargo test --package formatparse-core
+cargo test -p formatparse-core
 ```
+
+Run the full Rust workspace (matches CI on **Ubuntu + Python 3.11**):
+```bash
+cargo test --workspace
+```
+
+Interpreter-linked PyO3 tests (opt-in feature; requires a working Python on `PATH` / `PYO3_PYTHON`). On macOS, linking can require the same interpreter PyO3 was configured against—use your venv’s `python`:
+```bash
+export PYO3_PYTHON="$(python -c 'import sys; print(sys.executable)')"
+cargo test -p formatparse-pyo3 --features python-tests
+```
+
+GitHub Actions runs this on **Ubuntu + Python 3.11** as a separate step with `continue-on-error: true` so a brittle linker layout does not block merges; failures still appear in the job log.
 
 Run tests for a specific module:
 ```bash
-cargo test --package formatparse-core --lib types::regex
+cargo test -p formatparse-core --lib types::regex
 ```
 
 ## Testing Guidelines
 
 ### Test Coverage Expectations
 
-- **Target coverage**: >90% (aim for 95%+)
+- **Enforced minimum**: `tool.coverage.report.fail_under` in `pyproject.toml` is checked on the **Ubuntu, Python 3.11** coverage job in CI (no `continue-on-error`). Raise it incrementally toward **90%+** as gaps close.
 - All new code must include tests
-- Critical paths should have 100% coverage
+- Critical paths should have high coverage
 - Check coverage before submitting PRs:
   ```bash
   export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
@@ -111,6 +135,7 @@ cargo test --package formatparse-core --lib types::regex
 ### Test Organization
 
 - Unit tests: `tests/test_*.py` (organized by module/feature)
+- Upstream-style parse splits: `tests/parse_compat/` (smaller modules collected with the rest of `tests/`)
 - Integration tests: `tests/test_integration*.py`
 - Property-based tests: `tests/test_property.py`
 - Performance tests: `tests/test_performance.py`
@@ -127,7 +152,8 @@ Use pytest markers to categorize tests:
 
 Run tests by marker:
 ```bash
-pytest -m "not slow"  # Skip slow tests
+pytest -m "not slow and not stress and not benchmark"   # recommended default for local iteration
+pytest -m "not slow"  # Skip slow tests only
 pytest -m benchmark   # Run only benchmarks
 ```
 
@@ -239,7 +265,7 @@ Mutation testing runs automatically in CI on the main branch (weekly).
 Before submitting a PR, ensure:
 
 - [ ] All tests pass (`make test` or `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/`)
-- [ ] Rust tests pass (`cargo test --package formatparse-core`)
+- [ ] Rust tests pass (`cargo test --workspace` on the Ubuntu + Python 3.11 model; other setups at minimum `cargo test -p formatparse-core`). Optionally run `cargo test -p formatparse-pyo3 --features python-tests` when your PyO3/Python layout supports it (see **Rust Tests**).
 - [ ] Code coverage is maintained or improved
 - [ ] Code is formatted (`ruff format .`, `cargo fmt`)
 - [ ] No linting errors (`ruff check .`, `cargo clippy`)
@@ -253,7 +279,8 @@ Before submitting a PR, ensure:
 The project uses GitHub Actions for CI/CD:
 
 - **Tests**: Run on all PRs across multiple Python versions and platforms
-- **Coverage**: Generated on Python 3.11, Ubuntu
+- **Coverage**: Generated on Python 3.11, Ubuntu; `fail_under` from `pyproject.toml` is enforced on that job
+- **Rust**: `cargo test --workspace` on Ubuntu + Python 3.11; other cells run `cargo test -p formatparse-core` only. Optional `python-tests` job on Ubuntu 3.11 (see CONTRIBUTING) is soft-fail in CI.
 - **Benchmarks**: Run on PRs and main branch
 - **Doctests**: Run on Python 3.11, Ubuntu
 - **Mutation Testing**: Runs weekly on main branch

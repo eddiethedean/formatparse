@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-import formatparse as parse
+from formatparse import Parser, parse, with_pattern
 
 
 def assert_match(parser, text, param_name, expected):
@@ -34,7 +34,7 @@ def test_pattern_should_be_used():
 
     extra_types = {parse_number.name: parse_number}
     format = "Value is {number:Number} and..."
-    parser = parse.Parser(format, extra_types)
+    parser = Parser(format, extra_types)
 
     assert_match(parser, "Value is 42 and...", "number", 42)
     assert_match(parser, "Value is 00123 and...", "number", 123)
@@ -59,7 +59,7 @@ def test_pattern_should_be_used2():
 
     extra_types = {parse_yesno.name: parse_yesno}
     format = "Answer: {answer:YesNo}"
-    parser = parse.Parser(format, extra_types)
+    parser = Parser(format, extra_types)
 
     # -- ENSURE: Known enum values are correctly extracted.
     for value_name, value in parse_yesno.mapping.items():
@@ -74,11 +74,11 @@ def test_pattern_should_be_used2():
 def test_with_pattern():
     ab_vals = {"a": 1, "b": 2}
 
-    @parse.with_pattern(r"[ab]")
+    @with_pattern(r"[ab]")
     def ab(text):
         return ab_vals[text]
 
-    parser = parse.Parser("test {result:ab}", {"ab": ab})
+    parser = Parser("test {result:ab}", {"ab": ab})
     assert_match(parser, "test a", "result", 1)
     assert_match(parser, "test b", "result", 2)
     assert_mismatch(parser, "test c", "result")
@@ -88,24 +88,24 @@ def test_with_pattern_and_regex_group_count():
     # -- SPECIAL-CASE: Regex-grouping is used in user-defined type
     # NOTE: Missing or wroung regex_group_counts cause problems
     #       with parsing following params.
-    @parse.with_pattern(r"(meter|kilometer)", regex_group_count=1)
+    @with_pattern(r"(meter|kilometer)", regex_group_count=1)
     def parse_unit(text):
         return text.strip()
 
-    @parse.with_pattern(r"\d+")
+    @with_pattern(r"\d+")
     def parse_number(text):
         return int(text)
 
     type_converters = {"Number": parse_number, "Unit": parse_unit}
     # -- CASE: Unnamed-params (affected)
-    parser = parse.Parser("test {:Unit}-{:Number}", type_converters)
+    parser = Parser("test {:Unit}-{:Number}", type_converters)
     assert_fixed_match(parser, "test meter-10", ("meter", 10))
     assert_fixed_match(parser, "test kilometer-20", ("kilometer", 20))
     assert_fixed_mismatch(parser, "test liter-30")
 
     # -- CASE: Named-params (uncritical; should not be affected)
     # REASON: Named-params have additional, own grouping.
-    parser2 = parse.Parser("test {unit:Unit}-{value:Number}", type_converters)
+    parser2 = Parser("test {unit:Unit}-{value:Number}", type_converters)
     assert_match(parser2, "test meter-10", "unit", "meter")
     assert_match(parser2, "test meter-10", "value", 10)
     assert_match(parser2, "test kilometer-20", "unit", "kilometer")
@@ -116,11 +116,11 @@ def test_with_pattern_and_regex_group_count():
 def test_with_pattern_and_wrong_regex_group_count_raises_error():
     # -- SPECIAL-CASE:
     # Regex-grouping is used in user-defined type, but wrong value is provided.
-    @parse.with_pattern(r"(meter|kilometer)", regex_group_count=1)
+    @with_pattern(r"(meter|kilometer)", regex_group_count=1)
     def parse_unit(text):
         return text.strip()
 
-    @parse.with_pattern(r"\d+")
+    @with_pattern(r"\d+")
     def parse_number(text):
         return int(text)
 
@@ -135,7 +135,7 @@ def test_with_pattern_and_wrong_regex_group_count_raises_error():
         type_converters = {"Number": parse_number, "Unit": parse_unit}
         # Error may be raised during parser creation or during parsing
         try:
-            parser = parse.Parser("test {:Unit}-{:Number}", type_converters)
+            parser = Parser("test {:Unit}-{:Number}", type_converters)
             # If parser creation succeeds, error should be raised during parsing
             with pytest.raises(error_class):
                 parser.parse("test meter-10")
@@ -148,128 +148,128 @@ def test_with_pattern_and_regex_group_count_is_none():
     # -- CORNER-CASE: Increase code-coverage.
     data_values = {"a": 1, "b": 2}
 
-    @parse.with_pattern(r"[ab]")
+    @with_pattern(r"[ab]")
     def parse_data(text):
         return data_values[text]
 
     parse_data.regex_group_count = None  # ENFORCE: None
 
     # -- CASE: Unnamed-params
-    parser = parse.Parser("test {:Data}", {"Data": parse_data})
+    parser = Parser("test {:Data}", {"Data": parse_data})
     assert_fixed_match(parser, "test a", (1,))
     assert_fixed_match(parser, "test b", (2,))
     assert_fixed_mismatch(parser, "test c")
 
     # -- CASE: Named-params
-    parser2 = parse.Parser("test {value:Data}", {"Data": parse_data})
+    parser2 = Parser("test {value:Data}", {"Data": parse_data})
     assert_match(parser2, "test a", "value", 1)
     assert_match(parser2, "test b", "value", 2)
     assert_mismatch(parser2, "test c", "value")
 
 
 def test_case_sensitivity():
-    r = parse.parse("SPAM {} SPAM", "spam spam spam")
+    r = parse("SPAM {} SPAM", "spam spam spam")
     assert r[0] == "spam"
-    assert parse.parse("SPAM {} SPAM", "spam spam spam", case_sensitive=True) is None
+    assert parse("SPAM {} SPAM", "spam spam spam", case_sensitive=True) is None
 
 
 def test_decimal_value():
     value = Decimal("5.5")
     str_ = "test {}".format(value)
-    parser = parse.Parser("test {:F}")
+    parser = Parser("test {:F}")
     assert parser.parse(str_)[0] == value
 
 
 def test_width_str():
-    res = parse.parse("{:.2}{:.2}", "look")
+    res = parse("{:.2}{:.2}", "look")
     assert res.fixed == ("lo", "ok")
-    res = parse.parse("{:2}{:2}", "look")
+    res = parse("{:2}{:2}", "look")
     assert res.fixed == ("lo", "ok")
-    res = parse.parse("{:4}{}", "look at that")
+    res = parse("{:4}{}", "look at that")
     assert res.fixed == ("look", " at that")
 
 
 def test_width_constraints():
-    res = parse.parse("{:4}", "looky")
+    res = parse("{:4}", "looky")
     assert res.fixed == ("looky",)
-    res = parse.parse("{:4.4}", "looky")
+    res = parse("{:4.4}", "looky")
     assert res is None
-    res = parse.parse("{:4.4}", "ook")
+    res = parse("{:4.4}", "ook")
     assert res is None
-    res = parse.parse("{:4}{:.4}", "look at that")
+    res = parse("{:4}{:.4}", "look at that")
     assert res.fixed == ("look at ", "that")
 
 
 def test_width_multi_int():
-    res = parse.parse("{:02d}{:02d}", "0440")
+    res = parse("{:02d}{:02d}", "0440")
     assert res.fixed == (4, 40)
-    res = parse.parse("{:03d}{:d}", "04404")
+    res = parse("{:03d}{:d}", "04404")
     assert res.fixed == (44, 4)
 
 
 def test_zero_padding_width_flexible():
     """Test that zero-padded width allows 1 to width digits (not just exactly width)"""
     # Should match 1 digit (unpadded)
-    res = parse.parse("{c:02d}", "9")
+    res = parse("{c:02d}", "9")
     assert res is not None
     assert res.named["c"] == 9
 
     # Should match 2 digits (padded)
-    res = parse.parse("{c:02d}", "09")
+    res = parse("{c:02d}", "09")
     assert res is not None
     assert res.named["c"] == 9
 
-    res = parse.parse("{c:02d}", "99")
+    res = parse("{c:02d}", "99")
     assert res is not None
     assert res.named["c"] == 99
 
     # Should NOT match 3+ digits (exceeds width)
-    res = parse.parse("{c:02d}", "100")
+    res = parse("{c:02d}", "100")
     assert res is None
 
-    res = parse.parse("{c:02d}", "009")
+    res = parse("{c:02d}", "009")
     assert res is None
 
     # Test with 5-digit width
-    res = parse.parse("{c:05d}", "42")
+    res = parse("{c:05d}", "42")
     assert res is not None
     assert res.named["c"] == 42
 
-    res = parse.parse("{c:05d}", "00042")
+    res = parse("{c:05d}", "00042")
     assert res is not None
     assert res.named["c"] == 42
 
-    res = parse.parse("{c:05d}", "99999")
+    res = parse("{c:05d}", "99999")
     assert res is not None
     assert res.named["c"] == 99999
 
     # Should NOT match 6+ digits
-    res = parse.parse("{c:05d}", "100000")
+    res = parse("{c:05d}", "100000")
     assert res is None
 
     # Test with sign
-    res = parse.parse("{c:02d}", "-9")
+    res = parse("{c:02d}", "-9")
     assert res is not None
     assert res.named["c"] == -9
 
-    res = parse.parse("{c:02d}", "-09")
+    res = parse("{c:02d}", "-09")
     assert res is not None
     assert res.named["c"] == -9
 
-    res = parse.parse("{c:02d}", "-100")
+    res = parse("{c:02d}", "-100")
     assert res is None
 
 
 def test_width_empty_input():
-    res = parse.parse("{:.2}", "")
+    res = parse("{:.2}", "")
     assert res is None
-    res = parse.parse("{:2}", "l")
+    res = parse("{:2}", "l")
     assert res is None
-    res = parse.parse("{:2d}", "")
+    res = parse("{:2d}", "")
     assert res is None
 
 
 def test_int_convert_stateless_base():
-    parser = parse.Parser("{:d}")
+    parser = Parser("{:d}")
     assert parser.parse("1234")[0] == 1234
     assert parser.parse("0b1011")[0] == 0b1011

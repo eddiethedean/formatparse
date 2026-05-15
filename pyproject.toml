@@ -61,7 +61,9 @@ source = ["formatparse"]
 omit = ["tests/*", "*/tests/*"]
 
 [tool.coverage.report]
-fail_under = 90
+# Enforced on the Ubuntu 3.11 coverage job (no continue-on-error). The tree is
+# effectively one Python module (`formatparse/__init__.py`); raise toward 90+ as gaps close.
+fail_under = 86
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",

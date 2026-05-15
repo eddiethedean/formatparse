@@ -1,10 +1,10 @@
+import formatparse
 import pytest
-
-import formatparse as parse
+from formatparse import Parser, parse
 
 
 def _test_expression(format, expression):
-    assert parse.Parser(format)._expression == expression
+    assert Parser(format)._expression == expression
 
 
 def test_braces():
@@ -44,12 +44,10 @@ def test_bird():
 def test_format_variety():
     # extract_format is not part of the public API
     # This test is skipped as formatparse doesn't expose this internal function
-    import pytest
-
     pytest.skip("extract_format is not part of the public API")
 
     def _(fmt, matches):
-        d = parse.extract_format(fmt, {"spam": "spam"})
+        d = formatparse.extract_format(fmt, {"spam": "spam"})
         for k in matches:
             assert d.get(k) == matches[k]
 
@@ -75,14 +73,14 @@ def test_format_variety():
 
 def test_dot_separated_fields():
     # this should just work and provide the named value
-    res = parse.parse("{hello.world}_{jojo.foo.baz}_{simple}", "a_b_c")
+    res = parse("{hello.world}_{jojo.foo.baz}_{simple}", "a_b_c")
     assert res.named["hello.world"] == "a"
     assert res.named["jojo.foo.baz"] == "b"
     assert res.named["simple"] == "c"
 
 
 def test_dict_style_fields():
-    res = parse.parse("{hello[world]}_{hello[foo][baz]}_{simple}", "a_b_c")
+    res = parse("{hello[world]}_{hello[foo][baz]}_{simple}", "a_b_c")
     assert res.named["hello"]["world"] == "a"
     assert res.named["hello"]["foo"]["baz"] == "b"
     assert res.named["simple"] == "c"
@@ -90,7 +88,7 @@ def test_dict_style_fields():
 
 def test_dot_separated_fields_name_collisions():
     # this should just work and provide the named value
-    res = parse.parse("{a_.b}_{a__b}_{a._b}_{a___b}", "a_b_c_d")
+    res = parse("{a_.b}_{a__b}_{a._b}_{a___b}", "a_b_c_d")
     assert res.named["a_.b"] == "a"
     assert res.named["a__b"] == "b"
     assert res.named["a._b"] == "c"
@@ -99,4 +97,4 @@ def test_dot_separated_fields_name_collisions():
 
 def test_invalid_groupnames_are_handled_gracefully():
     with pytest.raises(NotImplementedError):
-        parse.parse("{hello['world']}", "doesn't work")
+        parse("{hello['world']}", "doesn't work")
