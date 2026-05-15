@@ -3,6 +3,7 @@
 //! This module provides PyO3-specific type conversions.
 //! Core types (FieldType, FieldSpec) come from formatparse-core.
 
+pub mod builtin_convert;
 pub mod conversion;
 
 // Re-export core types for convenience
