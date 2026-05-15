@@ -171,3 +171,11 @@ def test_issue88_aligned_string_then_zero_padded_int():
     assert r.named["s"] == "0000bbbb  "
     assert r.named["n"] == "0000010000"
     assert r.named["x"] == 99
+
+
+def test_issue95_leading_space_trailing_lf_after_width_precision_string():
+    """Regression: literal newline after field must not be eaten by DOTALL `.` (issue #95)."""
+    r = parse(" {s:<4.4}\n", "     \n")
+    assert r is not None
+    assert r.span == (0, 6)
+    assert r.named["s"] == "    "

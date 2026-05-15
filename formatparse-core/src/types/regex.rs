@@ -97,6 +97,10 @@ impl FieldSpec {
         next_field_is_greedy: Option<bool>,
         allow_empty_delimited: bool,
     ) -> String {
+        // Width/precision string fragments are spliced into a regex built with `(?s)` (DOTALL).
+        // A bare `.` would match newlines, so a literal `\n` after the field can be consumed as
+        // "content" and the remainder no longer matches (GitHub issue #95).
+        const FMT_CHAR: &str = "[^\\r\\n]";
         let base_pattern = match &self.field_type {
             FieldType::String => {
                 // Handle alignment and width for strings
@@ -109,24 +113,27 @@ impl FieldSpec {
                         match align {
                             '<' => {
                                 // Left-aligned: content (precision chars) + optional trailing fill chars
-                                format!(".{{{}}}(?:{}*)", prec, fill_escaped)
+                                format!("{}{{{}}}(?:{}*)", FMT_CHAR, prec, fill_escaped)
                             }
                             '>' => {
                                 // Right-aligned: optional leading fill + exactly `prec` characters.
                                 // Leading fill must be non-greedy so we do not consume the entire slice
                                 // before `.{{prec}}` when another field follows (issue #88 / parse#218).
-                                format!("(?:{}*?).{{{}}}", fill_escaped, prec)
+                                format!("(?:{}*?){}{{{}}}", fill_escaped, FMT_CHAR, prec)
                             }
                             '^' => {
                                 // Center-aligned: optional leading fill + content + optional trailing fill.
                                 // Non-greedy leading fill for the same boundary reason as `>`.
-                                format!("(?:{}*?).{{{}}}(?:{}*)", fill_escaped, prec, fill_escaped)
+                                format!(
+                                    "(?:{}*?){}{{{}}}(?:{}*)",
+                                    fill_escaped, FMT_CHAR, prec, fill_escaped
+                                )
                             }
-                            _ => format!(".{{{}}}", prec),
+                            _ => format!("{}{{{}}}", FMT_CHAR, prec),
                         }
                     } else {
                         // Precision only, no alignment: match exactly 'precision' characters
-                        format!(".{{{}}}", prec)
+                        format!("{}{{{}}}", FMT_CHAR, prec)
                     }
                 } else if let Some(width) = self.width {
                     // Width only (no precision):
@@ -134,8 +141,8 @@ impl FieldSpec {
                     // - If there's a next field without precision (like {}), use exact width
                     // - If it's the last field, use greedy (at least width)
                     match next_field_is_greedy {
-                        Some(false) => format!(".{{{}}}", width), // Exact when followed by non-greedy field
-                        _ => format!(".{{{},}}", width), // Greedy when followed by greedy field or last field
+                        Some(false) => format!("{}{{{}}}", FMT_CHAR, width), // Exact when followed by non-greedy field
+                        _ => format!("{}{{{},}}", FMT_CHAR, width), // Greedy when followed by greedy field or last field
                     }
                 } else if self.alignment.is_some() {
                     // Alignment specified but no width - match with optional surrounding whitespace
@@ -611,7 +618,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.precision = Some(5);
         let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
-        assert_eq!(pattern, r".{5}");
+        assert_eq!(pattern, r"[^\r\n]{5}");
     }
 
     #[test]
@@ -619,7 +626,7 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.width = Some(10);
         let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
-        assert_eq!(pattern, r".{10,}");
+        assert_eq!(pattern, r"[^\r\n]{10,}");
     }
 
     #[test]
@@ -628,7 +635,7 @@ mod tests {
         spec.width = Some(10);
         // When next field is greedy, use greedy pattern
         let pattern = spec.to_regex_pattern(&HashMap::new(), Some(true), false);
-        assert_eq!(pattern, r".{10,}");
+        assert_eq!(pattern, r"[^\r\n]{10,}");
     }
 
     #[test]
@@ -637,7 +644,7 @@ mod tests {
         spec.width = Some(10);
         // When next field is non-greedy (like {}), use exact width
         let pattern = spec.to_regex_pattern(&HashMap::new(), Some(false), false);
-        assert_eq!(pattern, r".{10}");
+        assert_eq!(pattern, r"[^\r\n]{10}");
     }
 
     #[test]
@@ -671,7 +678,7 @@ mod tests {
         spec.alignment = Some('<');
         spec.fill = Some('x');
         let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
-        assert!(pattern.contains(".{5}"));
+        assert!(pattern.contains(r"[^\r\n]{5}"));
         assert!(pattern.contains("x*"));
     }
 
