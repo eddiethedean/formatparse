@@ -179,3 +179,19 @@ def test_issue95_leading_space_trailing_lf_after_width_precision_string():
     assert r is not None
     assert r.span == (0, 6)
     assert r.named["s"] == "    "
+
+
+def test_issue95_unicode_line_separators_after_width_precision_string():
+    """Width/precision runs must not treat Unicode line/paragraph separators as content (hardening)."""
+    ls = "\u2028"  # LINE SEPARATOR
+    ps = "\u2029"  # PARAGRAPH SEPARATOR
+    nel = "\u0085"  # NEXT LINE
+    r = parse(" {s:<4.4}" + ls, "     " + ls)
+    assert r is not None
+    assert r.named["s"] == "    "
+    r = parse(" {s:<4.4}" + ps, "     " + ps)
+    assert r is not None
+    assert r.named["s"] == "    "
+    r = parse(" {s:<4.4}" + nel, "     " + nel)
+    assert r is not None
+    assert r.named["s"] == "    "
