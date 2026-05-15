@@ -2,28 +2,24 @@
 //!
 //! formatparse-pyo3 provides Python bindings for the formatparse-core library.
 
-use lru::LruCache;
-use once_cell::sync::Lazy;
 use pyo3::exceptions::PyNotImplementedError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::IntoPyObjectExt;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::num::NonZeroUsize;
-use std::sync::{Arc, Mutex};
-
-// Use formatparse-core for pure Rust types (imported below via pub use)
 
 mod datetime;
 mod error;
 mod match_rs;
 mod parser;
+mod pattern_cache;
 mod pattern_normalize;
 mod result;
 mod results;
 mod types;
+
+pub(crate) use pattern_cache::extract_extra_types_identity;
+use pattern_cache::get_or_create_parser;
 
 pub use datetime::FixedTzOffset;
 pub use parser::{FindallIter, Format, FormatParser};
@@ -36,114 +32,6 @@ pub use formatparse_core::{FieldSpec, FieldType};
 pub use match_rs::Match;
 
 pub use error::PatternParseMismatch;
-
-/// Sorted `(type_name, with_pattern regex, regex_group_count tag)` for cache identity.
-/// Must stay aligned with [`create_cache_key_hash`].
-pub(crate) fn extract_extra_types_identity(
-    py: Python<'_>,
-    extra_types: &Option<HashMap<String, PyObject>>,
-) -> Vec<(String, String, i64)> {
-    let mut out = Vec::new();
-    if let Some(extra_types) = extra_types {
-        for (name, converter_obj) in extra_types {
-            let converter_ref = converter_obj.bind(py);
-            let pat = converter_ref
-                .getattr("pattern")
-                .ok()
-                .and_then(|a| a.extract::<String>().ok())
-                .unwrap_or_default();
-            const GC_MISSING: i64 = -1;
-            const GC_NONE: i64 = -2;
-            let gc_tag = match converter_ref.getattr("regex_group_count") {
-                Ok(v) => {
-                    if v.is_none() {
-                        GC_NONE
-                    } else if let Ok(n) = v.extract::<i64>() {
-                        n
-                    } else {
-                        GC_MISSING
-                    }
-                }
-                Err(_) => GC_MISSING,
-            };
-            out.push((name.clone(), pat, gc_tag));
-        }
-        out.sort_by(|a, b| a.0.cmp(&b.0));
-    }
-    out
-}
-
-// Pattern cache for compiled FormatParser instances
-// Cache size: 1000 patterns
-// Using u64 hash as key for faster lookups
-// Using Arc to avoid expensive clones
-static PATTERN_CACHE: Lazy<Mutex<LruCache<u64, Arc<FormatParser>>>> =
-    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(1000).unwrap())));
-
-fn lock_pattern_cache(
-) -> Result<std::sync::MutexGuard<'static, LruCache<u64, Arc<FormatParser>>>, PyErr> {
-    PATTERN_CACHE.lock().map_err(|_| {
-        pyo3::exceptions::PyRuntimeError::new_err("formatparse pattern cache mutex was poisoned")
-    })
-}
-
-/// Create a cache key hash from pattern and `extra_types`.
-///
-/// Must match what affects compilation in [`FormatParser::new_with_extra_types`]:
-/// each converter's `pattern` string and `regex_group_count` (via
-/// `validate_custom_type_pattern`). Keys alone are insufficient (same key, different
-/// `with_pattern` / group count would incorrectly share a cached parser).
-///
-/// Callers must verify cache hits (see `FormatParser::matches_pattern_cache_request`)
-/// because hash keys can theoretically collide.
-fn create_cache_key_hash(
-    py: Python<'_>,
-    pattern: &str,
-    extra_types: &Option<HashMap<String, PyObject>>,
-) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    pattern.hash(&mut hasher);
-    for (name, pat, gc_tag) in extract_extra_types_identity(py, extra_types) {
-        name.hash(&mut hasher);
-        pat.hash(&mut hasher);
-        gc_tag.hash(&mut hasher);
-    }
-    hasher.finish()
-}
-
-/// Get or create a FormatParser from cache
-fn get_or_create_parser(
-    pattern: &str,
-    extra_types: Option<HashMap<String, PyObject>>,
-) -> PyResult<Arc<FormatParser>> {
-    let normalized = pattern_normalize::prepare_compiled_pattern(pattern)?;
-    Python::with_gil(|py| -> PyResult<Arc<FormatParser>> {
-        let cache_key = create_cache_key_hash(py, &normalized, &extra_types);
-
-        let cached = {
-            let mut cache = lock_pattern_cache()?;
-            cache.get(&cache_key).cloned()
-        };
-
-        if let Some(cached_parser) = cached {
-            if cached_parser.matches_pattern_cache_request(py, &normalized, &extra_types) {
-                return Ok(cached_parser);
-            }
-        }
-
-        let parser = Arc::new(FormatParser::new_with_extra_types(
-            &normalized,
-            extra_types,
-        )?);
-
-        {
-            let mut cache = lock_pattern_cache()?;
-            cache.put(cache_key, parser.clone());
-        }
-
-        Ok(parser)
-    })
-}
 
 /// Parse a string using a format specification
 #[pyfunction]
