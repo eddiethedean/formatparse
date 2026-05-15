@@ -87,6 +87,27 @@ fn wrap_field_lookbehind(spec: &FieldSpec, core: String) -> String {
     )
 }
 
+/// Character class for **one unit** of width/precision content in normal string fields (`s` / `{}`).
+///
+/// These fragments are embedded in parse regexes compiled with `(?s)` (DOTALL), so a bare `.`
+/// would match newlines and could swallow a literal line break after the field (issue #95).
+///
+/// We exclude CR/LF plus other line/paragraph boundaries that `str.splitlines()` treats as line
+/// ends in common Unicode text: VT, FF, NEL (U+0085), LINE SEPARATOR (U+2028), PARAGRAPH
+/// SEPARATOR (U+2029). Multiline (`:ml`) / indented block (`:blk`) fields still use `[\s\S]`
+/// where newlines are intentional.
+const STRING_WIDTH_PRECISION_CHAR: &str = concat!(
+    "[^",
+    "\r",
+    "\n",
+    "\u{000B}", // VT
+    "\u{000C}", // FF
+    "\u{0085}", // NEL (Next Line)
+    "\u{2028}", // LINE SEPARATOR
+    "\u{2029}", // PARAGRAPH SEPARATOR
+    "]"
+);
+
 impl FieldSpec {
     /// `allow_empty_delimited`: for default unconstrained string fields only (no width,
     /// precision, alignment), use `.*?` instead of `.+?` so an empty capture is allowed when
@@ -97,10 +118,7 @@ impl FieldSpec {
         next_field_is_greedy: Option<bool>,
         allow_empty_delimited: bool,
     ) -> String {
-        // Width/precision string fragments are spliced into a regex built with `(?s)` (DOTALL).
-        // A bare `.` would match newlines, so a literal `\n` after the field can be consumed as
-        // "content" and the remainder no longer matches (GitHub issue #95).
-        const FMT_CHAR: &str = "[^\\r\\n]";
+        let fmt_char = STRING_WIDTH_PRECISION_CHAR;
         let base_pattern = match &self.field_type {
             FieldType::String => {
                 // Handle alignment and width for strings
@@ -113,27 +131,27 @@ impl FieldSpec {
                         match align {
                             '<' => {
                                 // Left-aligned: content (precision chars) + optional trailing fill chars
-                                format!("{}{{{}}}(?:{}*)", FMT_CHAR, prec, fill_escaped)
+                                format!("{}{{{}}}(?:{}*)", fmt_char, prec, fill_escaped)
                             }
                             '>' => {
                                 // Right-aligned: optional leading fill + exactly `prec` characters.
                                 // Leading fill must be non-greedy so we do not consume the entire slice
                                 // before `.{{prec}}` when another field follows (issue #88 / parse#218).
-                                format!("(?:{}*?){}{{{}}}", fill_escaped, FMT_CHAR, prec)
+                                format!("(?:{}*?){}{{{}}}", fill_escaped, fmt_char, prec)
                             }
                             '^' => {
                                 // Center-aligned: optional leading fill + content + optional trailing fill.
                                 // Non-greedy leading fill for the same boundary reason as `>`.
                                 format!(
                                     "(?:{}*?){}{{{}}}(?:{}*)",
-                                    fill_escaped, FMT_CHAR, prec, fill_escaped
+                                    fill_escaped, fmt_char, prec, fill_escaped
                                 )
                             }
-                            _ => format!("{}{{{}}}", FMT_CHAR, prec),
+                            _ => format!("{}{{{}}}", fmt_char, prec),
                         }
                     } else {
                         // Precision only, no alignment: match exactly 'precision' characters
-                        format!("{}{{{}}}", FMT_CHAR, prec)
+                        format!("{}{{{}}}", fmt_char, prec)
                     }
                 } else if let Some(width) = self.width {
                     // Width only (no precision):
@@ -141,8 +159,8 @@ impl FieldSpec {
                     // - If there's a next field without precision (like {}), use exact width
                     // - If it's the last field, use greedy (at least width)
                     match next_field_is_greedy {
-                        Some(false) => format!("{}{{{}}}", FMT_CHAR, width), // Exact when followed by non-greedy field
-                        _ => format!("{}{{{},}}", FMT_CHAR, width), // Greedy when followed by greedy field or last field
+                        Some(false) => format!("{}{{{}}}", fmt_char, width), // Exact when followed by non-greedy field
+                        _ => format!("{}{{{},}}", fmt_char, width), // Greedy when followed by greedy field or last field
                     }
                 } else if self.alignment.is_some() {
                     // Alignment specified but no width - match with optional surrounding whitespace
@@ -618,7 +636,9 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.precision = Some(5);
         let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
-        assert_eq!(pattern, r"[^\r\n]{5}");
+        let mut expected = super::STRING_WIDTH_PRECISION_CHAR.to_string();
+        expected.push_str("{5}");
+        assert_eq!(pattern, expected);
     }
 
     #[test]
@@ -626,7 +646,9 @@ mod tests {
         let mut spec = FieldSpec::new();
         spec.width = Some(10);
         let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
-        assert_eq!(pattern, r"[^\r\n]{10,}");
+        let mut expected = super::STRING_WIDTH_PRECISION_CHAR.to_string();
+        expected.push_str("{10,}");
+        assert_eq!(pattern, expected);
     }
 
     #[test]
@@ -635,7 +657,9 @@ mod tests {
         spec.width = Some(10);
         // When next field is greedy, use greedy pattern
         let pattern = spec.to_regex_pattern(&HashMap::new(), Some(true), false);
-        assert_eq!(pattern, r"[^\r\n]{10,}");
+        let mut expected = super::STRING_WIDTH_PRECISION_CHAR.to_string();
+        expected.push_str("{10,}");
+        assert_eq!(pattern, expected);
     }
 
     #[test]
@@ -644,7 +668,23 @@ mod tests {
         spec.width = Some(10);
         // When next field is non-greedy (like {}), use exact width
         let pattern = spec.to_regex_pattern(&HashMap::new(), Some(false), false);
-        assert_eq!(pattern, r"[^\r\n]{10}");
+        let mut expected = super::STRING_WIDTH_PRECISION_CHAR.to_string();
+        expected.push_str("{10}");
+        assert_eq!(pattern, expected);
+    }
+
+    #[test]
+    fn test_string_precision_under_dotall_rejects_line_separator_in_run() {
+        use regex::Regex;
+        let mut spec = FieldSpec::new();
+        spec.precision = Some(4);
+        let p = spec.to_regex_pattern(&HashMap::new(), None, false);
+        let re = Regex::new(&format!(r"(?s)^{}$", p)).unwrap();
+        assert!(re.is_match("abcd"));
+        assert!(!re.is_match("abc\u{2028}"));
+        assert!(!re.is_match("abc\u{2029}"));
+        assert!(!re.is_match("abc\u{0085}"));
+        assert!(!re.is_match("ab\u{000B}c"));
     }
 
     #[test]
@@ -678,7 +718,9 @@ mod tests {
         spec.alignment = Some('<');
         spec.fill = Some('x');
         let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
-        assert!(pattern.contains(r"[^\r\n]{5}"));
+        let mut expected = super::STRING_WIDTH_PRECISION_CHAR.to_string();
+        expected.push_str("{5}");
+        assert!(pattern.contains(&expected));
         assert!(pattern.contains("x*"));
     }
 
