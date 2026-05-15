@@ -30,7 +30,7 @@ cargo test --package formatparse-core
 
 ## Usage
 
-The primary consumer is the [`formatparse-pyo3`](../formatparse-pyo3) crate (Python extension). You can also use `formatparse-core` directly:
+The primary consumer is the [`formatparse-pyo3`](https://crates.io/crates/formatparse-pyo3) crate (Python extension). You can also use `formatparse-core` directly:
 
 ```rust
 use formatparse_core::{FieldSpec, FieldType};

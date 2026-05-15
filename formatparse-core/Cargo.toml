@@ -3,10 +3,19 @@ name = "formatparse-core"
 version.workspace = true
 authors.workspace = true
 license.workspace = true
+license-file = "../LICENSE"
 repository.workspace = true
 readme = "README.md"
+exclude = ["src/types/regex/tests.rs"]
 edition.workspace = true
 description = "Core Rust library for parsing strings using Python format() syntax (no Python bindings)"
+documentation = "https://docs.rs/formatparse-core"
+keywords = ["parse", "format", "string", "regex", "datetime"]
+categories = ["parser-implementations", "text-processing"]
+rust-version = "1.74"
+
+[package.metadata.docs.rs]
+all-features = false
 
 [dependencies]
 regex = "1.12.3"

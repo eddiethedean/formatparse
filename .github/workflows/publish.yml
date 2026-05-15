@@ -1,4 +1,4 @@
-name: Publish to PyPI
+name: Release (PyPI and crates.io)
 
 on:
   release:
@@ -288,9 +288,40 @@ jobs:
           python -m pip install --upgrade pip pip-audit
           pip-audit --desc
 
+  publish-crates:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: [security-check]
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: false
+
+      - name: Validate crates.io token
+        run: |
+          if [ -z "${CARGO_REGISTRY_TOKEN}" ]; then
+            echo "::error::CARGO_REGISTRY_TOKEN secret is not set (crates.io API token)."
+            exit 1
+          fi
+
+      - name: Publish formatparse-core
+        run: cargo publish -p formatparse-core --locked
+
+      - name: Publish formatparse-pyo3
+        run: cargo publish -p formatparse-pyo3 --locked
+
   publish:
     name: Publish to PyPI
-    needs: [build-wheels, build-sdist, security-check]
+    needs: [build-wheels, build-sdist, security-check, publish-crates]
     runs-on: ubuntu-latest
     permissions:
       contents: read

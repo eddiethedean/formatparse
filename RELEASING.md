@@ -35,11 +35,12 @@ This will:
 3. Create and push a git tag `vX.Y.Z`.
 4. Push `main` to `origin`.
 
-The [Publish to PyPI](.github/workflows/publish.yml) workflow runs on tag push and will:
+The [Release (PyPI and crates.io)](.github/workflows/publish.yml) workflow runs on tag push and will:
 
+- Run security checks, then publish **`formatparse-core`** and **`formatparse-pyo3`** to [crates.io](https://crates.io/) using the repository secret **`CARGO_REGISTRY_TOKEN`** (crates.io API token with `publish-new` / `publish-update` scopes). `formatparse-core` is published first so the path dependency in `formatparse-pyo3` resolves on the registry.
 - Build wheels for Linux (manylinux), macOS, and Windows (including Intel and Windows 11 ARM where applicable).
 - Build Python **3.8 through 3.14** wheels per the publish matrix (where `setup-python` / manylinux provide those interpreters).
-- Build an sdist, run security checks, and publish to PyPI (trusted publishing).
+- Build an sdist, then publish to PyPI (trusted publishing).
 
 **Wheel metadata:** `[tool.maturin] compatibility = "linux"` in `pyproject.toml` sets the manylinux / auditwheel policy for **Linux** wheels built during publish. It does not restrict wheels for other platforms or local `maturin develop`.
 
@@ -60,7 +61,7 @@ The publish workflow runs on the tag push.
 
 ## Manual release
 
-1. **Bump `[workspace.package] version` in the root `Cargo.toml`.**
+1. **Bump `[workspace.package] version` in the root `Cargo.toml`** and the matching **`[workspace.dependencies] formatparse-core` version** (required for `cargo publish` of `formatparse-pyo3`).
 2. **Update `CHANGELOG.md`** for the new version.
 3. **Commit:** `git add Cargo.toml CHANGELOG.md && git commit -m "Bump version to X.Y.Z"`
 4. **Tag and push:**
@@ -81,7 +82,8 @@ Follow [Semantic Versioning](https://semver.org/):
 
 ## Troubleshooting
 
-- **Version already exists on PyPI:** bump the workspace version and re-tag (never reuse a published version).
+- **Version already exists on PyPI or crates.io:** bump the workspace version and re-tag (never reuse a published version).
+- **crates.io publish fails on `formatparse-pyo3`:** ensure `formatparse-core` for that version published successfully first; confirm `CARGO_REGISTRY_TOKEN` has the required scopes and the crate names are not owned by another account.
 - **Workflow fails:** inspect the Actions tab; common issues are missing Python on a new runner image or transient PyPI/network errors.
 - **Tag already exists locally:** `git tag -d vX.Y.Z` then recreate, or choose a new patch version.
 - **Tag already on remote:** coordinate with maintainers before force-deleting remote tags.

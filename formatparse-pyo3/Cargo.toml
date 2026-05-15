@@ -3,10 +3,18 @@ name = "formatparse-pyo3"
 version.workspace = true
 authors.workspace = true
 license.workspace = true
+license-file = "LICENSE"
 repository.workspace = true
-readme.workspace = true
+readme = "README.md"
 edition.workspace = true
-description = "PyO3 bindings for formatparse"
+description = "PyO3 bindings for formatparse (native _formatparse extension; use PyPI for Python installs)"
+documentation = "https://docs.rs/formatparse-pyo3"
+keywords = ["pyo3", "python", "parse", "format", "formatparse"]
+categories = ["api-bindings", "parser-implementations"]
+rust-version = "1.74"
+
+[package.metadata.docs.rs]
+all-features = false
 
 [lib]
 name = "_formatparse"
@@ -20,7 +28,7 @@ extension-module = ["pyo3/extension-module"]
 python-tests = []
 
 [dependencies]
-formatparse-core = { path = "../formatparse-core" }
+formatparse-core.workspace = true
 pyo3 = { version = "0.24", default-features = false, features = ["macros"] }
 regex = "1.12.3"
 fancy-regex = "0.14"
