@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
 - ``composed_type`` extensions: pattern ``+``, inheritance, and **flattening** nested parse results into the parent (see `#7 <https://github.com/eddiethedean/formatparse/issues/7>`_).
 
+## [0.8.1] - 2026-05-15
+
+### Changed
+
+- **Python package layout**: split the monolithic ``formatparse`` module into focused submodules (``api``, ``validation``, ``bidirectional``, etc.) with unchanged ``from formatparse import …`` surface.
+- **Rust internals**: phased SOLID refactor—``CompiledFields`` on ``FormatParser``, split ``types/regex`` and ``parser/matching`` modules, pattern compilation in ``formatparse-core``, unified builtin conversion via ``builtin_convert``, and ``format_parser`` / ``findall_iter`` module splits. No intended public API or match-semantics changes.
+
+### Maintenance
+
+- **Quality**: ``ruff``, ``mypy`` (check target 3.9+), ``cargo clippy -D warnings``, and ``rustfmt`` clean across the workspace.
+
 ## [0.8.0] - 2026-05-15
 
 ### Added
@@ -98,5 +109,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: load `pytest-cov` when `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`; bump `cargo-audit` in the main CI Ubuntu step for advisory DB compatibility.
 - Dependency updates (e.g. `lru` for RustSec advisories), formatting, and Clippy cleanups.
 
+[0.8.1]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.1
 [0.8.0]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.0
 [0.7.0]: https://github.com/eddiethedean/formatparse/releases/tag/v0.7.0
