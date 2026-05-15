@@ -21,12 +21,9 @@ pub fn split_type_base_and_lookaround_tail(type_str: &str) -> (&str, &str) {
 }
 
 fn find_first_lookaround_start(s: &str) -> Option<usize> {
-    for (i, _) in s.char_indices() {
-        if starts_with_lookaround(s, i) {
-            return Some(i);
-        }
-    }
-    None
+    s.char_indices()
+        .map(|(i, _)| i)
+        .find(|&i| starts_with_lookaround(s, i))
 }
 
 fn starts_with_lookaround(s: &str, i: usize) -> bool {
