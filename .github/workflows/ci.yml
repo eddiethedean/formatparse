@@ -163,6 +163,11 @@ jobs:
         with:
           cache-bin: false
 
+      # Pure Rust: no Python venv required. Fails fast on core compile errors before pip/maturin.
+      - name: Compile formatparse-core (all targets, no tests executed)
+        shell: bash
+        run: cargo build -p formatparse-core --all-targets
+
       - name: Create virtual environment
         shell: bash
         run: |
@@ -176,7 +181,7 @@ jobs:
             pip install "maturin>=1.13.3,<2.0" pytest
           fi
 
-      - name: Build extension module
+      - name: Compile and install native extension (maturin develop, release)
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
@@ -185,6 +190,23 @@ jobs:
             source .venv/bin/activate
             cd formatparse-pyo3 && maturin develop --release --features extension-module
           fi
+
+      # Ubuntu CPython 3.11: finish Rust compiles before pytest so the job groups compile vs test phases.
+      - name: Compile Rust workspace (all crates, all targets, debug)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          export PYO3_PYTHON="$(command -v python)"
+          cargo build --workspace --all-targets
+
+      - name: Compile formatparse-pyo3 python-tests (no execution)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          export PYO3_PYTHON="$(command -v python)"
+          cargo test -p formatparse-pyo3 --features python-tests --no-run
 
       - name: Install test dependencies
         shell: bash
@@ -196,7 +218,29 @@ jobs:
             pip install hypothesis pytest-cov pytest-benchmark pytest-xdist pympler memory_profiler
           fi
 
-      - name: Run pytest suite
+      # Rust test execution (after all Rust compiles above; before Python pytest).
+      - name: Run cargo tests (formatparse-core only)
+        if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.11'
+        shell: bash
+        run: cargo test -p formatparse-core
+
+      - name: Run cargo tests (full workspace)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          export PYO3_PYTHON="$(command -v python)"
+          cargo test --workspace
+
+      - name: Run formatparse-pyo3 python-tests (execute only)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          export PYO3_PYTHON="$(command -v python)"
+          cargo test -p formatparse-pyo3 --features python-tests
+
+      - name: Execute pytest suite
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
@@ -206,7 +250,7 @@ jobs:
             python -m pytest tests/ -v
           fi
 
-      - name: Run security tests
+      - name: Execute pytest (security)
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
@@ -216,7 +260,7 @@ jobs:
             python -m pytest tests/test_security.py -v
           fi
 
-      - name: Run coverage (Python 3.11 only)
+      - name: Execute pytest with coverage (Python 3.11, Ubuntu only)
         if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
@@ -232,24 +276,6 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
           verbose: true
-
-      - name: Run cargo tests
-        shell: bash
-        run: |
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ] && [ "${{ matrix.python-version }}" = "3.11" ]; then
-            source .venv/bin/activate
-            cargo test --workspace
-          else
-            cargo test -p formatparse-core
-          fi
-
-      - name: Run formatparse-pyo3 python-tests (Ubuntu 3.11)
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
-        shell: bash
-        run: |
-          source .venv/bin/activate
-          export PYO3_PYTHON="$(command -v python)"
-          cargo test -p formatparse-pyo3 --features python-tests
 
   docs:
     name: Documentation (Sphinx)

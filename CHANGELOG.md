@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 
+- **CI:** Matrix job splits **Rust compile** steps (`cargo build …`, ``cargo test -p formatparse-pyo3 --features python-tests --no-run``) from **Rust test execution** and **pytest** so the Actions log shows which phase failed.
 - **CI:** Ubuntu **PyPy 3.11** job; **``python-tests``** for ``formatparse-pyo3`` is a blocking step on Ubuntu CPython 3.11 (no ``continue-on-error``).
 - **Rust:** clearer ``expect`` messages for UTF-8 invariants in line-continuation helpers and ``ResultsIterator``.
 

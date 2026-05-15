@@ -28,8 +28,10 @@ Pytest collects `tests/test_*.py`. Use the same environment as CI: build the nat
 
 ## CI vs local Rust
 
-GitHub Actions runs `cargo test --workspace` on the **Ubuntu + Python 3.11** job so **both** `formatparse-core` and `formatparse-pyo3` unit tests run; other matrix jobs run `cargo test -p formatparse-core` only. An additional **`python-tests`** step runs on that same Ubuntu job and **fails the job** if it fails (see below). **PyPy 3.11** on Ubuntu runs the Python pytest suite against a `maturin develop` build like other matrix cells.
+GitHub Actions separates **compile** steps from **test** steps: `cargo build -p formatparse-core --all-targets` runs before the Python venv (fails fast on core compile errors). On **Ubuntu + CPython 3.11**, after `maturin develop` it runs `cargo build --workspace --all-targets` and `cargo test -p formatparse-pyo3 --features python-tests --no-run`, then installs pytest dependencies, then **runs** `cargo test` (full workspace plus `python-tests` execution), then **pytest**. Other matrix cells run `cargo test -p formatparse-core` only after the shared core compile step.
+
+**PyPy 3.11** on Ubuntu runs the same pytest path with a `maturin develop` build; it does not run the full-workspace `cargo test` job (see **PyO3 `python-tests`** below).
 
 ## PyO3 `python-tests`
 
-Opt-in Rust tests that embed a Python interpreter (`RawValue::to_py_object`, etc.): `cargo test -p formatparse-pyo3 --features python-tests` with `PYO3_PYTHON` set to your venv interpreter. CI runs this on Ubuntu + Python 3.11 as a **blocking** step (same environment as `maturin develop` in that job).
+Opt-in Rust tests that embed a Python interpreter (`RawValue::to_py_object`, etc.): `cargo test -p formatparse-pyo3 --features python-tests` with `PYO3_PYTHON` set to your venv interpreter. On **Ubuntu + CPython 3.11**, CI first compiles those targets with `cargo test … --no-run`, then runs the same `cargo test` without `--no-run` (same environment as `maturin develop` in that job).
