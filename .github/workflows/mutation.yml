@@ -37,13 +37,15 @@ jobs:
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: false
 
       - name: Create virtual environment
         run: |
           python -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          pip install maturin pytest
+          pip install "maturin>=1.13.3,<2.0" pytest
 
       - name: Build extension module
         run: |

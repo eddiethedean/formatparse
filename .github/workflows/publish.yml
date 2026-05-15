@@ -10,7 +10,7 @@ on:
 
 env:
   MATURIN_PROFILE: release
-  MATURIN_PIP_SPEC: "maturin>=1.12.6,<2.0"
+  MATURIN_PIP_SPEC: "maturin>=1.13.3,<2.0"
 
 permissions:
   contents: read
@@ -176,6 +176,8 @@ jobs:
       - name: Rust cache (macOS/Windows)
         if: matrix.os != 'ubuntu-latest'
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: false
 
       - name: Install build tooling (macOS/Windows)
         if: matrix.os != 'ubuntu-latest'
@@ -214,6 +216,8 @@ jobs:
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: false
 
       - name: Install build tooling
         run: |
@@ -245,6 +249,9 @@ jobs:
   security-check:
     name: Security Checks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -254,6 +261,8 @@ jobs:
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: false
 
       - name: Set up Python
         uses: actions/setup-python@v6
