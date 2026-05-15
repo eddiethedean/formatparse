@@ -62,8 +62,12 @@ pub fn validate_alignment_precision(spec: &FieldSpec, value: &str) -> bool {
                 if has_leading_fill && has_trailing_fill {
                     return false;
                 }
-                // Reject if fill char on right (should only be on left)
-                if has_trailing_fill {
+                // Reject if fill char on right (should only be on left), except for a fixed-width
+                // cell where width == precision == len: LTR parsing cannot separate trailing fill
+                // from content the way str.format output would (parse parity; GitHub issue #97).
+                if has_trailing_fill
+                    && !(spec.width == Some(prec) && value.len() == prec)
+                {
                     return false;
                 }
                 // Reject if content exceeds precision

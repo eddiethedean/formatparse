@@ -75,6 +75,28 @@ def test_left_aligned_precision_preserves_trailing_spaces_issue_39():
     assert len(result.named["s"]) == 15
 
 
+def test_issue97_trailing_literal_after_fixed_width_field():
+    """Regression: literal after `{s:<w.w}` must not be absorbed into the capture (#97)."""
+    result = parse("{s:<5.5} ", "abc   ")
+    assert result is not None
+    assert result.named["s"] == "abc  "
+
+    result = parse("{s:>5.5} ", "abc   ")
+    assert result is not None
+    assert result.named["s"] == "abc  "
+
+
+def test_issue97_leading_literal_before_fixed_width_field():
+    """Regression: leading literal + aligned fixed-width field + trailing literal (#97)."""
+    result = parse(" {s:>5.5} ", " abc   ")
+    assert result is not None
+    assert result.named["s"] == "abc  "
+
+    result = parse("a{s:>5.5} ", "aabc   ")
+    assert result is not None
+    assert result.named["s"] == "abc  "
+
+
 def test_center_aligned_precision():
     """Test center-aligned precision validation"""
     # Valid: no padding, exactly precision chars (total = width = precision)

@@ -128,24 +128,40 @@ impl FieldSpec {
                     if let Some(align) = self.alignment {
                         let fill_ch = self.fill.unwrap_or(' ');
                         let fill_escaped = regex::escape(&fill_ch.to_string());
+                        // When width == precision, the formatted field is exactly `prec` characters
+                        // wide; optional fill segments would let the capture extend past that width
+                        // and consume text meant for a following literal (GitHub issue #97).
+                        let width_equals_precision = self.width == Some(prec);
                         match align {
                             '<' => {
-                                // Left-aligned: content (precision chars) + optional trailing fill chars
-                                format!("{}{{{}}}(?:{}*)", fmt_char, prec, fill_escaped)
+                                if width_equals_precision {
+                                    format!("{}{{{}}}", fmt_char, prec)
+                                } else {
+                                    // Left-aligned: content (precision chars) + optional trailing fill
+                                    format!("{}{{{}}}(?:{}*)", fmt_char, prec, fill_escaped)
+                                }
                             }
                             '>' => {
-                                // Right-aligned: optional leading fill + exactly `prec` characters.
-                                // Leading fill must be non-greedy so we do not consume the entire slice
-                                // before `.{{prec}}` when another field follows (issue #88 / parse#218).
-                                format!("(?:{}*?){}{{{}}}", fill_escaped, fmt_char, prec)
+                                if width_equals_precision {
+                                    format!("{}{{{}}}", fmt_char, prec)
+                                } else {
+                                    // Right-aligned: optional leading fill + exactly `prec` characters.
+                                    // Leading fill must be non-greedy so we do not consume the entire slice
+                                    // before `.{{prec}}` when another field follows (issue #88 / parse#218).
+                                    format!("(?:{}*?){}{{{}}}", fill_escaped, fmt_char, prec)
+                                }
                             }
                             '^' => {
-                                // Center-aligned: optional leading fill + content + optional trailing fill.
-                                // Non-greedy leading fill for the same boundary reason as `>`.
-                                format!(
-                                    "(?:{}*?){}{{{}}}(?:{}*)",
-                                    fill_escaped, fmt_char, prec, fill_escaped
-                                )
+                                if width_equals_precision {
+                                    format!("{}{{{}}}", fmt_char, prec)
+                                } else {
+                                    // Center-aligned: optional leading fill + content + optional trailing fill.
+                                    // Non-greedy leading fill for the same boundary reason as `>`.
+                                    format!(
+                                        "(?:{}*?){}{{{}}}(?:{}*)",
+                                        fill_escaped, fmt_char, prec, fill_escaped
+                                    )
+                                }
                             }
                             _ => format!("{}{{{}}}", fmt_char, prec),
                         }
@@ -195,13 +211,32 @@ impl FieldSpec {
                     if let Some(align) = self.alignment {
                         let fill_ch = self.fill.unwrap_or(' ');
                         let fill_escaped = regex::escape(&fill_ch.to_string());
+                        let width_equals_precision = self.width == Some(prec);
                         match align {
-                            '<' => format!("{}{{{}}}(?:{}*)", ML, prec, fill_escaped),
-                            '>' => format!("(?:{}*?){}{{{}}}", fill_escaped, ML, prec),
-                            '^' => format!(
-                                "(?:{}*?){}{{{}}}(?:{}*)",
-                                fill_escaped, ML, prec, fill_escaped
-                            ),
+                            '<' => {
+                                if width_equals_precision {
+                                    format!("{}{{{}}}", ML, prec)
+                                } else {
+                                    format!("{}{{{}}}(?:{}*)", ML, prec, fill_escaped)
+                                }
+                            }
+                            '>' => {
+                                if width_equals_precision {
+                                    format!("{}{{{}}}", ML, prec)
+                                } else {
+                                    format!("(?:{}*?){}{{{}}}", fill_escaped, ML, prec)
+                                }
+                            }
+                            '^' => {
+                                if width_equals_precision {
+                                    format!("{}{{{}}}", ML, prec)
+                                } else {
+                                    format!(
+                                        "(?:{}*?){}{{{}}}(?:{}*)",
+                                        fill_escaped, ML, prec, fill_escaped
+                                    )
+                                }
+                            }
                             _ => format!("{}{{{}}}", ML, prec),
                         }
                     } else {
@@ -722,6 +757,38 @@ mod tests {
         expected.push_str("{5}");
         assert!(pattern.contains(&expected));
         assert!(pattern.contains("x*"));
+    }
+
+    #[test]
+    fn test_field_spec_string_width_eq_precision_omits_optional_fill() {
+        // Issue #97: width == precision is an exact-width cell; optional fill after `{prec}`
+        // would greedily consume characters that belong to a following literal.
+        let mut spec = FieldSpec::new();
+        spec.precision = Some(5);
+        spec.width = Some(5);
+        spec.alignment = Some('<');
+        let mut expected = super::STRING_WIDTH_PRECISION_CHAR.to_string();
+        expected.push_str("{5}");
+        let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
+        assert_eq!(pattern, expected);
+
+        let mut spec_r = FieldSpec::new();
+        spec_r.precision = Some(5);
+        spec_r.width = Some(5);
+        spec_r.alignment = Some('>');
+        assert_eq!(
+            spec_r.to_regex_pattern(&HashMap::new(), None, false),
+            expected
+        );
+
+        let mut spec_c = FieldSpec::new();
+        spec_c.precision = Some(5);
+        spec_c.width = Some(5);
+        spec_c.alignment = Some('^');
+        assert_eq!(
+            spec_c.to_regex_pattern(&HashMap::new(), None, false),
+            expected
+        );
     }
 
     #[test]
