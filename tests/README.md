@@ -28,11 +28,17 @@ Pytest collects `tests/test_*.py`. Use the same environment as CI: build the nat
 
 ## CI vs local Rust
 
-GitHub Actions separates **Rust compile** from **Rust test** and **Python build** from **Python test** in the matrix job: `cargo build -p formatparse-core --all-targets` runs before the Python venv. **Python build** is `maturin build` (wheel into `dist/`) + `pip install` that wheel + an import check—**no pytest** in the venv until the Rust `cargo test` steps finish. **Python test** then installs pytest/Hypothesis/plugins and runs **pytest**. On **Ubuntu + CPython 3.11**, after the Python build it also runs `cargo build --workspace --all-targets` and `cargo test -p formatparse-pyo3 --features python-tests --no-run`, then **runs** `cargo test` (full workspace plus `python-tests` execution), then installs pytest deps, then **pytest**. Other matrix cells run `cargo test -p formatparse-core` only after the shared core compile step.
+GitHub Actions uses two matrix job groups:
 
-A separate job **Rust · formatparse-core (Linux compile + test)** appears as its own row in the Actions run (parallel to the matrix). Open a matrix job and use the **Summary** tab for a phase table (compile vs test).
+1. **`python-build`** — one row per OS/Python (same matrix as integration). Each cell builds a wheel with **`maturin build`**, verifies **`pip install` + import**, and uploads artifact `formatparse-wheel-<os>-<python-version>`. **Every** build must succeed before any integration cell runs (`integration` has `needs: python-build`).
 
-**PyPy 3.11** on Ubuntu uses the same **maturin build** + wheel install + pytest flow; it does not run the full-workspace `cargo test` job (see **PyO3 `python-tests`** below).
+2. **`integration`** — same matrix; downloads the matching wheel, runs Rust (`cargo build` / `cargo test`), installs pytest tooling, then **pytest**.
+
+A separate job **Rust · formatparse-core (Linux compile + test)** still runs in parallel. Open an **integration** run’s **Summary** tab for the phase table.
+
+**Branch protection:** if you required the old check name `Test Python … on …`, update required checks to **`Integration · …`** (or the new job ids `python-build` / `integration`).
+
+**PyPy 3.11** follows the same two-job pattern; it does not run the full-workspace `cargo test` job (see **PyO3 `python-tests`** below).
 
 ## PyO3 `python-tests`
 

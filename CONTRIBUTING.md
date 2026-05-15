@@ -280,7 +280,7 @@ The project uses GitHub Actions for CI/CD:
 
 - **Tests**: Run on all PRs across multiple Python versions and platforms
 - **Coverage**: Generated on Python 3.11, Ubuntu; `fail_under` from `pyproject.toml` is enforced on that job
-- **Rust**: CI includes a standalone job **Rust · formatparse-core (Linux compile + test)** (its own row in Actions). The Python/OS matrix builds the extension with **`maturin build`** + **`pip install` the wheel** (not `maturin develop`), verifies imports, runs `cargo test`, then installs pytest/Hypothesis/plugins and runs **pytest**; open a matrix run’s **Summary** tab for the phase table. `cargo test --workspace` runs on Ubuntu + CPython 3.11; other cells run `cargo test -p formatparse-core` only. The `python-tests` step **must pass** (see **Rust Tests** below). Ubuntu **PyPy 3.11** uses the same wheel-based Python build then pytest.
+- **Rust**: CI includes **Rust · formatparse-core (Linux)**. **Python** is split into two matrix jobs: **`python-build`** (wheel + artifact for every OS/Python) and **`integration`** (`needs: python-build`; downloads the matching wheel, then `cargo test`, then pytest). Workflow token needs **`actions: write`** for artifacts. If branch protection required the old **`Test Python … on …`** check names, switch to **`Python build · …`** and **`Integration · …`**. Local dev still uses **`maturin develop`**; CI uses **`maturin build`** + wheel upload/download.
 - **Benchmarks**: Run on PRs and main branch
 - **Doctests**: Run on Python 3.11, Ubuntu
 - **Mutation Testing**: Runs weekly on main branch
