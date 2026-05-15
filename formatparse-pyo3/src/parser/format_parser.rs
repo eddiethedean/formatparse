@@ -101,23 +101,24 @@ impl FormatParser {
             normalized_names,
             name_mapping,
             allows_empty_default_string_match,
-        ) = crate::parser::pattern::parse_pattern(
+        ) = formatparse_core::parser::pattern::parse_pattern(
             &pattern_owned,
-            extra_types.as_ref(),
             &custom_patterns,
             true,
             0,
-        )?;
+        )
+        .map_err(crate::parser::pattern::pattern_compile_error_to_py)?;
 
         // Search/findall use a separate compile path without "empty delimited" `.*?` groups so
         // unanchored matching does not stop early (e.g. `{}, {}` on "Hello, World").
-        let (regex_str_search_anchored, _, _, _, _, _, _) = crate::parser::pattern::parse_pattern(
-            &pattern_owned,
-            extra_types.as_ref(),
-            &custom_patterns,
-            false,
-            0,
-        )?;
+        let (regex_str_search_anchored, _, _, _, _, _, _) =
+            formatparse_core::parser::pattern::parse_pattern(
+                &pattern_owned,
+                &custom_patterns,
+                false,
+                0,
+            )
+            .map_err(crate::parser::pattern::pattern_compile_error_to_py)?;
 
         // Validate field count
         if field_specs.len() > MAX_FIELDS {

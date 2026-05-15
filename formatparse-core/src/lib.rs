@@ -22,6 +22,10 @@ pub use parser::{
     count_capturing_groups, validate_field_name, validate_input_length, validate_pattern_length,
     MAX_FIELDS, MAX_FIELD_NAME_LENGTH, MAX_INPUT_LENGTH, MAX_PATTERN_LENGTH,
 };
+pub use parser::pattern::{
+    field_types_match, parse_field, parse_field_path, parse_format_spec, parse_pattern,
+    validate_multiline_mvp, ParsedPatternParts, MAX_NESTED_FORMAT_DEPTH,
+};
 
 pub use parser::regex::*;
 pub use types::regex::strftime_to_regex;

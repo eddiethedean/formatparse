@@ -340,8 +340,10 @@ fn extract_format(
 
     // Parse the format spec string
     let mut spec = FieldSpec::new();
-    crate::parser::pattern::parse_format_spec(format_string, &mut spec, None)?;
-    crate::parser::pattern::validate_multiline_mvp(&spec)?;
+    formatparse_core::parser::pattern::parse_format_spec(format_string, &mut spec)
+        .map_err(crate::parser::pattern::pattern_compile_error_to_py)?;
+    formatparse_core::parser::pattern::validate_multiline_mvp(&spec)
+        .map_err(crate::parser::pattern::pattern_compile_error_to_py)?;
 
     // Extract type from the original format_string (preserve original type chars like 'o', 'x', 'b')
     // Parse the format spec to extract the type characters that come after width/precision/alignment
