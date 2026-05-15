@@ -1,5 +1,12 @@
 name: CI
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ main, master, develop ]
@@ -7,13 +14,30 @@ on:
     branches: [ main, master, develop ]
 
 jobs:
+  cargo-audit-nonblocking:
+    name: Cargo audit (report only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run cargo audit
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
     env:
-      PYO3_USE_ABI3_FORWARD_COMPATIBILITY: ${{ matrix.python-version == '3.13' && '1' || '' }}
+      PYO3_USE_ABI3_FORWARD_COMPATIBILITY: ${{ (matrix.python-version == '3.13' || matrix.python-version == '3.14') && '1' || '' }}
       # Load only plugins listed in pyproject addopts; avoids broken global pytest-asyncio.
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
     strategy:
@@ -39,6 +63,9 @@ jobs:
           - os: ubuntu-latest
             python-version: "3.13"
             architecture: x86-64
+          - os: ubuntu-latest
+            python-version: "3.14"
+            architecture: x86-64
           # macOS latest (typically arm64/Apple Silicon)
           - os: macos-latest
             python-version: "3.9"
@@ -54,6 +81,9 @@ jobs:
             architecture: aarch64
           - os: macos-latest
             python-version: "3.13"
+            architecture: aarch64
+          - os: macos-latest
+            python-version: "3.14"
             architecture: aarch64
           # Windows x86-64
           - os: windows-latest
@@ -71,6 +101,9 @@ jobs:
           - os: windows-latest
             python-version: "3.13"
             architecture: x86-64
+          - os: windows-latest
+            python-version: "3.14"
+            architecture: x86-64
           # macOS 15 Intel (x86-64)
           - os: macos-15-intel
             python-version: "3.9"
@@ -87,6 +120,9 @@ jobs:
           - os: macos-15-intel
             python-version: "3.13"
             architecture: x86-64
+          - os: macos-15-intel
+            python-version: "3.14"
+            architecture: x86-64
           # Windows 11 ARM (aarch64) - Python 3.9 and 3.10 not available for Windows ARM
           - os: windows-11-arm
             python-version: "3.11"
@@ -96,6 +132,9 @@ jobs:
             architecture: aarch64
           - os: windows-11-arm
             python-version: "3.13"
+            architecture: aarch64
+          - os: windows-11-arm
+            python-version: "3.14"
             architecture: aarch64
 
     steps:
@@ -109,6 +148,9 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
 
       - name: Create virtual environment
         shell: bash
@@ -172,7 +214,7 @@ jobs:
 
       - name: Upload coverage reports
         if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage.xml
           flags: unittests
@@ -199,17 +241,9 @@ jobs:
           export PYO3_PYTHON="$(command -v python)"
           cargo test -p formatparse-pyo3 --features python-tests
 
-      - name: Run cargo audit (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          cargo install cargo-audit --version 0.22.0 || cargo install cargo-audit
-          cargo audit || true  # Don't fail CI, just report vulnerabilities
-
   docs:
     name: Documentation (Sphinx)
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -217,7 +251,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install documentation dependencies
         run: python -m pip install --upgrade pip && python -m pip install -r docs/requirements.txt

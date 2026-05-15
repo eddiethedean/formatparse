@@ -1,5 +1,8 @@
 name: Security Audit
 
+permissions:
+  contents: read
+
 on:
   schedule:
     # Run weekly on Mondays at 2 AM UTC
@@ -18,7 +21,6 @@ jobs:
   cargo-audit:
     name: Cargo Audit
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -26,37 +28,31 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install cargo-audit
-        run: |
-          cargo install cargo-audit --version 0.22.0 || cargo install cargo-audit
-          cargo audit --version
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
 
       - name: Run cargo audit
-        run: cargo audit
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   cargo-deny:
     name: Cargo Deny
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-deny
-        run: |
-          cargo install cargo-deny --version 0.14.3 || cargo install cargo-deny
-          cargo deny --version
-
       - name: Run cargo deny check
-        run: cargo deny check --config cargo-deny.toml
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features
+          command-arguments: --config cargo-deny.toml
 
   pip-audit:
     name: Pip Audit
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -75,4 +71,3 @@ jobs:
         run: |
           pip-audit --desc
         continue-on-error: true  # Don't fail CI if there are vulnerabilities, just report them
-
