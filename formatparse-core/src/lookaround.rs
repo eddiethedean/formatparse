@@ -121,9 +121,7 @@ pub fn parse_lookaround_tail(tail: &str) -> Result<(String, String), String> {
             ));
         }
         if count_capturing_groups(group) != 0 {
-            return Err(
-                "Lookaround groups must not contain capturing parentheses".to_string(),
-            );
+            return Err("Lookaround groups must not contain capturing parentheses".to_string());
         }
         Regex::new(group).map_err(|e| format!("Invalid lookaround regex: {}", e))?;
 
@@ -310,15 +308,13 @@ mod tests {
 
     #[test]
     fn rewrite_lowers_literal_positive_lb_and_la() {
-        let (p, b, la) =
-            rewrite_field_fragments_for_engine_anchor(r"(?<=\$)\d+", "(?=(?:px))");
+        let (p, b, la) = rewrite_field_fragments_for_engine_anchor(r"(?<=\$)\d+", "(?=(?:px))");
         assert_eq!(p, r"(?:\$)");
         assert_eq!(b, r"\d+");
         // Non-simple lookahead body is preserved
         assert_eq!(la, "(?=(?:px))");
 
-        let (p2, b2, la2) =
-            rewrite_field_fragments_for_engine_anchor(r"(?<=\$)\d+", "(?=px)");
+        let (p2, b2, la2) = rewrite_field_fragments_for_engine_anchor(r"(?<=\$)\d+", "(?=px)");
         assert_eq!(p2, r"(?:\$)");
         assert_eq!(b2, r"\d+");
         assert_eq!(la2, "(?:px)");

@@ -59,8 +59,8 @@ pub fn normalize_pattern_line_continuations(pattern: &str) -> String {
             }
         }
     }
-    // Only ASCII backslash/newline edits; `pattern` was valid UTF-8.
-    String::from_utf8(out).expect("pattern normalization preserves UTF-8")
+    // Output is built only from valid UTF-8 slices of `pattern` plus ASCII `\` / newlines / spaces.
+    String::from_utf8(out).expect("normalize_pattern_line_continuations: UTF-8 invariant")
 }
 
 pub fn prepare_compiled_pattern(pattern: &str) -> PyResult<String> {

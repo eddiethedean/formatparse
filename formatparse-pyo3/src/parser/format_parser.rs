@@ -3,6 +3,7 @@ use crate::parser::matching::{
     match_with_captures, match_with_captures_raw, CapturedMatchContext, FieldCaptureSlices,
 };
 use crate::result::ParseResult;
+use fancy_regex::Regex;
 use formatparse_core::count_capturing_groups;
 use formatparse_core::parser::{validate_input_length, MAX_FIELDS};
 use formatparse_core::{FieldSpec, FieldType};
@@ -10,7 +11,6 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyString, PyTuple};
 use pyo3::IntoPyObjectExt;
-use fancy_regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -51,6 +51,23 @@ pub struct FormatParser {
 }
 
 impl FormatParser {
+    /// Returns true when this parser matches a cache lookup: same normalized pattern and
+    /// the same `extra_types` fingerprint as [`crate::extract_extra_types_identity`].
+    /// Used after an LRU hit on the hash key to rule out collisions.
+    pub(crate) fn matches_pattern_cache_request(
+        &self,
+        py: Python<'_>,
+        normalized_pattern: &str,
+        extra_types: &Option<HashMap<String, PyObject>>,
+    ) -> bool {
+        if self.pattern != normalized_pattern {
+            return false;
+        }
+        let requested = crate::extract_extra_types_identity(py, extra_types);
+        let stored = crate::extract_extra_types_identity(py, &self.stored_extra_types);
+        requested == stored
+    }
+
     pub fn new(pattern: &str) -> PyResult<Self> {
         Self::new_with_extra_types(pattern, None)
     }
@@ -111,27 +128,28 @@ impl FormatParser {
             )));
         }
 
-        let nested_parsers: Vec<Option<Arc<FormatParser>>> = Python::with_gil(|py| -> PyResult<_> {
-            let mut out = Vec::with_capacity(field_specs.len());
-            for spec in &field_specs {
-                if matches!(spec.field_type, FieldType::Nested) {
-                    let sub = spec.nested_subpattern.as_ref().ok_or_else(|| {
-                        PyValueError::new_err("internal error: nested field missing subpattern")
-                    })?;
-                    let cloned_et = extra_types.as_ref().map(|m| {
-                        m.iter()
-                            .map(|(k, v)| (k.clone(), v.clone_ref(py)))
-                            .collect::<HashMap<_, _>>()
-                    });
-                    out.push(Some(Arc::new(FormatParser::new_with_extra_types(
-                        sub, cloned_et,
-                    )?)));
-                } else {
-                    out.push(None);
+        let nested_parsers: Vec<Option<Arc<FormatParser>>> =
+            Python::with_gil(|py| -> PyResult<_> {
+                let mut out = Vec::with_capacity(field_specs.len());
+                for spec in &field_specs {
+                    if matches!(spec.field_type, FieldType::Nested) {
+                        let sub = spec.nested_subpattern.as_ref().ok_or_else(|| {
+                            PyValueError::new_err("internal error: nested field missing subpattern")
+                        })?;
+                        let cloned_et = extra_types.as_ref().map(|m| {
+                            m.iter()
+                                .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                                .collect::<HashMap<_, _>>()
+                        });
+                        out.push(Some(Arc::new(FormatParser::new_with_extra_types(
+                            sub, cloned_et,
+                        )?)));
+                    } else {
+                        out.push(None);
+                    }
                 }
-            }
-            Ok(out)
-        })?;
+                Ok(out)
+            })?;
         // Pre-compute custom type validation results (pattern_groups per field)
         // This avoids calling validate_custom_type_pattern for every match
         let custom_type_groups = Python::with_gil(|py| -> PyResult<Vec<usize>> {
@@ -181,8 +199,9 @@ impl FormatParser {
             formatparse_core::build_case_insensitive_regex(&regex_str_with_anchors);
 
         // Pre-compile search regex variants (without anchors)
-        let search_regex = formatparse_core::build_search_regex(regex_search_anchored.as_str(), true)
-            .map_err(crate::error::core_error_to_py_err)?;
+        let search_regex =
+            formatparse_core::build_search_regex(regex_search_anchored.as_str(), true)
+                .map_err(crate::error::core_error_to_py_err)?;
         let search_regex_case_insensitive =
             formatparse_core::build_search_regex(regex_search_anchored.as_str(), false).ok();
 

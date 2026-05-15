@@ -196,9 +196,8 @@ pub fn parse_time_with_ampm(time_str: &str) -> Result<(u8, u8, u8), PyErr> {
 /// Parse and pad microseconds string to 6 digits
 /// Truncates if longer than 6 digits, pads with zeros on the right if shorter
 pub fn parse_microseconds(micros_str: &str) -> Result<u32, PyErr> {
-    formatparse_core::parse_microsecond_digits(micros_str).map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string())
-    })
+    formatparse_core::parse_microsecond_digits(micros_str)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
 }
 
 /// Extract microseconds from a capture group, handling padding

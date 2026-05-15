@@ -71,6 +71,10 @@ jobs:
           - os: ubuntu-latest
             python-version: "3.14"
             architecture: x86-64
+          # PyPy (CPython ABI via PyO3)
+          - os: ubuntu-latest
+            python-version: "pypy-3.11"
+            architecture: x86-64
           # macOS latest (typically arm64/Apple Silicon)
           - os: macos-latest
             python-version: "3.9"
@@ -242,7 +246,6 @@ jobs:
       - name: Run formatparse-pyo3 python-tests (Ubuntu 3.11)
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         shell: bash
-        continue-on-error: true
         run: |
           source .venv/bin/activate
           export PYO3_PYTHON="$(command -v python)"
