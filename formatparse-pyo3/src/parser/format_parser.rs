@@ -798,9 +798,16 @@ impl FindallIter {
                         let pr = raw_data.to_parse_result(py)?;
                         return Ok(Some(pr.into_py_any(py)?));
                     }
-                    Ok(None) | Err(_) => {
+                    Ok(None) => {
                         slf.search_pos = match_start.saturating_add(1);
                         continue;
+                    }
+                    Err(_) => {
+                        slf.fast_path = false;
+                        if slf.last_end == 0 {
+                            slf.search_pos = 0;
+                        }
+                        break;
                     }
                 }
             }

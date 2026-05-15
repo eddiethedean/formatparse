@@ -460,17 +460,25 @@ pub fn parse_pattern(
     ))
 }
 
-/// Normalize field name (hyphens/dots -> underscores) and handle collisions
+/// Normalize field name for use inside `(?P<name>...)` capture groups.
+///
+/// Hyphens and dots become underscores (legacy parse compatibility). Dict-style paths use
+/// `[` / `]` (`person[name]`); only `[` maps to `_`, and closing `]` is omitted so we do not
+/// add a trailing separator (e.g. `hello[world]` → `hello_world`). `[` / `]` are not valid
+/// in Rust/fancy-regex capture group identifiers.
 pub fn normalize_field_name(
     name: &str,
     _name_mapping: &mut HashMap<String, String>,
     existing_normalized: &[Option<String>],
 ) -> String {
-    // Normalize: replace hyphens and dots with underscores
-    let base_normalized: String = name
-        .chars()
-        .map(|c| if c == '-' || c == '.' { '_' } else { c })
-        .collect();
+    let mut base_normalized = String::with_capacity(name.len());
+    for c in name.chars() {
+        match c {
+            '-' | '.' | '[' => base_normalized.push('_'),
+            ']' => {}
+            _ => base_normalized.push(c),
+        }
+    }
 
     // Check for collisions with existing normalized names
     let mut normalized = base_normalized.clone();
@@ -839,6 +847,35 @@ pub fn parse_format_spec(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod normalize_field_name_tests {
+    use super::normalize_field_name;
+    use std::collections::HashMap;
+
+    #[test]
+    fn dict_style_brackets_map_to_underscores() {
+        let mut m = HashMap::new();
+        let existing: Vec<Option<String>> = vec![];
+        assert_eq!(
+            normalize_field_name("hello[world]", &mut m, &existing),
+            "hello_world"
+        );
+        assert_eq!(
+            normalize_field_name("hello[foo][baz]", &mut m, &existing),
+            "hello_foo_baz"
+        );
+    }
+
+    #[test]
+    fn deep_nested_brackets_normalize() {
+        let mut m = HashMap::new();
+        assert_eq!(
+            normalize_field_name("a[b[c[d]]]", &mut m, &[]),
+            "a_b_c_d"
+        );
+    }
 }
 
 #[cfg(test)]

@@ -366,6 +366,7 @@ fn findall(
         let mut raw_results = Vec::new();
         let search_regex = parser.get_search_regex(case_sensitive);
         let mut last_end = 0;
+        let mut raw_path_failed = false;
 
         // Collect all raw matches OUTSIDE GIL (no Python objects created yet)
         // This is the key optimization: all CPU work happens without GIL
@@ -406,19 +407,23 @@ fn findall(
                     }
                 }
                 Ok(None) => {}
-                Err(e) => {
-                    return Err(pyo3::exceptions::PyRuntimeError::new_err(e));
+                Err(_) => {
+                    // Custom / datetime / other types need the Python matcher; retry full scan.
+                    raw_path_failed = true;
+                    break;
                 }
             }
         }
 
-        // Return Results object with raw data (lazy conversion)
-        // This avoids creating all ParseResult objects upfront
-        // The Results object is lightweight - just stores raw data
-        return Python::with_gil(|py| -> PyResult<PyObject> {
-            let results = Results::new(raw_results);
-            Py::new(py, results)?.into_py_any(py)
-        });
+        if !raw_path_failed {
+            // Return Results object with raw data (lazy conversion)
+            // This avoids creating all ParseResult objects upfront
+            // The Results object is lightweight - just stores raw data
+            return Python::with_gil(|py| -> PyResult<PyObject> {
+                let results = Results::new(raw_results);
+                Py::new(py, results)?.into_py_any(py)
+            });
+        }
     }
 
     // Fallback: use Python path (for custom converters or evaluate_result=False)
