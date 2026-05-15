@@ -6,7 +6,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write
 
 on:
   push:
@@ -39,6 +38,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # Standalone row in the Actions UI (separate from the Python/OS matrix below).
   rust-core-linux:
     name: Rust · formatparse-core (Linux compile + test)
     runs-on: ubuntu-latest
@@ -61,16 +61,18 @@ jobs:
       - name: Run formatparse-core tests
         run: cargo test -p formatparse-core
 
-  # All matrix cells must succeed before any `integration` job runs (needs: python-build).
-  python-build:
-    name: Python build · ${{ matrix.python-version }} · ${{ matrix.os }}
+  test:
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
       PYO3_USE_ABI3_FORWARD_COMPATIBILITY: ${{ (matrix.python-version == '3.13' || matrix.python-version == '3.14') && '1' || '' }}
+      # Load only plugins listed in pyproject addopts; avoids broken global pytest-asyncio.
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Ubuntu x86-64
           - os: ubuntu-latest
             python-version: "3.8"
             architecture: x86-64
@@ -92,9 +94,11 @@ jobs:
           - os: ubuntu-latest
             python-version: "3.14"
             architecture: x86-64
+          # PyPy (CPython ABI via PyO3)
           - os: ubuntu-latest
             python-version: "pypy-3.11"
             architecture: x86-64
+          # macOS latest (typically arm64/Apple Silicon)
           - os: macos-latest
             python-version: "3.9"
             architecture: aarch64
@@ -113,6 +117,7 @@ jobs:
           - os: macos-latest
             python-version: "3.14"
             architecture: aarch64
+          # Windows x86-64
           - os: windows-latest
             python-version: "3.9"
             architecture: x86-64
@@ -131,6 +136,7 @@ jobs:
           - os: windows-latest
             python-version: "3.14"
             architecture: x86-64
+          # macOS 15 Intel (x86-64)
           - os: macos-15-intel
             python-version: "3.9"
             architecture: x86-64
@@ -149,6 +155,7 @@ jobs:
           - os: macos-15-intel
             python-version: "3.14"
             architecture: x86-64
+          # Windows 11 ARM (aarch64) - Python 3.9 and 3.10 not available for Windows ARM
           - os: windows-11-arm
             python-version: "3.11"
             architecture: aarch64
@@ -163,6 +170,23 @@ jobs:
             architecture: aarch64
 
     steps:
+      - name: Report job phases (Summary tab)
+        shell: bash
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
+          ## Phases in this matrix job (compile vs test)
+
+          | Phase | What runs |
+          |-------|-----------|
+          | **1 · Rust core compile** | `cargo build -p formatparse-core --all-targets` (no Python venv yet) |
+          | **2 · Python build** | venv + `maturin build` → wheel in `dist/` + `pip install` wheel + import check (no pytest yet) |
+          | **3 · Extra Rust compile (Ubuntu CPython 3.11 only)** | `cargo build --workspace --all-targets` and `cargo test -p formatparse-pyo3 --features python-tests --no-run` |
+          | **4 · Rust tests** | `cargo test` (full workspace on Ubuntu 3.11; core-only elsewhere) + execute `python-tests` on Ubuntu 3.11 |
+          | **5 · Python test** | install pytest/Hypothesis/plugins, then `pytest` (suite, security, coverage on Ubuntu 3.11) — **after** all `cargo test` steps |
+
+          A dedicated **Rust · formatparse-core (Linux compile + test)** job also runs in parallel for a clear compile+test signal on Linux.
+          EOF
+
       - name: Checkout repository
         uses: actions/checkout@v6
 
@@ -178,7 +202,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-bin: false
-          shared-key: py-build-${{ matrix.os }}-${{ matrix.python-version }}
+
+      # Pure Rust: no Python venv required. Fails fast on core compile errors before pip/maturin.
+      - name: Compile formatparse-core (all targets, no tests executed)
+        shell: bash
+        run: cargo build -p formatparse-core --all-targets
 
       - name: Python · build — venv and maturin CLI only
         shell: bash
@@ -203,187 +231,27 @@ jobs:
             cd formatparse-pyo3 && maturin build --out ../dist --release --features extension-module
           fi
 
-      - name: Python · build — verify wheel installs and imports
+      - name: Python · build — install wheel into venv (no test deps yet)
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
             .venv/Scripts/python -m pip install --force-reinstall dist/formatparse*.whl
-            .venv/Scripts/python -c "import formatparse; import _formatparse; print('ok', getattr(formatparse, '__version__', ''))"
           else
             source .venv/bin/activate
             pip install --force-reinstall dist/formatparse*.whl
-            python -c "import formatparse; import _formatparse; print('ok', getattr(formatparse, '__version__', ''))"
           fi
 
-      - name: Upload wheel artifact for integration tests
-        uses: actions/upload-artifact@v4
-        with:
-          name: formatparse-wheel-${{ matrix.os }}-${{ matrix.python-version }}
-          path: dist/
-          if-no-files-found: error
-
-  integration:
-    name: Integration · ${{ matrix.python-version }} · ${{ matrix.os }}
-    needs: [python-build]
-    runs-on: ${{ matrix.os }}
-    env:
-      PYO3_USE_ABI3_FORWARD_COMPATIBILITY: ${{ (matrix.python-version == '3.13' || matrix.python-version == '3.14') && '1' || '' }}
-      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            python-version: "3.8"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python-version: "3.9"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python-version: "3.10"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python-version: "3.11"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python-version: "3.12"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python-version: "3.13"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python-version: "3.14"
-            architecture: x86-64
-          - os: ubuntu-latest
-            python-version: "pypy-3.11"
-            architecture: x86-64
-          - os: macos-latest
-            python-version: "3.9"
-            architecture: aarch64
-          - os: macos-latest
-            python-version: "3.10"
-            architecture: aarch64
-          - os: macos-latest
-            python-version: "3.11"
-            architecture: aarch64
-          - os: macos-latest
-            python-version: "3.12"
-            architecture: aarch64
-          - os: macos-latest
-            python-version: "3.13"
-            architecture: aarch64
-          - os: macos-latest
-            python-version: "3.14"
-            architecture: aarch64
-          - os: windows-latest
-            python-version: "3.9"
-            architecture: x86-64
-          - os: windows-latest
-            python-version: "3.10"
-            architecture: x86-64
-          - os: windows-latest
-            python-version: "3.11"
-            architecture: x86-64
-          - os: windows-latest
-            python-version: "3.12"
-            architecture: x86-64
-          - os: windows-latest
-            python-version: "3.13"
-            architecture: x86-64
-          - os: windows-latest
-            python-version: "3.14"
-            architecture: x86-64
-          - os: macos-15-intel
-            python-version: "3.9"
-            architecture: x86-64
-          - os: macos-15-intel
-            python-version: "3.10"
-            architecture: x86-64
-          - os: macos-15-intel
-            python-version: "3.11"
-            architecture: x86-64
-          - os: macos-15-intel
-            python-version: "3.12"
-            architecture: x86-64
-          - os: macos-15-intel
-            python-version: "3.13"
-            architecture: x86-64
-          - os: macos-15-intel
-            python-version: "3.14"
-            architecture: x86-64
-          - os: windows-11-arm
-            python-version: "3.11"
-            architecture: aarch64
-          - os: windows-11-arm
-            python-version: "3.12"
-            architecture: aarch64
-          - os: windows-11-arm
-            python-version: "3.13"
-            architecture: aarch64
-          - os: windows-11-arm
-            python-version: "3.14"
-            architecture: aarch64
-
-    steps:
-      - name: Report job phases (Summary tab)
+      - name: Python · build — verify import (formatparse + _formatparse)
         shell: bash
         run: |
-          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
-          ## Phases in this integration job
-
-          | Phase | What runs |
-          |-------|-----------|
-          | **0 · Prerequisite** | All **Python build** matrix jobs succeeded (`needs: python-build`); this job downloads the matching wheel artifact. |
-          | **1 · Rust core compile** | `cargo build -p formatparse-core --all-targets` |
-          | **2 · Python runtime from artifact** | venv + `pip install` downloaded wheel + import check |
-          | **3 · Extra Rust compile (Ubuntu CPython 3.11 only)** | `cargo build --workspace --all-targets` and `cargo test -p formatparse-pyo3 --features python-tests --no-run` |
-          | **4 · Rust tests** | `cargo test` (full workspace on Ubuntu 3.11; core-only elsewhere) + `python-tests` execute on Ubuntu 3.11 |
-          | **5 · Python tests** | install pytest stack, then `pytest` |
-
-          Parallel: **Rust · formatparse-core (Linux)** job; **Python build** job group (wheels) must be green before this job starts.
-          EOF
-
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-bin: false
-
-      - name: Compile formatparse-core (all targets, no tests executed)
-        shell: bash
-        run: cargo build -p formatparse-core --all-targets
-
-      - name: Download wheel from python-build job
-        uses: actions/download-artifact@v4
-        with:
-          name: formatparse-wheel-${{ matrix.os }}-${{ matrix.python-version }}
-          path: wheel-dist
-
-      - name: Python · venv and install wheel from artifact
-        shell: bash
-        run: |
-          python -m venv .venv
           if [ "${{ matrix.os }}" == "windows-latest" ] || [ "${{ matrix.os }}" == "windows-11-arm" ]; then
-            .venv/Scripts/python -m pip install --upgrade pip
-            .venv/Scripts/python -m pip install --force-reinstall wheel-dist/formatparse*.whl
             .venv/Scripts/python -c "import formatparse; import _formatparse; print('formatparse', getattr(formatparse, '__version__', ''))"
           else
             source .venv/bin/activate
-            python -m pip install --upgrade pip
-            pip install --force-reinstall wheel-dist/formatparse*.whl
             python -c "import formatparse; import _formatparse; print('formatparse', getattr(formatparse, '__version__', ''))"
           fi
 
+      # Ubuntu CPython 3.11: finish Rust compiles before pytest so the job groups compile vs test phases.
       - name: Compile Rust workspace (all crates, all targets, debug)
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         shell: bash
@@ -400,6 +268,7 @@ jobs:
           export PYO3_PYTHON="$(command -v python)"
           cargo test -p formatparse-pyo3 --features python-tests --no-run
 
+      # Rust test execution (after all Rust compiles above).
       - name: Run cargo tests (formatparse-core only)
         if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.11'
         shell: bash
