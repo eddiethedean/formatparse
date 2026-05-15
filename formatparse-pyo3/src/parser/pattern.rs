@@ -44,7 +44,9 @@ fn collect_balanced_format_spec(
         if ch == '}' && depth == 0 {
             break;
         }
-        let c = chars.next().unwrap();
+        let c = chars
+            .next()
+            .expect("peek matched a char so next() must succeed");
         match c {
             '{' => {
                 if chars.peek() == Some(&'{') {
@@ -129,9 +131,7 @@ fn strip_regex_anchors(anchored: &str) -> String {
 /// True when there is a non-whitespace literal run after that `}` and before the next unescaped `{`
 /// or end of pattern (formatparse#83). Whitespace-only gaps do not count so ``{} {}`` keeps
 /// non-empty captures for both fields.
-fn has_trailing_literal_before_next_field(
-    mut chars: std::iter::Peekable<std::str::Chars>,
-) -> bool {
+fn has_trailing_literal_before_next_field(mut chars: std::iter::Peekable<std::str::Chars>) -> bool {
     while chars.peek().is_some_and(|c| c.is_whitespace()) {
         chars.next();
     }
@@ -871,10 +871,7 @@ mod normalize_field_name_tests {
     #[test]
     fn deep_nested_brackets_normalize() {
         let mut m = HashMap::new();
-        assert_eq!(
-            normalize_field_name("a[b[c[d]]]", &mut m, &[]),
-            "a_b_c_d"
-        );
+        assert_eq!(normalize_field_name("a[b[c[d]]]", &mut m, &[]), "a_b_c_d");
     }
 }
 

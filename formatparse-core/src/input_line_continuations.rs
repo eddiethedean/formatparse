@@ -53,7 +53,8 @@ pub fn normalize_input_line_continuations(input: &str) -> String {
             }
         }
     }
-    String::from_utf8(out).expect("ASCII-only edits preserve UTF-8")
+    // Output is built only from valid UTF-8 slices of `input` plus ASCII `\` / newlines / spaces.
+    String::from_utf8(out).expect("normalize_input_line_continuations: UTF-8 invariant")
 }
 
 #[cfg(test)]
@@ -67,10 +68,7 @@ mod tests {
 
     #[test]
     fn continuation_crlf() {
-        assert_eq!(
-            normalize_input_line_continuations("foo\\\r\nbar"),
-            "foobar"
-        );
+        assert_eq!(normalize_input_line_continuations("foo\\\r\nbar"), "foobar");
     }
 
     #[test]

@@ -28,8 +28,8 @@ Pytest collects `tests/test_*.py`. Use the same environment as CI: build the nat
 
 ## CI vs local Rust
 
-GitHub Actions runs `cargo test --workspace` on the **Ubuntu + Python 3.11** job so **both** `formatparse-core` and `formatparse-pyo3` unit tests run; other matrix jobs run `cargo test -p formatparse-core` only. An additional **`python-tests`** step runs on that same Ubuntu job with `continue-on-error` (see below).
+GitHub Actions runs `cargo test --workspace` on the **Ubuntu + Python 3.11** job so **both** `formatparse-core` and `formatparse-pyo3` unit tests run; other matrix jobs run `cargo test -p formatparse-core` only. An additional **`python-tests`** step runs on that same Ubuntu job and **fails the job** if it fails (see below). **PyPy 3.11** on Ubuntu runs the Python pytest suite against a `maturin develop` build like other matrix cells.
 
 ## PyO3 `python-tests`
 
-Opt-in Rust tests that embed a Python interpreter (`RawValue::to_py_object`, etc.): `cargo test -p formatparse-pyo3 --features python-tests` with `PYO3_PYTHON` set to your venv interpreter. CI runs this on Ubuntu + Python 3.11 as a **non-blocking** step (`continue-on-error`) so linker/Python layout issues do not fail the whole matrix.
+Opt-in Rust tests that embed a Python interpreter (`RawValue::to_py_object`, etc.): `cargo test -p formatparse-pyo3 --features python-tests` with `PYO3_PYTHON` set to your venv interpreter. CI runs this on Ubuntu + Python 3.11 as a **blocking** step (same environment as `maturin develop` in that job).

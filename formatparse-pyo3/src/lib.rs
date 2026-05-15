@@ -37,48 +37,21 @@ pub use match_rs::Match;
 
 pub use error::PatternParseMismatch;
 
-// Pattern cache for compiled FormatParser instances
-// Cache size: 1000 patterns
-// Using u64 hash as key for faster lookups
-// Using Arc to avoid expensive clones
-static PATTERN_CACHE: Lazy<Mutex<LruCache<u64, Arc<FormatParser>>>> =
-    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(1000).unwrap())));
-
-fn lock_pattern_cache(
-) -> Result<std::sync::MutexGuard<'static, LruCache<u64, Arc<FormatParser>>>, PyErr> {
-    PATTERN_CACHE.lock().map_err(|_| {
-        pyo3::exceptions::PyRuntimeError::new_err(
-            "formatparse pattern cache mutex was poisoned",
-        )
-    })
-}
-
-/// Create a cache key hash from pattern and `extra_types`.
-///
-/// Must match what affects compilation in [`FormatParser::new_with_extra_types`]:
-/// each converter's `pattern` string and `regex_group_count` (via
-/// `validate_custom_type_pattern`). Keys alone are insufficient (same key, different
-/// `with_pattern` / group count would incorrectly share a cached parser).
-fn create_cache_key_hash(
+/// Sorted `(type_name, with_pattern regex, regex_group_count tag)` for cache identity.
+/// Must stay aligned with [`create_cache_key_hash`].
+pub(crate) fn extract_extra_types_identity(
     py: Python<'_>,
-    pattern: &str,
     extra_types: &Option<HashMap<String, PyObject>>,
-) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    pattern.hash(&mut hasher);
+) -> Vec<(String, String, i64)> {
+    let mut out = Vec::new();
     if let Some(extra_types) = extra_types {
-        let mut entries: Vec<(&String, &PyObject)> = extra_types.iter().collect();
-        entries.sort_by_key(|(k, _)| *k);
-        for (name, converter_obj) in entries {
-            name.hash(&mut hasher);
+        for (name, converter_obj) in extra_types {
             let converter_ref = converter_obj.bind(py);
             let pat = converter_ref
                 .getattr("pattern")
                 .ok()
                 .and_then(|a| a.extract::<String>().ok())
                 .unwrap_or_default();
-            pat.hash(&mut hasher);
-            // Distinct from any valid regex_group_count (non-negative).
             const GC_MISSING: i64 = -1;
             const GC_NONE: i64 = -2;
             let gc_tag = match converter_ref.getattr("regex_group_count") {
@@ -93,8 +66,47 @@ fn create_cache_key_hash(
                 }
                 Err(_) => GC_MISSING,
             };
-            gc_tag.hash(&mut hasher);
+            out.push((name.clone(), pat, gc_tag));
         }
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+    }
+    out
+}
+
+// Pattern cache for compiled FormatParser instances
+// Cache size: 1000 patterns
+// Using u64 hash as key for faster lookups
+// Using Arc to avoid expensive clones
+static PATTERN_CACHE: Lazy<Mutex<LruCache<u64, Arc<FormatParser>>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(1000).unwrap())));
+
+fn lock_pattern_cache(
+) -> Result<std::sync::MutexGuard<'static, LruCache<u64, Arc<FormatParser>>>, PyErr> {
+    PATTERN_CACHE.lock().map_err(|_| {
+        pyo3::exceptions::PyRuntimeError::new_err("formatparse pattern cache mutex was poisoned")
+    })
+}
+
+/// Create a cache key hash from pattern and `extra_types`.
+///
+/// Must match what affects compilation in [`FormatParser::new_with_extra_types`]:
+/// each converter's `pattern` string and `regex_group_count` (via
+/// `validate_custom_type_pattern`). Keys alone are insufficient (same key, different
+/// `with_pattern` / group count would incorrectly share a cached parser).
+///
+/// Callers must verify cache hits (see `FormatParser::matches_pattern_cache_request`)
+/// because hash keys can theoretically collide.
+fn create_cache_key_hash(
+    py: Python<'_>,
+    pattern: &str,
+    extra_types: &Option<HashMap<String, PyObject>>,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    pattern.hash(&mut hasher);
+    for (name, pat, gc_tag) in extract_extra_types_identity(py, extra_types) {
+        name.hash(&mut hasher);
+        pat.hash(&mut hasher);
+        gc_tag.hash(&mut hasher);
     }
     hasher.finish()
 }
@@ -105,31 +117,32 @@ fn get_or_create_parser(
     extra_types: Option<HashMap<String, PyObject>>,
 ) -> PyResult<Arc<FormatParser>> {
     let normalized = pattern_normalize::prepare_compiled_pattern(pattern)?;
-    let cache_key = Python::with_gil(|py| create_cache_key_hash(py, &normalized, &extra_types));
+    Python::with_gil(|py| -> PyResult<Arc<FormatParser>> {
+        let cache_key = create_cache_key_hash(py, &normalized, &extra_types);
 
-    // Try to get from cache (minimize lock scope)
-    let cached = {
-        let mut cache = lock_pattern_cache()?;
-        cache.get(&cache_key).cloned()
-    };
+        let cached = {
+            let mut cache = lock_pattern_cache()?;
+            cache.get(&cache_key).cloned()
+        };
 
-    if let Some(cached_parser) = cached {
-        return Ok(cached_parser);
-    }
+        if let Some(cached_parser) = cached {
+            if cached_parser.matches_pattern_cache_request(py, &normalized, &extra_types) {
+                return Ok(cached_parser);
+            }
+        }
 
-    // Not in cache, create new parser
-    let parser = Arc::new(FormatParser::new_with_extra_types(
-        &normalized,
-        extra_types,
-    )?);
+        let parser = Arc::new(FormatParser::new_with_extra_types(
+            &normalized,
+            extra_types,
+        )?);
 
-    // Store in cache (minimize lock scope)
-    {
-        let mut cache = lock_pattern_cache()?;
-        cache.put(cache_key, parser.clone());
-    }
+        {
+            let mut cache = lock_pattern_cache()?;
+            cache.put(cache_key, parser.clone());
+        }
 
-    Ok(parser)
+        Ok(parser)
+    })
 }
 
 /// Parse a string using a format specification
@@ -357,11 +370,7 @@ fn findall(
         .iter()
         .any(|s| matches!(s.field_type, FieldType::Nested));
 
-    if !has_custom_converters
-        && evaluate_result
-        && !has_nested_dicts
-        && !has_nested_format_fields
-    {
+    if !has_custom_converters && evaluate_result && !has_nested_dicts && !has_nested_format_fields {
         // Use raw matching path: collect all raw data first (NO GIL), then batch convert
         let mut raw_results = Vec::new();
         let search_regex = parser.get_search_regex(case_sensitive);

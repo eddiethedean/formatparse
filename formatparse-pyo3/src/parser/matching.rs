@@ -3,11 +3,11 @@ use crate::match_rs::{Match, MatchInit};
 use crate::parser::format_parser::FormatParser;
 use crate::parser::raw_match::{RawMatchData, RawValue};
 use crate::result::ParseResult;
+use fancy_regex::{Captures, Regex};
 use formatparse_core::{count_capturing_groups, FieldSpec, FieldType};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
-use fancy_regex::{Captures, Regex};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -345,9 +345,9 @@ pub fn match_with_captures_raw(
     let custom_type_groups = fields.custom_type_groups;
     let has_nested_dict_fields = fields.has_nested_dict_fields;
 
-    let full_match = captures.get(0).ok_or_else(|| {
-        "regex match missing capture group 0".to_string()
-    })?;
+    let full_match = captures
+        .get(0)
+        .ok_or_else(|| "regex match missing capture group 0".to_string())?;
     let start = full_match.start();
     let end = full_match.end();
 
@@ -523,7 +523,9 @@ pub fn match_with_captures(
             // For evaluate_result=True, we don't need to store raw captures, saving allocations
 
             if evaluate_result {
-                if !crate::types::conversion::validate_alignment_precision_for_capture(spec, value_str) {
+                if !crate::types::conversion::validate_alignment_precision_for_capture(
+                    spec, value_str,
+                ) {
                     return Ok(None);
                 }
 
@@ -548,7 +550,9 @@ pub fn match_with_captures(
                             return Ok(None);
                         };
                         let vs = cap_j.as_str();
-                        if !crate::types::conversion::validate_alignment_precision_for_capture(spec_j, vs) {
+                        if !crate::types::conversion::validate_alignment_precision_for_capture(
+                            spec_j, vs,
+                        ) {
                             return Ok(None);
                         }
                         let Some(fmt) = spec_j.strftime_format.as_ref() else {
@@ -805,7 +809,9 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                 }
 
                 if evaluate_result {
-                    if !crate::types::conversion::validate_alignment_precision_for_capture(spec, value_str) {
+                    if !crate::types::conversion::validate_alignment_precision_for_capture(
+                        spec, value_str,
+                    ) {
                         return Ok(None);
                     }
 
@@ -831,7 +837,9 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                                 return Ok(None);
                             };
                             let vs = cap_j.as_str();
-                            if !crate::types::conversion::validate_alignment_precision_for_capture(spec_j, vs) {
+                            if !crate::types::conversion::validate_alignment_precision_for_capture(
+                                spec_j, vs,
+                            ) {
                                 return Ok(None);
                             }
                             let Some(fmt) = spec_j.strftime_format.as_ref() else {
@@ -896,14 +904,19 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                         }
                     } else {
                         let converted: PyObject = if matches!(spec.field_type, FieldType::Nested) {
-                            let nested_arc = nested_parsers.get(i).and_then(|x| x.as_ref()).ok_or_else(
-                                || {
+                            let nested_arc = nested_parsers
+                                .get(i)
+                                .and_then(|x| x.as_ref())
+                                .ok_or_else(|| {
                                     pyo3::exceptions::PyValueError::new_err(
                                         "internal error: nested parser missing",
                                     )
-                                },
-                            )?;
-                            match nested_arc.parse_nested_capture(py, value_str, custom_converters)? {
+                                })?;
+                            match nested_arc.parse_nested_capture(
+                                py,
+                                value_str,
+                                custom_converters,
+                            )? {
                                 Some(pr) => pr.into_py_any(py)?,
                                 None => return Ok(None),
                             }
@@ -1069,7 +1082,8 @@ pub fn match_empty_default_string_parse(
         }
 
         if evaluate_result {
-            if !crate::types::conversion::validate_alignment_precision_for_capture(spec, value_str) {
+            if !crate::types::conversion::validate_alignment_precision_for_capture(spec, value_str)
+            {
                 return Ok(None);
             }
 

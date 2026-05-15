@@ -80,11 +80,7 @@ pub fn strftime_to_regex(format_str: &str) -> String {
 /// builder so a full-string anchor (`$`) can still match asserted suffix text.
 #[inline]
 fn wrap_field_lookbehind(spec: &FieldSpec, core: String) -> String {
-    format!(
-        "{}{}",
-        spec.regex_lookbehind.as_deref().unwrap_or(""),
-        core
-    )
+    format!("{}{}", spec.regex_lookbehind.as_deref().unwrap_or(""), core)
 }
 
 /// Character class for **one unit** of width/precision content in normal string fields (`s` / `{}`).
@@ -97,10 +93,7 @@ fn wrap_field_lookbehind(spec: &FieldSpec, core: String) -> String {
 /// SEPARATOR (U+2029). Multiline (`:ml`) / indented block (`:blk`) fields still use `[\s\S]`
 /// where newlines are intentional.
 const STRING_WIDTH_PRECISION_CHAR: &str = concat!(
-    "[^",
-    "\r",
-    "\n",
-    "\u{000B}", // VT
+    "[^", "\r", "\n", "\u{000B}", // VT
     "\u{000C}", // FF
     "\u{0085}", // NEL (Next Line)
     "\u{2028}", // LINE SEPARATOR
@@ -1003,7 +996,11 @@ mod tests {
         spec.width = Some(2);
         spec.precision = Some(2);
         let pattern = spec.to_regex_pattern(&HashMap::new(), None, false);
-        assert!(pattern.contains(r"[0-9a-fA-F]{2,2}"), "pattern: {}", pattern);
+        assert!(
+            pattern.contains(r"[0-9a-fA-F]{2,2}"),
+            "pattern: {}",
+            pattern
+        );
     }
 
     #[test]

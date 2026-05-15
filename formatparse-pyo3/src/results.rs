@@ -155,7 +155,7 @@ impl ResultsIterator {
         let list_bound = self
             .cached_list
             .as_ref()
-            .unwrap()
+            .expect("cached_list set immediately above when None")
             .bind(py)
             .downcast::<pyo3::types::PyList>()?;
         let len = list_bound.len();

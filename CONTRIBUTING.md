@@ -104,7 +104,7 @@ export PYO3_PYTHON="$(python -c 'import sys; print(sys.executable)')"
 cargo test -p formatparse-pyo3 --features python-tests
 ```
 
-GitHub Actions runs this on **Ubuntu + Python 3.11** as a separate step with `continue-on-error: true` so a brittle linker layout does not block merges; failures still appear in the job log.
+GitHub Actions runs this on **Ubuntu + Python 3.11** as a **blocking** step (same venv as `maturin develop` in that job); failures fail the workflow.
 
 Run tests for a specific module:
 ```bash
@@ -265,7 +265,7 @@ Mutation testing runs automatically in CI on the main branch (weekly).
 Before submitting a PR, ensure:
 
 - [ ] All tests pass (`make test` or `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/`)
-- [ ] Rust tests pass (`cargo test --workspace` on the Ubuntu + Python 3.11 model; other setups at minimum `cargo test -p formatparse-core`). Optionally run `cargo test -p formatparse-pyo3 --features python-tests` when your PyO3/Python layout supports it (see **Rust Tests**).
+- [ ] Rust tests pass (`cargo test --workspace` on the Ubuntu + Python 3.11 model; other setups at minimum `cargo test -p formatparse-core`). On Ubuntu 3.11-equivalent setups also run `cargo test -p formatparse-pyo3 --features python-tests` with `PYO3_PYTHON` set (see **Rust Tests**); CI enforces this on Ubuntu 3.11.
 - [ ] Code coverage is maintained or improved
 - [ ] Code is formatted (`ruff format .`, `cargo fmt`)
 - [ ] No linting errors (`ruff check .`, `cargo clippy`)
@@ -280,7 +280,7 @@ The project uses GitHub Actions for CI/CD:
 
 - **Tests**: Run on all PRs across multiple Python versions and platforms
 - **Coverage**: Generated on Python 3.11, Ubuntu; `fail_under` from `pyproject.toml` is enforced on that job
-- **Rust**: `cargo test --workspace` on Ubuntu + Python 3.11; other cells run `cargo test -p formatparse-core` only. Optional `python-tests` job on Ubuntu 3.11 (see CONTRIBUTING) is soft-fail in CI.
+- **Rust**: `cargo test --workspace` on Ubuntu + Python 3.11; other cells run `cargo test -p formatparse-core` only. The `python-tests` step on Ubuntu 3.11 runs `cargo test -p formatparse-pyo3 --features python-tests` and **must pass** (see **Rust Tests** below). Ubuntu **PyPy 3.11** runs pytest with a built extension like the CPython matrix.
 - **Benchmarks**: Run on PRs and main branch
 - **Doctests**: Run on Python 3.11, Ubuntu
 - **Mutation Testing**: Runs weekly on main branch
