@@ -73,19 +73,19 @@ The library implements the following security limits:
 - Maximum input string length: 10,000,000 characters (10MB)
 - Maximum number of fields: 100
 - Maximum field name length: 200 characters
-- After each successful regex compilation, the library checks that compilation took at most 200ms of wall-clock time (see ReDoS section below; this is not a match-time bound)
+- After each successful regex compilation, the library checks that compilation took at most 500ms of wall-clock time (see ReDoS section below; this is not a match-time bound)
 
 If you encounter these limits and need to adjust them for your use case, please open an issue to discuss.
 
 ### Regular Expression Denial of Service (ReDoS)
 
-**Compilation vs matching:** The 200ms check runs only *after* `Regex::new` returns. It does not interrupt compilation in progress, and it does **not** bound **matching** time (`parse`, `search`, `findall`, etc.). Pathological patterns and inputs can still spend a long time in the matching engine even when compilation succeeds quickly.
+**Compilation vs matching:** The 500ms check runs only *after* `Regex::new` returns. It does not interrupt compilation in progress, and it does **not** bound **matching** time (`parse`, `search`, `findall`, etc.). Pathological patterns and inputs can still spend a long time in the matching engine even when compilation succeeds quickly.
 
 The library still helps by enforcing pattern and input size limits and rejecting some invalid patterns early. For untrusted patterns or text you should:
 
 - Prefer simple patterns and validate pattern source where possible
 - Monitor wall-clock time at the application level if you process untrusted input
-- Avoid relying on the 200ms post-compile check as full ReDoS protection
+- Avoid relying on the 500ms post-compile check as full ReDoS protection
 
 ### `findall` and many matches
 

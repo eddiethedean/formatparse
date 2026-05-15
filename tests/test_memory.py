@@ -4,9 +4,17 @@ These tests ensure that repeated operations don't leak memory,
 which is especially important for PyO3 bindings.
 """
 
-import pytest
 import gc
+import sys
+
+import pytest
 from formatparse import parse, compile, BidirectionalPattern
+
+
+def _skip_pympler_on_pypy() -> None:
+    """pympler's SummaryTracker uses asizeof paths that break on PyPy (KeyError on typedef)."""
+    if sys.implementation.name == "pypy":
+        pytest.skip("pympler tracker is not compatible with PyPy")
 
 
 def test_repeated_parsing_no_leak():
@@ -68,6 +76,7 @@ def test_bidirectional_pattern_reuse_no_leak():
 @pytest.mark.slow
 def test_long_running_operation_memory():
     """Test memory usage in long-running operations"""
+    _skip_pympler_on_pypy()
     try:
         from pympler import tracker
 
@@ -98,6 +107,7 @@ def test_long_running_operation_memory():
 @pytest.mark.slow
 def test_findall_memory_usage():
     """Test memory usage with findall operations"""
+    _skip_pympler_on_pypy()
     try:
         from pympler import tracker
         from formatparse import findall

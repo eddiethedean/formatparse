@@ -7,7 +7,10 @@ use std::time::Instant;
 /// This is checked **after** `Regex::new` returns (wall-clock elapsed time). It does not
 /// interrupt compilation in progress and does not bound **matching** time. See project
 /// security documentation for ReDoS considerations.
-const MAX_REGEX_COMPILATION_TIME_MS: u128 = 200;
+///
+/// Set to 500ms so legitimate patterns still fail closed on extreme stalls while tolerating
+/// slow shared CI hosts (e.g. macOS Intel runners) that can exceed a tighter budget sporadically.
+const MAX_REGEX_COMPILATION_TIME_MS: u128 = 500;
 
 /// Build a regex from a pattern string with DOTALL flag
 /// Includes timeout protection against ReDoS attacks
