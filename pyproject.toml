@@ -76,7 +76,7 @@ paths_to_mutate = ["formatparse/"]
 test_command = "env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests -x"
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 files = ["formatparse", "tests"]
 
 [[tool.mypy.overrides]]

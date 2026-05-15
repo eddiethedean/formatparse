@@ -66,11 +66,5 @@ pub(crate) fn wrap_field_lookbehind(spec: &FieldSpec, core: String) -> String {
 }
 
 /// Character class for one unit of width/precision in normal string fields (`s` / `{}`).
-pub(crate) const STRING_WIDTH_PRECISION_CHAR: &str = concat!(
-    "[^", "\r", "\n", "\u{000B}",
-    "\u{000C}",
-    "\u{0085}",
-    "\u{2028}",
-    "\u{2029}",
-    "]"
-);
+pub(crate) const STRING_WIDTH_PRECISION_CHAR: &str =
+    concat!("[^", "\r", "\n", "\u{000B}", "\u{000C}", "\u{0085}", "\u{2028}", "\u{2029}", "]");

@@ -1,7 +1,9 @@
 //! Non-overlapping findall scan (raw fast path and Python fallback).
 
 use crate::parser::format_parser::FormatParser;
-use crate::parser::matching::{match_with_captures, match_with_captures_raw, CapturedMatchContext, FieldCaptureSlices};
+use crate::parser::matching::{
+    match_with_captures, match_with_captures_raw, CapturedMatchContext, FieldCaptureSlices,
+};
 use crate::results::Results;
 use formatparse_core::FieldType;
 use pyo3::prelude::*;
@@ -22,8 +24,9 @@ pub(crate) fn findall_matches(
         .as_ref()
         .map(|et| !et.is_empty())
         .unwrap_or(false);
-    let has_nested_dicts = parser.has_nested_dict_fields.iter().any(|&b| b);
+    let has_nested_dicts = parser.fields.has_nested_dict_fields.iter().any(|&b| b);
     let has_nested_format_fields = parser
+        .fields
         .field_specs
         .iter()
         .any(|s| matches!(s.field_type, FieldType::Nested));

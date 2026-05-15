@@ -66,16 +66,6 @@ pyo3::create_exception!(
 pub mod errors {
     use super::*;
 
-    /// Create a pattern parsing error
-    pub fn pattern_error(msg: &str) -> PyErr {
-        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Pattern error: {}", msg))
-    }
-
-    /// Malformed pattern: ``parse()`` / ``parse_batch()`` return no match (``None`` / list of ``None``).
-    pub fn pattern_error_parse_mismatch(msg: &str) -> PyErr {
-        super::PatternParseMismatch::new_err(format!("Pattern error: {}", msg))
-    }
-
     /// Create a regex compilation error
     pub fn regex_error(msg: &str) -> PyErr {
         PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid regex pattern: {}", msg))
@@ -110,14 +100,6 @@ pub mod errors {
         PyErr::new::<pyo3::exceptions::PyIndexError, _>(format!(
             "Custom type '{}' pattern has {} capturing groups but regex_group_count is {}",
             type_name, actual, expected
-        ))
-    }
-
-    /// Create a not implemented error
-    pub fn not_implemented_error(feature: &str) -> PyErr {
-        PyErr::new::<pyo3::exceptions::PyNotImplementedError, _>(format!(
-            "{} is not supported",
-            feature
         ))
     }
 

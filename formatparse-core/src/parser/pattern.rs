@@ -38,7 +38,9 @@ fn collect_balanced_format_spec(
     let mut depth = 0i32;
     loop {
         let Some(&ch) = chars.peek() else {
-            return Err(FormatParseError::PatternError("Unclosed '{' in pattern: expected '}' to close the field".to_string()));
+            return Err(FormatParseError::PatternError(
+                "Unclosed '{' in pattern: expected '}' to close the field".to_string(),
+            ));
         };
         if ch == '}' && depth == 0 {
             break;
@@ -55,7 +57,9 @@ fn collect_balanced_format_spec(
                 } else {
                     depth += 1;
                     if depth > MAX_BRACE_DEPTH_IN_FORMAT_SPEC {
-                        return Err(FormatParseError::PatternError("Format specification has too many nested '{' (max 10)".to_string()));
+                        return Err(FormatParseError::PatternError(
+                            "Format specification has too many nested '{' (max 10)".to_string(),
+                        ));
                     }
                     out.push('{');
                 }
@@ -66,7 +70,9 @@ fn collect_balanced_format_spec(
             '}' => {
                 depth -= 1;
                 if depth < 0 {
-                    return Err(FormatParseError::PatternError("Unexpected '}' in format specification".to_string()));
+                    return Err(FormatParseError::PatternError(
+                        "Unexpected '}' in format specification".to_string(),
+                    ));
                 }
                 out.push('}');
             }
@@ -219,7 +225,9 @@ pub fn parse_pattern(
 
                 if matches!(spec.field_type, FieldType::Nested) {
                     if nesting_depth >= MAX_NESTED_FORMAT_DEPTH {
-                        return Err(FormatParseError::PatternError("Nested format patterns exceed max depth (10)".to_string()));
+                        return Err(FormatParseError::PatternError(
+                            "Nested format patterns exceed max depth (10)".to_string(),
+                        ));
                     }
                     let inner = spec.nested_subpattern.as_ref().ok_or_else(|| {
                         FormatParseError::PatternError(
@@ -345,10 +353,15 @@ pub fn parse_pattern(
                 // Requires a non-numbered name.
                 let group_pattern = if matches!(spec.field_type, FieldType::BracedContent) {
                     let Some(ref original_name) = name else {
-                        return Err(FormatParseError::PatternError("The :brace format requires a named field (e.g. {content:brace})".to_string()));
+                        return Err(FormatParseError::PatternError(
+                            "The :brace format requires a named field (e.g. {content:brace})"
+                                .to_string(),
+                        ));
                     };
                     if original_name.chars().all(|c| c.is_ascii_digit()) {
-                        return Err(FormatParseError::PatternError("The :brace format cannot be used with numbered fields".to_string()));
+                        return Err(FormatParseError::PatternError(
+                            "The :brace format cannot be used with numbered fields".to_string(),
+                        ));
                     }
                     let normalized =
                         normalize_field_name(original_name, &mut name_mapping, &normalized_names);
@@ -401,7 +414,9 @@ pub fn parse_pattern(
 
                 // Expect closing brace
                 if chars.next() != Some('}') {
-                    return Err(FormatParseError::PatternError("Expected '}' after field specification".to_string()));
+                    return Err(FormatParseError::PatternError(
+                        "Expected '}' after field specification".to_string(),
+                    ));
                 }
             }
             '}' => {
@@ -508,10 +523,14 @@ pub fn validate_multiline_mvp(spec: &FieldSpec) -> Result<(), FormatParseError> 
         return Ok(());
     }
     if spec.sign.is_some() || spec.zero_pad {
-        return Err(FormatParseError::PatternError("Multiline types :ml and :blk do not support sign or zero-padding".to_string()));
+        return Err(FormatParseError::PatternError(
+            "Multiline types :ml and :blk do not support sign or zero-padding".to_string(),
+        ));
     }
     if spec.alignment == Some('=') {
-        return Err(FormatParseError::PatternError("Multiline types :ml and :blk do not support '=' alignment".to_string()));
+        return Err(FormatParseError::PatternError(
+            "Multiline types :ml and :blk do not support '=' alignment".to_string(),
+        ));
     }
     Ok(())
 }
@@ -603,7 +622,9 @@ pub fn parse_field(
             '\'' | '"' => {
                 // Quote characters in field names indicate quoted keys (not supported)
                 if in_brackets {
-                    return Err(FormatParseError::NotImplementedError("Quoted keys in field names".to_string()));
+                    return Err(FormatParseError::NotImplementedError(
+                        "Quoted keys in field names".to_string(),
+                    ));
                 }
                 // Not in brackets, not a valid name character
                 in_name = false;
@@ -629,7 +650,9 @@ pub fn parse_field(
         let trimmed = format_spec.trim();
         if is_nested_format_spec_candidate(trimmed) {
             if nesting_depth >= MAX_NESTED_FORMAT_DEPTH {
-                return Err(FormatParseError::PatternError("Nested format patterns exceed max depth (10)".to_string()));
+                return Err(FormatParseError::PatternError(
+                    "Nested format patterns exceed max depth (10)".to_string(),
+                ));
             }
             spec.field_type = FieldType::Nested;
             spec.nested_subpattern = Some(trimmed.to_string());
@@ -649,10 +672,7 @@ pub fn parse_field(
 }
 
 /// Parse format specifier string into FieldSpec
-pub fn parse_format_spec(
-    format_spec: &str,
-    spec: &mut FieldSpec,
-    ) -> Result<(), FormatParseError> {
+pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec) -> Result<(), FormatParseError> {
     // Format spec: [[fill]align][sign][#][0][width][,][.precision][type]
     // Examples: "<10", ">", "^5.2f", "+d", "03d", ".2f"
 
@@ -745,17 +765,17 @@ pub fn parse_format_spec(
         return Ok(());
     }
     if type_str.starts_with('%') {
-        crate::reject_lookaround_in_strftime(&type_str)
-            .map_err(|e| FormatParseError::PatternError(e))?;
+        crate::reject_lookaround_in_strftime(&type_str).map_err(FormatParseError::PatternError)?;
         spec.field_type = FieldType::DateTimeStrftime;
         spec.strftime_format = Some(type_str.clone());
         return Ok(());
     }
 
-    let (type_base, lookaround_tail) =
-        crate::split_type_base_and_lookaround_tail(&type_str);
+    let (type_base, lookaround_tail) = crate::split_type_base_and_lookaround_tail(&type_str);
     if type_base.is_empty() && !lookaround_tail.is_empty() {
-        return Err(FormatParseError::PatternError("Type specification must precede lookaround assertions".to_string()));
+        return Err(FormatParseError::PatternError(
+            "Type specification must precede lookaround assertions".to_string(),
+        ));
     }
 
     // Extract type name (alphabetic characters only) from the type base (not from lookarounds)
@@ -809,7 +829,7 @@ pub fn parse_format_spec(
 
     if !lookaround_tail.is_empty() {
         let (lb, la) = crate::parse_lookaround_tail(lookaround_tail)
-            .map_err(|e| FormatParseError::PatternError(e))?;
+            .map_err(FormatParseError::PatternError)?;
         match &spec.field_type {
             FieldType::Integer | FieldType::Float => {
                 spec.regex_lookbehind = if lb.is_empty() { None } else { Some(lb) };
@@ -849,4 +869,3 @@ mod normalize_field_name_tests {
         assert_eq!(normalize_field_name("a[b[c[d]]]", &mut m, &[]), "a_b_c_d");
     }
 }
-

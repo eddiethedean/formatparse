@@ -107,7 +107,13 @@ from .exceptions import (
     ValidationWarning,
 )
 from .tz import FixedTzOffset
-from .types import ConverterProtocol, ExtraTypes, FieldConstraint, ValidationMode, ValidatorMap
+from .types import (
+    ConverterProtocol,
+    ExtraTypes,
+    FieldConstraint,
+    ValidationMode,
+    ValidatorMap,
+)
 from .validation import (
     ValidationPipeline,
     apply_validators,

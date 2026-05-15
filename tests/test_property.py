@@ -673,11 +673,7 @@ def test_unicode_round_trip(name, value):
 @settings(max_examples=100)
 @given(
     text=unicode_non_surrogate_strings.filter(
-        lambda s: (
-            len(s) > 0
-            and len(s) < 50
-            and not any(c.isdigit() for c in s)
-        )
+        lambda s: len(s) > 0 and len(s) < 50 and not any(c.isdigit() for c in s)
     ),
     value=integers,
 )
@@ -700,7 +696,9 @@ def test_unicode_field_names(field_name, value):
     pattern = f"{{{field_name}:d}}"
     text = f"{value}"
     result = parse(pattern, text)
-    assert result is not None, f"parse returned None for pattern={pattern!r} text={text!r}"
+    assert result is not None, (
+        f"parse returned None for pattern={pattern!r} text={text!r}"
+    )
     assert result.named[field_name] == value
 
 

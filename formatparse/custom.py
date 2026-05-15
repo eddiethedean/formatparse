@@ -1,9 +1,11 @@
 """Custom type converters and composition."""
+
 from __future__ import annotations
 
 from typing import Any, Callable
 
 from ._native import FormatParser, ParseResult
+
 
 def with_pattern(
     pattern: str, regex_group_count: int = 0

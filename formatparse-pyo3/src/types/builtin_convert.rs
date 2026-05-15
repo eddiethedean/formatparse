@@ -24,10 +24,7 @@ pub enum ConvertOutcome {
 
 /// Parse integer text using the same rules as the legacy raw/Python paths.
 pub fn parse_integer_text(spec: &FieldSpec, value: &str) -> Result<i64, String> {
-    if spec.fill.is_none()
-        && spec.alignment != Some('=')
-        && spec.original_type_char.is_none()
-    {
+    if spec.fill.is_none() && spec.alignment != Some('=') && spec.original_type_char.is_none() {
         if let Ok(n) = value.trim().parse::<i64>() {
             return Ok(n);
         }
@@ -59,7 +56,8 @@ pub fn parse_integer_text(spec: &FieldSpec, value: &str) -> Result<i64, String> 
     } else if num_str.starts_with("0o") || num_str.starts_with("0O") {
         i64::from_str_radix(&num_str[2..], 8).map(|n| if is_negative { -n } else { n })
     } else if num_str.starts_with("0b") || num_str.starts_with("0B") {
-        let result = if spec.original_type_char == Some('x') || spec.original_type_char == Some('X') {
+        let result = if spec.original_type_char == Some('x') || spec.original_type_char == Some('X')
+        {
             if num_str == "0B" || num_str == "0b" {
                 i64::from_str_radix("B", 16)
             } else if num_str.len() > 2 {
@@ -99,9 +97,9 @@ pub fn convert_builtin_scalar(spec: &FieldSpec, value: &str) -> ConvertOutcome {
         FieldType::IndentBlock => {
             let folded = formatparse_core::normalize_input_line_continuations(value);
             let t = trim_string_or_multiline_value(spec, folded.as_str());
-            ConvertOutcome::Ok(ConvertedScalar::String(formatparse_core::strip_common_indent(
-                t.as_ref(),
-            )))
+            ConvertOutcome::Ok(ConvertedScalar::String(
+                formatparse_core::strip_common_indent(t.as_ref()),
+            ))
         }
         FieldType::Integer => match parse_integer_text(spec, value) {
             Ok(n) => ConvertOutcome::Ok(ConvertedScalar::Integer(n)),
@@ -150,9 +148,17 @@ pub fn convert_builtin_scalar(spec: &FieldSpec, value: &str) -> ConvertOutcome {
             )),
         },
         FieldType::GeneralNumber => {
-            if let Ok(n) = value.trim().parse::<i64>() {
+            let trimmed = value.trim();
+            let lower = trimmed.to_lowercase();
+            if lower == "nan" {
+                ConvertOutcome::Ok(ConvertedScalar::Float(f64::NAN))
+            } else if lower == "inf" || lower == "+inf" {
+                ConvertOutcome::Ok(ConvertedScalar::Float(f64::INFINITY))
+            } else if lower == "-inf" {
+                ConvertOutcome::Ok(ConvertedScalar::Float(f64::NEG_INFINITY))
+            } else if let Ok(n) = trimmed.parse::<i64>() {
                 ConvertOutcome::Ok(ConvertedScalar::Integer(n))
-            } else if let Ok(n) = value.trim().parse::<f64>() {
+            } else if let Ok(n) = trimmed.parse::<f64>() {
                 ConvertOutcome::Ok(ConvertedScalar::Float(n))
             } else {
                 ConvertOutcome::Err(format!("Could not convert '{}' to number", value))
@@ -162,7 +168,9 @@ pub fn convert_builtin_scalar(spec: &FieldSpec, value: &str) -> ConvertOutcome {
             let trimmed = value.trim_end_matches('%').trim();
             match trimmed.parse::<f64>() {
                 Ok(n) => ConvertOutcome::Ok(ConvertedScalar::Float(n / 100.0)),
-                Err(_) => ConvertOutcome::Err(format!("Could not convert '{}' to percentage", value)),
+                Err(_) => {
+                    ConvertOutcome::Err(format!("Could not convert '{}' to percentage", value))
+                }
             }
         }
         FieldType::BracedContent => ConvertOutcome::Ok(ConvertedScalar::String(value.to_string())),

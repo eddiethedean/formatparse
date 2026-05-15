@@ -1,13 +1,6 @@
-use crate::error;
-use crate::match_rs::{Match, MatchInit};
 use crate::parser::format_parser::FormatParser;
-use crate::parser::raw_match::{RawMatchData, RawValue};
-use crate::result::ParseResult;
-use fancy_regex::{Captures, Regex};
-use formatparse_core::{count_capturing_groups, FieldSpec, FieldType};
+use formatparse_core::{FieldSpec, FieldType};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
-use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -35,14 +28,7 @@ pub struct FieldCaptureSlices<'a> {
 
 impl<'a> FieldCaptureSlices<'a> {
     pub fn from_parser(parser: &'a FormatParser) -> Self {
-        Self {
-            field_specs: &parser.field_specs,
-            field_names: &parser.field_names,
-            normalized_names: &parser.normalized_names,
-            custom_type_groups: &parser.custom_type_groups,
-            has_nested_dict_fields: &parser.has_nested_dict_fields,
-            nested_parsers: &parser.nested_parsers,
-        }
+        parser.fields.capture_slices()
     }
 }
 
@@ -68,15 +54,13 @@ pub struct RegexMatchContext<'a> {
     pub evaluate_result: bool,
 }
 
-
 mod capture;
 mod custom_type;
 mod nested_dict;
 mod py_match;
 mod raw;
 
-pub use capture::extract_capture;
 pub use custom_type::validate_custom_type_pattern;
-pub use nested_dict::{get_nested_dict_value, insert_nested_dict};
+pub use nested_dict::insert_nested_dict;
 pub use py_match::{match_empty_default_string_parse, match_with_captures, match_with_regex};
 pub use raw::match_with_captures_raw;

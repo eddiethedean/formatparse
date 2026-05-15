@@ -1,15 +1,7 @@
-use crate::error;
-use crate::match_rs::{Match, MatchInit};
-use crate::parser::format_parser::FormatParser;
-use crate::parser::raw_match::{RawMatchData, RawValue};
-use crate::result::ParseResult;
-use fancy_regex::{Captures, Regex};
-use formatparse_core::{count_capturing_groups, FieldSpec, FieldType};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 pub fn get_nested_dict_value(
     named: &HashMap<String, PyObject>,
@@ -118,4 +110,3 @@ pub fn insert_nested_dict(
 
     Ok(())
 }
-

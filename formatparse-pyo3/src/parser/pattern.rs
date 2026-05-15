@@ -2,8 +2,8 @@
 
 #[allow(unused_imports)]
 pub use formatparse_core::parser::pattern::{
-    field_types_match, parse_field_path, parse_format_spec, parse_pattern,
-    validate_multiline_mvp, ParsedPatternParts, MAX_NESTED_FORMAT_DEPTH,
+    field_types_match, parse_field_path, parse_format_spec, parse_pattern, validate_multiline_mvp,
+    ParsedPatternParts, MAX_NESTED_FORMAT_DEPTH,
 };
 
 use formatparse_core::error::FormatParseError;
@@ -30,8 +30,8 @@ mod nested_candidate_tests {
 
     #[test]
     fn parse_nested_outer_field_type() {
-        let r = parse_pattern("{outer:{inner:d}}", &HashMap::new(), true, 0)
-            .expect("parse_pattern");
+        let r =
+            parse_pattern("{outer:{inner:d}}", &HashMap::new(), true, 0).expect("parse_pattern");
         let specs = &r.2;
         assert_eq!(specs.len(), 1);
         assert!(matches!(specs[0].field_type, FieldType::Nested));

@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Literal, Mapping, Optional, Protocol, TypedDict, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Literal,
+    Mapping,
+    Optional,
+    Protocol,
+    TypedDict,
+    Union,
+)
 
 
 class ConverterProtocol(Protocol):

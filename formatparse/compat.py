@@ -1,4 +1,5 @@
 """Compatibility aliases with the original parse library."""
+
 from __future__ import annotations
 
 from typing import Dict

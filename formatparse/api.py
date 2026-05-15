@@ -1,10 +1,10 @@
 """Core parse API wrappers."""
+
 from __future__ import annotations
 
 from typing import Any, Iterator, List, Optional, Sequence, Union
 
 from ._native import (
-    FindallIter,
     FormatParser,
     ParseResult,
     Results,
@@ -18,6 +18,7 @@ from ._native import (
 from .exceptions import RepeatedNameError
 from .types import ExtraTypes, ValidationMode, ValidatorMap
 from .validation import ValidationPipeline, post_parse_validate
+
 
 def compile(pattern: str, extra_types: Optional[ExtraTypes] = None) -> FormatParser:
     """Compile a pattern into a FormatParser for repeated use.
@@ -82,6 +83,8 @@ def compile(pattern: str, extra_types: Optional[ExtraTypes] = None) -> FormatPar
         if "Repeated name" in str(e) and "mismatched types" in str(e):
             raise RepeatedNameError(str(e)) from e
         raise
+
+
 def parse(
     pattern: str,
     string: str,
@@ -146,6 +149,8 @@ def parse(
         pipeline=pipeline,
         validation_mode=validation_mode,
     )
+
+
 def parse_with_validation(
     parser: FormatParser,
     string: str,
@@ -237,6 +242,8 @@ class ValidatedParser:
             evaluate_result=evaluate_result,
             validation_mode=validation_mode,
         )
+
+
 def parse_batch(
     pattern: str,
     strings: Sequence[str],

@@ -1,17 +1,8 @@
-use crate::error;
-use crate::match_rs::{Match, MatchInit};
-use crate::parser::format_parser::FormatParser;
 use crate::parser::raw_match::{RawMatchData, RawValue};
-use crate::result::ParseResult;
-use fancy_regex::{Captures, Regex};
-use formatparse_core::{count_capturing_groups, FieldSpec, FieldType};
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
-use pyo3::IntoPyObjectExt;
-use std::collections::HashMap;
-use std::sync::Arc;
+use fancy_regex::Captures;
+use formatparse_core::FieldType;
 
-use super::capture::{extract_capture, per_field_capture_geometry};
+use super::capture::extract_capture;
 use super::FieldCaptureSlices;
 
 pub fn match_with_captures_raw(
@@ -117,4 +108,3 @@ pub(crate) fn values_equal(a: &RawValue, b: &RawValue) -> bool {
         _ => false,
     }
 }
-

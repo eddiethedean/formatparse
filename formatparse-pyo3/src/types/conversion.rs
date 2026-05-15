@@ -1,5 +1,6 @@
 use crate::datetime;
 use crate::error;
+use crate::types::builtin_convert::{convert_builtin_scalar, ConvertOutcome};
 use formatparse_core::{FieldSpec, FieldType};
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
@@ -242,227 +243,51 @@ pub fn convert_value(
         }
     }
 
-    // Use built-in conversion
-    match &spec.field_type {
-        FieldType::String => {
-            if spec.alignment.is_none() {
-                Ok(value.into_py_any(py)?)
-            } else {
-                let trimmed = trim_string_or_multiline_value(spec, value);
-                Ok(trimmed.into_py_any(py)?)
-            }
-        }
-        FieldType::Multiline => {
-            let folded = formatparse_core::normalize_input_line_continuations(value);
-            let trimmed = trim_string_or_multiline_value(spec, folded.as_str());
-            Ok(trimmed.into_py_any(py)?)
-        }
-        FieldType::IndentBlock => {
-            let folded = formatparse_core::normalize_input_line_continuations(value);
-            let trimmed = trim_string_or_multiline_value(spec, folded.as_str());
-            Ok(formatparse_core::strip_common_indent(trimmed.as_ref()).into_py_any(py)?)
-        }
-        FieldType::Integer => {
-            // Fast path: common case - decimal integer, no special formatting
-            if spec.fill.is_none()
-                && spec.alignment != Some('=')
-                && spec.original_type_char.is_none()
-            {
-                // Try parsing directly first (most common case)
-                if let Ok(n) = value.trim().parse::<i64>() {
-                    return n.into_py_any(py);
-                }
-            }
-
-            // Full path: handle all cases
-            // Strip whitespace before parsing (width may include spaces)
-            let mut trimmed_str = value.trim().to_string();
-
-            // Strip fill characters if alignment is '=' with fill
-            // Fill characters appear between sign and digits (e.g., "-xxx12" or "+xxx12")
-            // But NOT between sign and prefix (e.g., "-0o10" should not strip '0')
-            if let (Some(fill_ch), Some('=')) = (spec.fill, spec.alignment) {
-                // Check if there's a sign first
-                if trimmed_str.starts_with('-') || trimmed_str.starts_with('+') {
-                    // Keep the sign, strip fill chars after it but before the number part
-                    let sign_char = &trimmed_str[..1];
-                    let rest = &trimmed_str[1..];
-                    // Only strip fill if it's not part of a prefix (0x, 0o, 0b)
-                    if rest.starts_with("0x")
-                        || rest.starts_with("0X")
-                        || rest.starts_with("0o")
-                        || rest.starts_with("0O")
-                        || rest.starts_with("0b")
-                        || rest.starts_with("0B")
-                    {
-                        // Has prefix, don't strip (fill shouldn't appear here)
-                        // Actually, fill can appear: "-xxx0o10" -> strip xxx
-                        let rest_trimmed = rest.trim_start_matches(fill_ch);
-                        trimmed_str = format!("{}{}", sign_char, rest_trimmed);
-                    } else {
-                        // No prefix, strip fill chars
-                        let rest_trimmed = rest.trim_start_matches(fill_ch);
-                        trimmed_str = format!("{}{}", sign_char, rest_trimmed);
-                    }
-                } else {
-                    // No sign, just strip leading fill chars
-                    trimmed_str = trimmed_str.trim_start_matches(fill_ch).to_string();
-                }
-            }
-
-            let trimmed = trimmed_str.as_str();
-            // Handle negative numbers with prefixes (e.g., "-0o10")
-            let (is_negative, num_str) = if let Some(rest) = trimmed.strip_prefix('-') {
-                (true, rest)
-            } else if let Some(rest) = trimmed.strip_prefix('+') {
-                (false, rest)
-            } else {
-                (false, trimmed)
-            };
-
-            let v = if num_str.starts_with("0x") || num_str.starts_with("0X") {
-                i64::from_str_radix(&num_str[2..], 16).map(|n| if is_negative { -n } else { n })
-            } else if num_str.starts_with("0o") || num_str.starts_with("0O") {
-                i64::from_str_radix(&num_str[2..], 8).map(|n| if is_negative { -n } else { n })
-            } else if num_str.starts_with("0b") || num_str.starts_with("0B") {
-                // Check if type is 'x' - if so, "0B" should be parsed as hex (0xB)
-                let result = if spec.original_type_char == Some('x')
-                    || spec.original_type_char == Some('X')
-                {
-                    // For hex type, "0B" means 0xB (hex), not binary
-                    if num_str == "0B" || num_str == "0b" {
-                        i64::from_str_radix("B", 16)
-                    } else if num_str.len() > 2 {
-                        // "0B1" should be parsed as "B1" in hex
-                        i64::from_str_radix(&num_str[1..], 16)
-                    } else {
-                        i64::from_str_radix(&num_str[2..], 2)
-                    }
-                } else {
-                    i64::from_str_radix(&num_str[2..], 2)
-                };
-                result.map(|n| if is_negative { -n } else { n })
-            } else {
-                // Check original type character to determine base if no prefix
-                let result = match spec.original_type_char {
-                    Some('b') => i64::from_str_radix(num_str, 2), // Binary without 0b prefix
-                    Some('o') => i64::from_str_radix(num_str, 8), // Octal without 0o prefix
-                    Some('x') | Some('X') => i64::from_str_radix(num_str, 16), // Hex without 0x prefix
-                    _ => num_str.parse::<i64>(),                               // Decimal
-                };
-                result.map(|n| if is_negative { -n } else { n })
-            };
-            match v {
-                Ok(n) => Ok(n.into_py_any(py)?),
-                Err(_) => Err(error::conversion_error(value, "integer")),
-            }
-        }
-        FieldType::Float => {
-            // Fast path: try parsing directly first (most floats don't have leading/trailing spaces)
-            match value.parse::<f64>() {
-                Ok(n) => Ok(n.into_py_any(py)?),
-                Err(_) => {
-                    // Fallback: strip whitespace and try again
-                    let trimmed = value.trim();
-                    match trimmed.parse::<f64>() {
-                        Ok(n) => Ok(n.into_py_any(py)?),
-                        Err(_) => Err(error::conversion_error(value, "float")),
-                    }
-                }
-            }
-        }
-        FieldType::Boolean => {
-            // Fast path: check common cases without allocation
-            let b = match value.len() {
-                1 => value == "1",
-                2 => matches!(value, "on" | "ON"),
-                3 => matches!(value, "yes" | "YES"),
-                4 => matches!(value, "true" | "TRUE"),
-                _ => {
-                    // Fallback: lowercase comparison
-                    let lower = value.to_lowercase();
-                    matches!(lower.as_str(), "true" | "1" | "yes" | "on")
-                }
-            };
-            Ok(b.into_py_any(py)?)
-        }
-        FieldType::Letters => Ok(value.into_py_any(py)?), // Letters are just strings
-        FieldType::Word => Ok(value.into_py_any(py)?),    // Words are just strings
-        FieldType::NonLetters => Ok(value.into_py_any(py)?), // Non-letters are just strings
-        FieldType::NonWhitespace => Ok(value.into_py_any(py)?), // Non-whitespace are just strings
-        FieldType::NonDigits => Ok(value.into_py_any(py)?), // Non-digits are just strings
-        FieldType::NumberWithThousands => {
-            // Strip thousands separators (comma or dot) and parse as integer
-            let trimmed = value.trim();
-            let cleaned = trimmed.replace(",", "").replace(".", "");
-            match cleaned.parse::<i64>() {
-                Ok(n) => Ok(n.into_py_any(py)?),
-                Err(_) => Err(error::conversion_error(value, "number with thousands")),
-            }
-        }
-        FieldType::Scientific => {
-            // Parse as float (supports scientific notation)
-            let trimmed = value.trim();
-            match trimmed.parse::<f64>() {
-                Ok(n) => Ok(n.into_py_any(py)?),
-                Err(_) => Err(error::conversion_error(value, "scientific notation")),
-            }
-        }
-        FieldType::GeneralNumber => {
-            // Parse as int if possible, otherwise float, or nan/inf
-            let trimmed = value.trim();
-            let lower = trimmed.to_lowercase();
-            // Check for nan/inf first
-            if lower == "nan" {
-                Ok(f64::NAN.into_py_any(py)?)
-            } else if lower == "inf" || lower == "+inf" {
-                Ok(f64::INFINITY.into_py_any(py)?)
-            } else if lower == "-inf" {
-                Ok(f64::NEG_INFINITY.into_py_any(py)?)
-            } else {
-                // Try int first
-                if let Ok(n) = trimmed.parse::<i64>() {
-                    Ok(n.into_py_any(py)?)
-                } else if let Ok(n) = trimmed.parse::<f64>() {
-                    Ok(n.into_py_any(py)?)
-                } else {
-                    Err(error::conversion_error(value, "number"))
-                }
-            }
-        }
-        FieldType::Percentage => {
-            // Parse number, remove %, divide by 100
-            let trimmed = value.trim();
-            let num_str = trimmed.trim_end_matches('%');
-            match num_str.parse::<f64>() {
-                Ok(n) => Ok((n / 100.0).into_py_any(py)?),
-                Err(_) => Err(error::conversion_error(value, "percentage")),
-            }
-        }
-        FieldType::DateTimeISO => datetime::parse_iso_datetime(py, value),
-        FieldType::DateTimeRFC2822 => datetime::parse_rfc2822_datetime(py, value),
-        FieldType::DateTimeGlobal => datetime::parse_global_datetime(py, value),
-        FieldType::DateTimeUS => datetime::parse_us_datetime(py, value),
-        FieldType::DateTimeCtime => datetime::parse_ctime_datetime(py, value),
-        FieldType::DateTimeHTTP => datetime::parse_http_datetime(py, value),
-        FieldType::DateTimeTime => datetime::parse_time(py, value),
-        FieldType::DateTimeSystem => datetime::parse_system_datetime(py, value),
-        FieldType::DateTimeStrftime => {
-            if let Some(fmt) = &spec.strftime_format {
-                datetime::parse_strftime_datetime(py, value, fmt)
-            } else {
-                Ok(value.into_py_any(py)?)
-            }
-        }
-        FieldType::BracedContent => Ok(value.into_py_any(py)?),
-        FieldType::Nested => Err(error::conversion_error(
+    match convert_builtin_scalar(spec, value) {
+        ConvertOutcome::Ok(scalar) => scalar.to_py_object(py),
+        ConvertOutcome::Err(_) => Err(error::conversion_error(
             value,
-            "nested format (handled by parser, not convert_value)",
+            builtin_conversion_type_label(&spec.field_type),
         )),
-        FieldType::Custom(_) => {
-            // Already handled above
-            Ok(value.into_py_any(py)?)
-        }
+        ConvertOutcome::NeedsPython => match &spec.field_type {
+            FieldType::DateTimeISO => datetime::parse_iso_datetime(py, value),
+            FieldType::DateTimeRFC2822 => datetime::parse_rfc2822_datetime(py, value),
+            FieldType::DateTimeGlobal => datetime::parse_global_datetime(py, value),
+            FieldType::DateTimeUS => datetime::parse_us_datetime(py, value),
+            FieldType::DateTimeCtime => datetime::parse_ctime_datetime(py, value),
+            FieldType::DateTimeHTTP => datetime::parse_http_datetime(py, value),
+            FieldType::DateTimeTime => datetime::parse_time(py, value),
+            FieldType::DateTimeSystem => datetime::parse_system_datetime(py, value),
+            FieldType::DateTimeStrftime => {
+                if let Some(fmt) = &spec.strftime_format {
+                    datetime::parse_strftime_datetime(py, value, fmt)
+                } else {
+                    Ok(value.into_py_any(py)?)
+                }
+            }
+            FieldType::BracedContent => Ok(value.into_py_any(py)?),
+            FieldType::Nested => Err(error::conversion_error(
+                value,
+                "nested format (handled by parser, not convert_value)",
+            )),
+            FieldType::Custom(_) => Ok(value.into_py_any(py)?),
+            _ => Err(error::conversion_error(
+                value,
+                builtin_conversion_type_label(&spec.field_type),
+            )),
+        },
+    }
+}
+
+fn builtin_conversion_type_label(field_type: &FieldType) -> &'static str {
+    match field_type {
+        FieldType::Integer => "integer",
+        FieldType::Float => "float",
+        FieldType::NumberWithThousands => "number with thousands",
+        FieldType::Scientific => "scientific notation",
+        FieldType::GeneralNumber => "number",
+        FieldType::Percentage => "percentage",
+        _ => "value",
     }
 }
 

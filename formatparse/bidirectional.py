@@ -1,4 +1,5 @@
 """Bidirectional parse and format."""
+
 from __future__ import annotations
 
 import re
@@ -7,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from ._native import FormatParser, ParseResult
 from .api import compile
 from .types import ExtraTypes, FieldConstraint
+
 
 class BidirectionalPattern:
     """A bidirectional pattern that can parse and format strings.

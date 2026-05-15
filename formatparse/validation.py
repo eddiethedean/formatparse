@@ -1,14 +1,16 @@
 """Post-parse validation."""
+
 from __future__ import annotations
 
 import re
 import warnings
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 from ._native import ParseResult
 from .exceptions import MultipleValidationErrors, ValidationError, ValidationWarning
 from .types import ValidationMode, ValidatorMap
+
 
 def validator(func: Callable[..., Any]) -> Callable[..., Any]:
     """Mark a function as a post-parse validator (metadata for tooling / docs).
@@ -340,7 +342,6 @@ def _validation_source_exclusive(
 ) -> None:
     if validators is not None and pipeline is not None:
         raise ValueError("pass only one of validators= or pipeline=")
-
 
 
 def validation_source_exclusive(

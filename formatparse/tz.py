@@ -1,10 +1,12 @@
 """Timezone helpers."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, tzinfo
 from typing import Optional
 
 from ._native import _FixedTzOffset
+
 
 class FixedTzOffset(tzinfo):
     """Fixed timezone offset compatible with datetime.tzinfo.

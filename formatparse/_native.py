@@ -16,3 +16,18 @@ from _formatparse import (  # type: ignore[import-not-found, import-untyped]
     PatternParseMismatch,
     Results,
 )
+
+__all__ = [
+    "_parse",
+    "_parse_batch",
+    "_search",
+    "_findall",
+    "_findall_iter",
+    "_compile",
+    "ParseResult",
+    "FormatParser",
+    "FindallIter",
+    "_FixedTzOffset",
+    "PatternParseMismatch",
+    "Results",
+]

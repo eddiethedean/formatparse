@@ -1,23 +1,17 @@
-use crate::error;
 use crate::match_rs::{Match, MatchInit};
-use crate::parser::format_parser::FormatParser;
-use crate::parser::raw_match::{RawMatchData, RawValue};
 use crate::result::ParseResult;
 use fancy_regex::{Captures, Regex};
 use formatparse_core::{count_capturing_groups, FieldSpec, FieldType};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use super::{
-    capture::{extract_capture, per_field_capture_geometry, strftime_merge_leader_per_field},
-    capture_string_for_match_storage, CapturedMatchContext, FieldCaptureSlices, RegexMatchContext,
-};
 use super::custom_type::validate_custom_type_pattern;
 use super::nested_dict::{get_nested_dict_value, insert_nested_dict};
-use super::raw::values_equal;
+use super::{
+    capture::{extract_capture, per_field_capture_geometry, strftime_merge_leader_per_field},
+    capture_string_for_match_storage, CapturedMatchContext, RegexMatchContext,
+};
 
 pub fn match_with_captures(
     captures: &Captures,
