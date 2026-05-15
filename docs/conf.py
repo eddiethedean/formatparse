@@ -156,9 +156,9 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
 }
 
-# Release links in CHANGELOG may not exist until publish day.
+# Release links in CHANGELOG may not exist until the git tag is pushed.
 linkcheck_ignore = [
-    r"https://github\.com/eddiethedean/formatparse/releases/tag/v0\.8\.0$",
+    r"https://github\.com/eddiethedean/formatparse/releases/tag/v[\d.]+(?:-[\w.]+)?$",
 ]
 
 extlinks = {

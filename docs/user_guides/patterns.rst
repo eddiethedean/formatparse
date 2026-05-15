@@ -166,7 +166,7 @@ You can specify alignment using ``<`` (left), ``>`` (right), or ``^`` (center):
    
    >>> result = parse("{name:<10}", "Alice     ")
    >>> result.named['name']
-   'Alice'
+   'Alice     '
    
    >>> result = parse("{name:^10}", "  Alice   ")
    >>> result.named['name']

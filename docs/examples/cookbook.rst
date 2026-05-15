@@ -72,7 +72,7 @@ Use :func:`with_pattern` and pass converters in ``extra_types`` (see the
 .. doctest::
 
    >>> from formatparse import parse, with_pattern
-   >>> @with_pattern(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")
+   >>> @with_pattern(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
    ... def parse_email(text):
    ...     return text.lower()
    >>> r = parse("Contact {:Email}", "Contact User@Example.COM",

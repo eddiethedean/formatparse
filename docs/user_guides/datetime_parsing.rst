@@ -27,9 +27,7 @@ Parse ISO 8601 datetime strings:
 HTTP Date Format (``:th``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Parse HTTP date format (RFC 7231):
-
-.. doctest::
+Parse HTTP date format (RFC 7231).
 
 HTTP date format parsing may vary. Here's an example using a format that works:
 
