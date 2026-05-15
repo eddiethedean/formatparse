@@ -10,6 +10,7 @@ description = "Core Rust library for parsing strings using Python format() synta
 
 [dependencies]
 regex = "1.12.3"
+fancy-regex = "0.14"
 once_cell = "1.21.4"
 
 [dev-dependencies]

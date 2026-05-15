@@ -1,5 +1,5 @@
 use crate::error::FormatParseError;
-use regex::Regex;
+use fancy_regex::Regex;
 use std::time::Instant;
 
 /// Maximum time allowed for regex compilation (in milliseconds)
@@ -129,30 +129,30 @@ mod tests {
     #[test]
     fn test_build_regex() {
         let regex = build_regex(r"^test$").unwrap();
-        assert!(regex.is_match("test"));
-        assert!(!regex.is_match("TEST"));
-        assert!(!regex.is_match("notest"));
+        assert!(regex.is_match("test").unwrap());
+        assert!(!regex.is_match("TEST").unwrap());
+        assert!(!regex.is_match("notest").unwrap());
     }
 
     #[test]
     fn test_build_regex_with_dotall() {
         let regex = build_regex(r"test.line").unwrap();
-        assert!(regex.is_match("test\nline"));
+        assert!(regex.is_match("test\nline").unwrap());
     }
 
     #[test]
     fn test_build_case_insensitive_regex() {
         let regex = build_case_insensitive_regex(r"^test$").unwrap();
-        assert!(regex.is_match("test"));
-        assert!(regex.is_match("TEST"));
-        assert!(regex.is_match("Test"));
-        assert!(!regex.is_match("notest"));
+        assert!(regex.is_match("test").unwrap());
+        assert!(regex.is_match("TEST").unwrap());
+        assert!(regex.is_match("Test").unwrap());
+        assert!(!regex.is_match("notest").unwrap());
     }
 
     #[test]
     fn test_build_case_insensitive_regex_with_dotall() {
         let regex = build_case_insensitive_regex(r"test.line").unwrap();
-        assert!(regex.is_match("TEST\nLINE"));
+        assert!(regex.is_match("TEST\nLINE").unwrap());
     }
 
     #[test]
@@ -188,26 +188,26 @@ mod tests {
     #[test]
     fn test_build_search_regex_case_sensitive() {
         let regex = build_search_regex(r"^test$", true).unwrap();
-        assert!(regex.is_match("test"));
-        assert!(!regex.is_match("TEST"));
+        assert!(regex.is_match("test").unwrap());
+        assert!(!regex.is_match("TEST").unwrap());
         // Should match anywhere in string (no anchors)
-        assert!(regex.is_match("prefix test suffix"));
+        assert!(regex.is_match("prefix test suffix").unwrap());
     }
 
     #[test]
     fn test_build_search_regex_case_insensitive() {
         let regex = build_search_regex(r"^test$", false).unwrap();
-        assert!(regex.is_match("test"));
-        assert!(regex.is_match("TEST"));
-        assert!(regex.is_match("Test"));
+        assert!(regex.is_match("test").unwrap());
+        assert!(regex.is_match("TEST").unwrap());
+        assert!(regex.is_match("Test").unwrap());
         // Should match anywhere in string (no anchors)
-        assert!(regex.is_match("prefix TEST suffix"));
+        assert!(regex.is_match("prefix TEST suffix").unwrap());
     }
 
     #[test]
     fn test_build_search_regex_with_dotall() {
         let regex = build_search_regex(r"test.line", true).unwrap();
-        assert!(regex.is_match("test\nline"));
-        assert!(regex.is_match("prefix test\nline suffix"));
+        assert!(regex.is_match("test\nline").unwrap());
+        assert!(regex.is_match("prefix test\nline suffix").unwrap());
     }
 }

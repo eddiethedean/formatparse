@@ -331,6 +331,9 @@ pub fn parse_pattern(
                     next_field_is_greedy,
                     allow_empty_delimited,
                 );
+                let la_raw = spec.regex_lookahead.as_deref().unwrap_or("");
+                let (lb_prefix, body, la_emit) =
+                    formatparse_core::rewrite_field_fragments_for_engine_anchor(&pattern, la_raw);
 
                 // Validate repeated field names have same type
                 if let Some(ref original_name) = name {
@@ -367,7 +370,7 @@ pub fn parse_pattern(
 
                     if is_numeric {
                         // Numbered fields are positional (unnamed groups), not named groups
-                        format!("({})", pattern)
+                        format!("{}{}({}){}", lb_prefix, "", body, la_emit)
                     } else {
                         // Normalize name: replace hyphens/dots with underscores, handle collisions
                         let normalized = normalize_field_name(
@@ -375,10 +378,10 @@ pub fn parse_pattern(
                             &mut name_mapping,
                             &normalized_names,
                         );
-                        format!("(?P<{}>{})", normalized, pattern)
+                        format!("{}{}(?P<{}>{}){}", lb_prefix, "", normalized, body, la_emit)
                     }
                 } else {
-                    format!("({})", pattern)
+                    format!("{}{}({}){}", lb_prefix, "", body, la_emit)
                 };
 
                 regex_parts.push(group_pattern);
@@ -643,7 +646,7 @@ pub fn parse_field(
             spec.field_type = FieldType::Nested;
             spec.nested_subpattern = Some(trimmed.to_string());
         } else {
-            parse_format_spec(&format_spec, &mut spec, extra_types);
+            parse_format_spec(&format_spec, &mut spec, extra_types)?;
         }
         validate_multiline_mvp(&spec)?;
     }
@@ -662,7 +665,7 @@ pub fn parse_format_spec(
     format_spec: &str,
     spec: &mut FieldSpec,
     _extra_types: Option<&HashMap<String, PyObject>>,
-) {
+) -> PyResult<()> {
     // Format spec: [[fill]align][sign][#][0][width][,][.precision][type]
     // Examples: "<10", ">", "^5.2f", "+d", "03d", ".2f"
 
@@ -744,75 +747,98 @@ pub fn parse_format_spec(
         }
     }
 
-    // Parse type (all alphabetic characters at the end, plus %)
-    // Collect all remaining characters as the type string
+    // Remaining characters: type token(s), optional trailing lookarounds (issue #9)
     let mut type_str = String::new();
     for ch in chars {
         type_str.push(ch);
     }
 
-    // Handle % specially (it's not alphabetic)
     if type_str == "%" {
         spec.field_type = FieldType::Percentage;
-    } else if type_str.starts_with('%') {
-        // Strftime-style pattern starting with %
+        return Ok(());
+    }
+    if type_str.starts_with('%') {
+        formatparse_core::reject_lookaround_in_strftime(&type_str)
+            .map_err(|e| error::pattern_error(&e))?;
         spec.field_type = FieldType::DateTimeStrftime;
         spec.strftime_format = Some(type_str.clone());
-    } else {
-        // Extract type name (alphabetic characters only)
-        let type_name: String = type_str.chars().filter(|c| c.is_alphabetic()).collect();
-
-        // If type_str is empty, default to String
-        // Multi-character names are always custom types
-        // Single character names can be built-in or custom (checked in convert_value)
-        spec.field_type = if type_name.is_empty() {
-            FieldType::String
-        } else if type_name == "ti" {
-            FieldType::DateTimeISO
-        } else if type_name == "te" {
-            FieldType::DateTimeRFC2822
-        } else if type_name == "tg" {
-            FieldType::DateTimeGlobal
-        } else if type_name == "ta" {
-            FieldType::DateTimeUS
-        } else if type_name == "tc" {
-            FieldType::DateTimeCtime
-        } else if type_name == "th" {
-            FieldType::DateTimeHTTP
-        } else if type_name == "tt" {
-            FieldType::DateTimeTime
-        } else if type_name == "ts" {
-            FieldType::DateTimeSystem
-        } else if type_name == "brace" {
-            FieldType::BracedContent
-        } else if type_name == "ml" {
-            FieldType::Multiline
-        } else if type_name == "blk" {
-            FieldType::IndentBlock
-        } else if type_name.len() > 1 {
-            // Multi-character - always custom type
-            FieldType::Custom(type_name)
-        } else {
-            // Single character - treat as built-in (can be overridden in convert_value)
-            let type_char = type_name.chars().next().unwrap();
-            spec.original_type_char = Some(type_char); // Store original type character
-            match type_char {
-                's' => FieldType::String,
-                'd' | 'i' => FieldType::Integer,
-                'b' | 'o' | 'x' | 'X' => FieldType::Integer, // Binary, octal, hex are integers
-                'n' => FieldType::NumberWithThousands,
-                'f' | 'F' => FieldType::Float,
-                'e' | 'E' => FieldType::Scientific,
-                'g' | 'G' => FieldType::GeneralNumber,
-                'l' => FieldType::Letters,
-                'w' => FieldType::Word,
-                'W' => FieldType::NonLetters,
-                'S' => FieldType::NonWhitespace,
-                'D' => FieldType::NonDigits,
-                c => FieldType::Custom(c.to_string()),
-            }
-        };
+        return Ok(());
     }
+
+    let (type_base, lookaround_tail) =
+        formatparse_core::split_type_base_and_lookaround_tail(&type_str);
+    if type_base.is_empty() && !lookaround_tail.is_empty() {
+        return Err(error::pattern_error(
+            "Type specification must precede lookaround assertions",
+        ));
+    }
+
+    // Extract type name (alphabetic characters only) from the type base (not from lookarounds)
+    let type_name: String = type_base.chars().filter(|c| c.is_alphabetic()).collect();
+
+    spec.field_type = if type_name.is_empty() {
+        FieldType::String
+    } else if type_name == "ti" {
+        FieldType::DateTimeISO
+    } else if type_name == "te" {
+        FieldType::DateTimeRFC2822
+    } else if type_name == "tg" {
+        FieldType::DateTimeGlobal
+    } else if type_name == "ta" {
+        FieldType::DateTimeUS
+    } else if type_name == "tc" {
+        FieldType::DateTimeCtime
+    } else if type_name == "th" {
+        FieldType::DateTimeHTTP
+    } else if type_name == "tt" {
+        FieldType::DateTimeTime
+    } else if type_name == "ts" {
+        FieldType::DateTimeSystem
+    } else if type_name == "brace" {
+        FieldType::BracedContent
+    } else if type_name == "ml" {
+        FieldType::Multiline
+    } else if type_name == "blk" {
+        FieldType::IndentBlock
+    } else if type_name.len() > 1 {
+        FieldType::Custom(type_name)
+    } else {
+        let type_char = type_name.chars().next().unwrap();
+        spec.original_type_char = Some(type_char);
+        match type_char {
+            's' => FieldType::String,
+            'd' | 'i' => FieldType::Integer,
+            'b' | 'o' | 'x' | 'X' => FieldType::Integer,
+            'n' => FieldType::NumberWithThousands,
+            'f' | 'F' => FieldType::Float,
+            'e' | 'E' => FieldType::Scientific,
+            'g' | 'G' => FieldType::GeneralNumber,
+            'l' => FieldType::Letters,
+            'w' => FieldType::Word,
+            'W' => FieldType::NonLetters,
+            'S' => FieldType::NonWhitespace,
+            'D' => FieldType::NonDigits,
+            c => FieldType::Custom(c.to_string()),
+        }
+    };
+
+    if !lookaround_tail.is_empty() {
+        let (lb, la) = formatparse_core::parse_lookaround_tail(lookaround_tail)
+            .map_err(|e| error::pattern_error(&e))?;
+        match &spec.field_type {
+            FieldType::Integer | FieldType::Float => {
+                spec.regex_lookbehind = if lb.is_empty() { None } else { Some(lb) };
+                spec.regex_lookahead = if la.is_empty() { None } else { Some(la) };
+            }
+            _ => {
+                return Err(error::pattern_error(
+                    "Lookaround assertions are only supported for integer and float format types (d, i, b, o, x, X, f, F)",
+                ));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

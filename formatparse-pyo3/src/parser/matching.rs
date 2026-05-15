@@ -7,7 +7,7 @@ use formatparse_core::{count_capturing_groups, FieldSpec, FieldType};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
-use regex::{Captures, Regex};
+use fancy_regex::{Captures, Regex};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -173,7 +173,7 @@ pub fn extract_capture<'a>(
     field_spec: &'a FieldSpec,
     actual_capture_index: usize,
     group_offset: usize,
-) -> Option<regex::Match<'a>> {
+) -> Option<fancy_regex::Match<'a>> {
     // Fast path: check if this is a named group first (most common case)
     if let Some(Some(norm_name)) = normalized_names.get(field_index) {
         // Use normalized name to get the capture (direct lookup)
@@ -729,7 +729,10 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
     let evaluate_result = ctx.evaluate_result;
     let nested_parsers = ctx.nested_parsers;
 
-    if let Some(captures) = regex.captures(string) {
+    let captures = regex
+        .captures(string)
+        .map_err(crate::error::fancy_regex_match_error)?;
+    if let Some(captures) = captures {
         // Pre-allocate with capacity based on expected field count
         let field_count = field_specs.len();
         let mut fixed = Vec::with_capacity(field_count);

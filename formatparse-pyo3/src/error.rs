@@ -49,6 +49,11 @@ pub fn core_error_to_py_err(err: FormatParseError) -> PyErr {
     }
 }
 
+/// Match-time error from the fancy-regex engine (used for compiled format patterns).
+pub fn fancy_regex_match_error(e: fancy_regex::Error) -> PyErr {
+    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Regex match error: {}", e))
+}
+
 // Subclass of ValueError: malformed patterns where reference `parse` returns None from
 // `parse()`. `compile()` still raises this type. Used by `parse` / `parse_batch` without string matching.
 pyo3::create_exception!(
