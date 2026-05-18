@@ -29,7 +29,7 @@ python-tests = []
 
 [dependencies]
 formatparse-core.workspace = true
-pyo3 = { version = "0.24", default-features = false, features = ["macros"] }
+pyo3 = { version = "0.28", default-features = false, features = ["macros"] }
 regex = "1.12.3"
 fancy-regex = "0.14"
 serde = { version = "1.0", features = ["derive"] }
