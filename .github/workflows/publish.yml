@@ -192,7 +192,7 @@ jobs:
         run: cd formatparse-pyo3 && maturin build --out ../dist --strip --release --features extension-module
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: wheel-${{ matrix.os }}-${{ matrix.architecture }}-py${{ matrix.python }}
           path: dist/*.whl
@@ -239,7 +239,7 @@ jobs:
           rm -rf "$EXTRACT_DIR"
 
       - name: Upload sdist artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: dist/*.tar.gz
