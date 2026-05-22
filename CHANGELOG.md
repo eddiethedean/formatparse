@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
 - ``composed_type`` extensions: pattern ``+``, inheritance, and **flattening** nested parse results into the parent (see `#7 <https://github.com/eddiethedean/formatparse/issues/7>`_).
 
+## [0.8.2] - 2026-05-22
+
+### Changed
+
+- **Dependencies**: PyO3 0.28 (with API migration), ``fancy-regex`` 0.17, ``lru`` 0.18, ``rayon`` 1.12; Sphinx / myst-parser / RTD theme bumps for docs; GitHub Actions artifact actions v7/v8.
+- **MSRV**: Rust **1.83** (required by PyO3 0.28).
+
+### Added
+
+- **`ty` type checking**: ``_formatparse.pyi`` stubs, stricter typing in ``formatparse/``, and ``[tool.ty]`` configuration (tests use targeted overrides).
+
 ## [0.8.1] - 2026-05-15
 
 ### Changed
@@ -109,6 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: load `pytest-cov` when `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`; bump `cargo-audit` in the main CI Ubuntu step for advisory DB compatibility.
 - Dependency updates (e.g. `lru` for RustSec advisories), formatting, and Clippy cleanups.
 
+[0.8.2]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.2
 [0.8.1]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.1
 [0.8.0]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.0
 [0.7.0]: https://github.com/eddiethedean/formatparse/releases/tag/v0.7.0
