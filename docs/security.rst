@@ -57,7 +57,7 @@ Regular Expression Denial of Service (ReDoS)
 
 **Compilation vs matching:** The 500ms check runs only *after* regex compilation completes. It does not interrupt compilation in progress, and it does **not** bound **matching** time for ``parse``, ``search``, ``findall``, or similar calls. Use application-level timeouts and simple patterns for untrusted input.
 
-**``findall``:** There is no fixed cap on how many matches can be returned within the maximum input length; consider bounding match count in your application when inputs are untrusted.
+**``findall``:** By default there is no fixed cap on how many matches can be returned within the maximum input length. Pass ``max_matches`` to :func:`formatparse.findall` or :func:`formatparse.findall_iter` (or :meth:`FormatParser.findall_iter`) to stop after a given number of non-overlapping matches when inputs are untrusted.
 
 The library still enforces pattern and input size limits. You should still:
 

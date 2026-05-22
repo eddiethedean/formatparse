@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- ``findall`` and ``findall_iter`` (including :meth:`FormatParser.findall_iter`) accept optional ``max_matches`` to cap how many non-overlapping matches are returned on untrusted input.
+
+### Fixed
+
+- :class:`BidirectionalPattern` now passes ``extra_types`` to :func:`compile` so custom-type regexes are strict at compile time, not only on :meth:`~BidirectionalPattern.parse`.
+- :meth:`FormatParser.parse` and :meth:`FormatParser.search` re-resolve the compiled parser through the pattern cache when call-time ``extra_types`` differ from compile-time fingerprints, so custom converters use their ``@with_pattern`` regex instead of the ``\S+`` fallback (and no longer raise ``ValueError`` on non-matching text that the loose regex would accept).
+- :class:`BidirectionalPattern` validation constraints are derived from compiled field metadata (``field_constraints``), fixing incorrect constraint extraction for nested brace specs and custom type names.
+
+### Changed
+
+- Pattern LRU cache emits a :mod:`warnings` message when a hash hit fails full verification (e.g. in-place mutation of ``converter.pattern`` on a reused ``extra_types`` dict).
+
 ### Planned
 
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).

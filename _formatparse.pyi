@@ -47,9 +47,12 @@ class FormatParser:
         case_sensitive: bool = False,
         extra_types: Mapping[str, Any] | None = None,
         evaluate_result: bool = True,
+        max_matches: int | None = None,
     ) -> FindallIter: ...
     @property
     def named_fields(self) -> list[str]: ...
+    @property
+    def field_constraints(self) -> list[dict[str, Any]]: ...
     @property
     def regex_subpattern(self) -> str: ...
     @property
@@ -112,6 +115,7 @@ def findall(
     extra_types: Mapping[str, Any] | None = None,
     case_sensitive: bool = False,
     evaluate_result: bool = True,
+    max_matches: int | None = None,
 ) -> Results: ...
 def findall_iter(
     pattern: str,
@@ -119,6 +123,7 @@ def findall_iter(
     extra_types: Mapping[str, Any] | None = None,
     case_sensitive: bool = False,
     evaluate_result: bool = True,
+    max_matches: int | None = None,
 ) -> FindallIter: ...
 def compile(
     pattern: str, extra_types: Mapping[str, Any] | None = None

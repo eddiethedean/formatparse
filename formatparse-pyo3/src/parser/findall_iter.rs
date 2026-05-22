@@ -21,6 +21,8 @@ pub struct FindallIter {
     evaluate_result: bool,
     fast_path: bool,
     extra_types: HashMap<String, Py<PyAny>>,
+    max_matches: Option<usize>,
+    matches_emitted: usize,
     last_end: usize,
     search_pos: usize,
 }
@@ -32,6 +34,7 @@ impl FindallIter {
         case_sensitive: bool,
         evaluate_result: bool,
         extra_types: HashMap<String, Py<PyAny>>,
+        max_matches: Option<usize>,
     ) -> Self {
         let has_custom_converters = !extra_types.is_empty();
         let has_nested_dicts = parser.fields.has_nested_dict_fields.iter().any(|&b| b);
@@ -51,9 +54,17 @@ impl FindallIter {
             evaluate_result,
             fast_path,
             extra_types,
+            max_matches,
+            matches_emitted: 0,
             last_end: 0,
             search_pos: 0,
         }
+    }
+
+    fn at_match_limit(&self) -> bool {
+        self.max_matches
+            .map(|m| self.matches_emitted >= m)
+            .unwrap_or(false)
     }
 }
 
@@ -64,9 +75,12 @@ impl FindallIter {
     }
 
     fn __next__(mut slf: PyRefMut<'_, Self>, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        if slf.at_match_limit() {
+            return Ok(None);
+        }
         if slf.fast_path {
             loop {
-                if slf.search_pos > slf.haystack.len() {
+                if slf.at_match_limit() || slf.search_pos > slf.haystack.len() {
                     return Ok(None);
                 }
                 let search_regex = slf.parser.get_search_regex(slf.case_sensitive);
@@ -98,6 +112,7 @@ impl FindallIter {
                             slf.last_end += 1;
                         }
                         slf.search_pos = slf.last_end;
+                        slf.matches_emitted += 1;
                         let pr = raw_data.to_parse_result(py)?;
                         return Ok(Some(pr.into_py_any(py)?));
                     }
@@ -117,7 +132,7 @@ impl FindallIter {
         }
 
         loop {
-            if slf.search_pos > slf.haystack.len() {
+            if slf.at_match_limit() || slf.search_pos > slf.haystack.len() {
                 return Ok(None);
             }
             let search_regex = slf.parser.get_search_regex(slf.case_sensitive);
@@ -155,6 +170,7 @@ impl FindallIter {
                         slf.last_end += 1;
                     }
                     slf.search_pos = slf.last_end;
+                    slf.matches_emitted += 1;
                     return Ok(Some(result));
                 }
                 None => {

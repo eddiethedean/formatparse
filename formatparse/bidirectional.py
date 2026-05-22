@@ -2,12 +2,34 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from ._native import FormatParser, ParseResult
 from .api import compile
 from .types import ExtraTypes, FieldConstraint
+
+
+def _constraints_from_parser(parser: FormatParser) -> List[FieldConstraint]:
+    """Build validation constraints from compiled field metadata."""
+    constraints: List[FieldConstraint] = []
+    for item in parser.field_constraints:
+        name = item.get("name")
+        if name is not None and not isinstance(name, str):
+            name = None
+        width = item.get("width")
+        precision = item.get("precision")
+        constraints.append(
+            cast(
+                FieldConstraint,
+                {
+                    "name": name,
+                    "type": str(item["type"]),
+                    "width": int(width) if width is not None else None,
+                    "precision": int(precision) if precision is not None else None,
+                },
+            )
+        )
+    return constraints
 
 
 class BidirectionalPattern:
@@ -46,85 +68,12 @@ class BidirectionalPattern:
         :param extra_types: Optional dictionary of custom type converters
         :type extra_types: dict, optional
         """
-        self._parser: FormatParser = compile(pattern)
+        self._parser: FormatParser = compile(pattern, extra_types=extra_types)
         self._pattern: str = pattern
         self._extra_types: Optional[ExtraTypes] = extra_types
-        # Parse pattern to extract field constraints for validation
-        self._field_constraints: List[FieldConstraint] = self._parse_constraints(
-            pattern
+        self._field_constraints: List[FieldConstraint] = _constraints_from_parser(
+            self._parser
         )
-
-    def _parse_constraints(self, pattern: str) -> List[FieldConstraint]:
-        """Parse pattern string to extract field constraints for validation"""
-        constraints = []
-        # Match field patterns: {name:format} or {name} or {}
-        field_pattern = r"\{([^}]*)\}"
-
-        for match in re.finditer(field_pattern, pattern):
-            field_spec = match.group(1)
-            if not field_spec:
-                # Positional field with no spec
-                constraint = {
-                    "name": None,
-                    "type": "s",
-                    "width": None,
-                    "precision": None,
-                }
-                constraints.append(cast(FieldConstraint, constraint))
-                continue
-
-            # Parse field name and format spec
-            parts = field_spec.split(":", 1)
-            name = parts[0] if parts[0] else None
-            format_spec = parts[1] if len(parts) > 1 else ""
-
-            # Parse format spec (e.g., ">10", "05d", ".2f", ">10.5s")
-            constraint = {
-                "name": name,
-                "type": "s",
-                "width": None,
-                "precision": None,
-            }
-
-            # Extract type character (last letter if present)
-            type_match = re.search(r"([a-zA-Z%])$", format_spec)
-            if type_match:
-                constraint["type"] = type_match.group(1)
-                format_spec = format_spec[:-1]
-
-            # Extract width and precision
-            # Format: [fill][align][sign][width][.precision]
-            # Handle formats like: "05d" (width=5), ">10" (width=10), ".5s" (precision=5), ">10.5s" (width=10, precision=5)
-
-            # Check for precision first (after dot)
-            dot_pos = format_spec.find(".")
-            if dot_pos >= 0:
-                # Has precision
-                precision_str = format_spec[dot_pos + 1 :]
-                # Remove type char from precision if present
-                precision_str = re.sub(r"[a-zA-Z%]$", "", precision_str)
-                if precision_str:
-                    precision_match = re.search(r"(\d+)", precision_str)
-                    if precision_match:
-                        constraint["precision"] = int(precision_match.group(1))
-                # Width is before the dot
-                width_str = format_spec[:dot_pos]
-            else:
-                width_str = format_spec
-
-            # Extract width from width_str (remove type char, fill, align, sign)
-            # Remove type char if still present
-            width_str = re.sub(r"[a-zA-Z%]$", "", width_str)
-            # Remove fill, align, sign characters
-            width_str = re.sub(r"[<>=^+\- ]", "", width_str)
-            if width_str:
-                width_match = re.search(r"(\d+)", width_str)
-                if width_match:
-                    constraint["width"] = int(width_match.group(1))
-
-            constraints.append(cast(FieldConstraint, constraint))
-
-        return constraints
 
     def parse(
         self, string: str, case_sensitive: bool = False, evaluate_result: bool = True
@@ -237,15 +186,16 @@ class BidirectionalPattern:
                     continue  # Positional field not present
                 value = fixed_values[i]
 
-            # Type validation
-            if field_type == "d" and not isinstance(value, int):
-                errors.append(
-                    f"Field '{field_name or i}': expected int, got {type(value).__name__}"
-                )
-            elif field_type == "f" and not isinstance(value, (int, float)):
-                errors.append(
-                    f"Field '{field_name or i}': expected float, got {type(value).__name__}"
-                )
+            # Type validation (single-letter built-in tags only; custom types are multi-char)
+            if len(field_type) == 1:
+                if field_type == "d" and not isinstance(value, int):
+                    errors.append(
+                        f"Field '{field_name or i}': expected int, got {type(value).__name__}"
+                    )
+                elif field_type == "f" and not isinstance(value, (int, float)):
+                    errors.append(
+                        f"Field '{field_name or i}': expected float, got {type(value).__name__}"
+                    )
 
             # Width/precision validation for strings
             if isinstance(value, str):

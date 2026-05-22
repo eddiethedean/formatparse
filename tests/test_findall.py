@@ -23,6 +23,15 @@ def test_case_sensitivity():
     assert results == []
 
 
+def test_findall_max_matches():
+    """max_matches caps how many non-overlapping matches are returned."""
+    text = "ID:1 ID:2 ID:3 ID:4"
+    results = findall("ID:{id:d}", text, max_matches=2)
+    assert len(results) == 2
+    assert results[0].named["id"] == 1
+    assert results[1].named["id"] == 2
+
+
 def test_findall_empty_results():
     """Test findall with no matches"""
     results = findall("ID:{id:d}", "no matches here")

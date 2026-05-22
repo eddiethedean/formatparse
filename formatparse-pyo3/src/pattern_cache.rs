@@ -99,6 +99,10 @@ pub(crate) fn get_or_create_parser(
             if cached_parser.matches_pattern_cache_request(py, &normalized, &extra_types) {
                 return Ok(cached_parser);
             }
+            let warnings = py.import("warnings")?;
+            let msg = "formatparse pattern cache: hash collision or stale entry (e.g. \
+                       mutated converter.pattern on a cached extra_types dict); recompiling";
+            warnings.call_method1("warn", (msg,))?;
         }
 
         let parser = Arc::new(FormatParser::new_with_extra_types(

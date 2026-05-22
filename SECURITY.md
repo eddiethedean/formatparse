@@ -89,7 +89,7 @@ The library still helps by enforcing pattern and input size limits and rejecting
 
 ### `findall` and many matches
 
-There is **no fixed cap on the number of matches** returned by `findall`: within the maximum input length, adversarial input can still produce a very large number of matches and high CPU or memory use. If you expose `findall` to untrusted data, consider bounding match count or input shape in your application.
+By default there is **no fixed cap on the number of matches** returned by `findall`: within the maximum input length, adversarial input can still produce a very large number of matches and high CPU or memory use. Use the optional `max_matches` argument on `findall`, `findall_iter`, or `FormatParser.findall_iter` to stop after a bounded number of non-overlapping matches, or bound input shape in your application.
 
 ## Security Updates
 

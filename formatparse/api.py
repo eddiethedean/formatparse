@@ -353,6 +353,7 @@ def findall(
     extra_types: Optional[ExtraTypes] = None,
     case_sensitive: bool = False,
     evaluate_result: bool = True,
+    max_matches: Optional[int] = None,
 ) -> Union[Results, List[Any]]:
     """Find all matches of a pattern in a string.
 
@@ -375,6 +376,9 @@ def findall(
     :type case_sensitive: bool
     :param evaluate_result: Whether to evaluate and convert result types (default: True)
     :type evaluate_result: bool
+    :param max_matches: Stop after this many matches (default: no limit). Useful for
+        untrusted input; see :doc:`security`.
+    :type max_matches: int, optional
     :returns: ``Results`` (preferred) or ``list`` of matches, depending on options
     :rtype: Results | list
 
@@ -395,7 +399,14 @@ def findall(
         2
         3
     """
-    return _findall(pattern, string, extra_types, case_sensitive, evaluate_result)
+    return _findall(
+        pattern,
+        string,
+        extra_types,
+        case_sensitive,
+        evaluate_result,
+        max_matches,
+    )
 
 
 def findall_iter(
@@ -404,6 +415,7 @@ def findall_iter(
     extra_types: Optional[ExtraTypes] = None,
     case_sensitive: bool = False,
     evaluate_result: bool = True,
+    max_matches: Optional[int] = None,
 ) -> Iterator[Any]:
     """Yield non-overlapping matches for ``pattern`` in ``string``, one at a time.
 
@@ -422,6 +434,16 @@ def findall_iter(
                 for m in parser.findall_iter(line.strip()):
                     process(m.named["id"])
 
+    :param max_matches: Same as :func:`findall` (default: no limit).
+    :type max_matches: int, optional
+
     :returns: Iterator of :class:`ParseResult` or :class:`Match` (same as ``findall``)
     """
-    return _findall_iter(pattern, string, extra_types, case_sensitive, evaluate_result)
+    return _findall_iter(
+        pattern,
+        string,
+        extra_types,
+        case_sensitive,
+        evaluate_result,
+        max_matches,
+    )

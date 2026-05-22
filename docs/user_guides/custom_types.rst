@@ -24,6 +24,18 @@ Use the `with_pattern()` decorator to create a custom type converter:
 The decorator adds a ``pattern`` attribute to your function, which formatparse
 uses to match the text before calling your converter function.
 
+Compile-time ``extra_types``
+----------------------------
+
+Custom-type regex fragments are fixed when the pattern is **compiled**. Pass
+``extra_types`` to :func:`compile` (or use :func:`parse` / :func:`search` / :func:`findall`,
+which compile through the shared cache with your mapping) so fields like ``{:Number}``
+use your ``@with_pattern`` regex. If you :func:`compile` without ``extra_types`` and only
+supply them on :meth:`FormatParser.parse`, formatparse still merges converters at call
+time and re-resolves the cached parser so matching stays consistent with top-level
+:func:`parse` (strict regex, ``None`` on mismatch—not a loose ``\S+`` capture followed by
+a converter error).
+
 Regex Patterns
 --------------
 

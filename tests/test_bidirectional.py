@@ -217,34 +217,35 @@ def test_format_directly():
 
 
 def test_extra_types():
-    """Test with custom types"""
+    """Custom types compile with extra_types and use strict converter regex."""
     from formatparse import with_pattern
 
     @with_pattern(r"\d+")
     def parse_number(text):
         return int(text)
 
-    formatter = BidirectionalPattern(
-        "{value:Number}", extra_types={"Number": parse_number}
-    )
+    extra = {"Number": parse_number}
+    formatter = BidirectionalPattern("{value:Number}", extra_types=extra)
     result = formatter.parse("42")
 
     assert result is not None
-    # Custom types may not be in named dict if they're not properly converted
-    # Just verify parsing works
-    assert result is not None
+    assert result.named["value"] == 42
+    assert formatter.parse("abc") is None
 
     # Format back - custom types with format specifiers like :Number won't work
     # because Python's format() doesn't understand custom type names
-    # This is expected behavior - custom types are for parsing, not formatting
     try:
         output = result.format()
-        # If it works, great; if not, that's expected
         assert isinstance(output, str) if output else True
     except (KeyError, TypeError, ValueError):
-        # Custom types may not format back correctly, which is acceptable
-        # The format() method will fail because Python doesn't know about :Number
         pass
+
+
+def test_field_constraints_from_compiled_parser():
+    """Validation constraints come from compiled fields, not naive brace scanning."""
+    formatter = BidirectionalPattern("{outer:{inner:d}}")
+    assert len(formatter._field_constraints) == 1
+    assert formatter._field_constraints[0]["name"] == "outer"
 
 
 def test_validate_empty_result():

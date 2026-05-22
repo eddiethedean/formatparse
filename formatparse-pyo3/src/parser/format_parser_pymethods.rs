@@ -1,14 +1,68 @@
 use crate::error;
 use crate::parser::findall_iter::FindallIter;
 use crate::parser::format_parser::{CompiledFields, FormatParser};
+use crate::pattern_cache::get_or_create_parser;
 use fancy_regex::Regex;
 use formatparse_core::count_capturing_groups;
 use formatparse_core::parser::validate_input_length;
+use formatparse_core::{FieldSpec, FieldType};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAnyMethods, PyString, PyTuple};
+use pyo3::types::{PyAnyMethods, PyDict, PyList, PyString, PyTuple};
 use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
+
+fn merge_call_extra_types(
+    py: Python<'_>,
+    stored: &Option<HashMap<String, Py<PyAny>>>,
+    provided: Option<HashMap<String, Py<PyAny>>>,
+) -> PyResult<Option<HashMap<String, Py<PyAny>>>> {
+    let mut merged = if let Some(ref stored) = stored {
+        stored
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+            .collect()
+    } else {
+        HashMap::new()
+    };
+    if let Some(provided) = provided {
+        for (k, v) in provided {
+            merged.insert(k.clone(), v.clone_ref(py));
+        }
+    }
+    Ok(Some(merged))
+}
+
+fn field_type_validation_tag(spec: &FieldSpec) -> String {
+    match &spec.field_type {
+        FieldType::String => "s".to_string(),
+        FieldType::Integer => "d".to_string(),
+        FieldType::Float => "f".to_string(),
+        FieldType::Boolean => "b".to_string(),
+        FieldType::Letters => "l".to_string(),
+        FieldType::Word => "w".to_string(),
+        FieldType::NonLetters => "W".to_string(),
+        FieldType::NonWhitespace => "S".to_string(),
+        FieldType::NonDigits => "D".to_string(),
+        FieldType::Custom(name) => name.clone(),
+        FieldType::Nested => "s".to_string(),
+        FieldType::Multiline | FieldType::IndentBlock => "s".to_string(),
+        FieldType::BracedContent => "s".to_string(),
+        FieldType::NumberWithThousands => "n".to_string(),
+        FieldType::Scientific => "e".to_string(),
+        FieldType::GeneralNumber => "g".to_string(),
+        FieldType::Percentage => "%".to_string(),
+        FieldType::DateTimeISO => "ti".to_string(),
+        FieldType::DateTimeRFC2822 => "te".to_string(),
+        FieldType::DateTimeGlobal => "tg".to_string(),
+        FieldType::DateTimeUS => "ta".to_string(),
+        FieldType::DateTimeCtime => "tc".to_string(),
+        FieldType::DateTimeHTTP => "th".to_string(),
+        FieldType::DateTimeTime => "tt".to_string(),
+        FieldType::DateTimeSystem => "ts".to_string(),
+        FieldType::DateTimeStrftime => "%".to_string(),
+    }
+}
 
 #[pymethods]
 impl FormatParser {
@@ -68,25 +122,18 @@ impl FormatParser {
         if string.contains('\0') {
             return Err(PyValueError::new_err("Input string contains null byte"));
         }
-        // Merge stored extra_types with provided extra_types (provided takes precedence)
-        let merged_extra_types =
-            Python::attach(|py| -> PyResult<Option<HashMap<String, Py<PyAny>>>> {
-                let mut merged = if let Some(ref stored) = self.stored_extra_types {
-                    stored
-                        .iter()
-                        .map(|(k, v)| (k.clone(), v.clone_ref(py)))
-                        .collect()
-                } else {
-                    HashMap::new()
-                };
-                if let Some(ref provided) = extra_types {
-                    for (k, v) in provided {
-                        merged.insert(k.clone(), v.clone_ref(py));
-                    }
-                }
-                Ok(Some(merged))
-            })?;
-        self.parse_internal(
+        let merged_extra_types = Python::attach(|py| {
+            merge_call_extra_types(py, &self.stored_extra_types, extra_types)
+        })?;
+        let parser = Python::attach(|py| -> PyResult<std::sync::Arc<FormatParser>> {
+            let cache_et = merged_extra_types.as_ref().map(|m| {
+                m.iter()
+                    .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                    .collect()
+            });
+            get_or_create_parser(&self.pattern, cache_et)
+        })?;
+        parser.parse_internal(
             string,
             case_sensitive,
             merged_extra_types.as_ref(),
@@ -103,6 +150,30 @@ impl FormatParser {
             .iter()
             .filter_map(|n| n.clone())
             .collect()
+    }
+
+    /// Per-field layout for bidirectional validation (name, type tag, width, precision).
+    #[getter]
+    fn field_constraints(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let list = PyList::empty(py);
+        for (i, spec) in self.fields.field_specs.iter().enumerate() {
+            let dict = PyDict::new(py);
+            match self.fields.field_names.get(i).and_then(|n| n.as_deref()) {
+                Some(name) => dict.set_item("name", name)?,
+                None => dict.set_item("name", py.None())?,
+            }
+            dict.set_item("type", field_type_validation_tag(spec))?;
+            match spec.width {
+                Some(w) => dict.set_item("width", w as i64)?,
+                None => dict.set_item("width", py.None())?,
+            }
+            match spec.precision {
+                Some(p) => dict.set_item("precision", p as i64)?,
+                None => dict.set_item("precision", py.None())?,
+            }
+            list.append(dict)?;
+        }
+        list.into_py_any(py)
     }
 
     /// Raw regex body for this pattern (no ``^``/``$``, no ``(?s)`` prefix).
@@ -189,25 +260,18 @@ impl FormatParser {
             return Err(PyValueError::new_err("Input string contains null byte"));
         }
 
-        let merged_extra_types =
-            Python::attach(|py| -> PyResult<Option<HashMap<String, Py<PyAny>>>> {
-                let mut merged = if let Some(ref stored) = self.stored_extra_types {
-                    stored
-                        .iter()
-                        .map(|(k, v)| (k.clone(), v.clone_ref(py)))
-                        .collect()
-                } else {
-                    HashMap::new()
-                };
-                if let Some(ref provided) = extra_types {
-                    for (k, v) in provided {
-                        merged.insert(k.clone(), v.clone_ref(py));
-                    }
-                }
-                Ok(Some(merged))
-            })?;
-
-        self.search_pattern(string, case_sensitive, merged_extra_types, evaluate_result)
+        let merged_extra_types = Python::attach(|py| {
+            merge_call_extra_types(py, &self.stored_extra_types, extra_types)
+        })?;
+        let parser = Python::attach(|py| -> PyResult<std::sync::Arc<FormatParser>> {
+            let cache_et = merged_extra_types.as_ref().map(|m| {
+                m.iter()
+                    .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                    .collect()
+            });
+            get_or_create_parser(&self.pattern, cache_et)
+        })?;
+        parser.search_pattern(string, case_sensitive, merged_extra_types, evaluate_result)
     }
 
     /// Yield non-overlapping matches from ``string`` one at a time.
@@ -216,7 +280,7 @@ impl FormatParser {
     /// match, lowering peak memory when you stream results. This does **not** read
     /// arbitrary file chunks with backtracking; pair with line-based file iteration only
     /// when matches cannot span line breaks (see GitHub issue #13).
-    #[pyo3(signature = (string, case_sensitive=false, extra_types=None, evaluate_result=true))]
+    #[pyo3(signature = (string, case_sensitive=false, extra_types=None, evaluate_result=true, max_matches=None))]
     fn findall_iter(
         &self,
         py: Python<'_>,
@@ -224,6 +288,7 @@ impl FormatParser {
         case_sensitive: bool,
         extra_types: Option<HashMap<String, Py<PyAny>>>,
         evaluate_result: bool,
+        max_matches: Option<usize>,
     ) -> PyResult<Py<FindallIter>> {
         validate_input_length(string).map_err(PyValueError::new_err)?;
 
@@ -231,34 +296,32 @@ impl FormatParser {
             return Err(PyValueError::new_err("Input string contains null byte"));
         }
 
-        let merged_extra_types =
-            Python::attach(|py| -> PyResult<Option<HashMap<String, Py<PyAny>>>> {
-                let mut merged = if let Some(ref stored) = self.stored_extra_types {
-                    stored
+        let merged_extra_types = Python::attach(|py| {
+            merge_call_extra_types(py, &self.stored_extra_types, extra_types)
+        })?;
+        let merged_map = merged_extra_types.unwrap_or_default();
+        let parser = Python::attach(|py| -> PyResult<std::sync::Arc<FormatParser>> {
+            let cache_et = if merged_map.is_empty() {
+                None
+            } else {
+                Some(
+                    merged_map
                         .iter()
                         .map(|(k, v)| (k.clone(), v.clone_ref(py)))
-                        .collect()
-                } else {
-                    HashMap::new()
-                };
-                if let Some(ref provided) = extra_types {
-                    for (k, v) in provided {
-                        merged.insert(k.clone(), v.clone_ref(py));
-                    }
-                }
-                Ok(Some(merged))
-            })?;
-
-        let merged_map = merged_extra_types.unwrap_or_default();
-        let arc = std::sync::Arc::new(self.clone());
+                        .collect(),
+                )
+            };
+            get_or_create_parser(&self.pattern, cache_et)
+        })?;
         Py::new(
             py,
             FindallIter::new(
-                arc,
+                parser,
                 string.to_string(),
                 case_sensitive,
                 evaluate_result,
                 merged_map,
+                max_matches,
             ),
         )
     }

@@ -19,7 +19,9 @@ pub(crate) fn findall_matches(
     extra_types: Option<&HashMap<String, Py<PyAny>>>,
     case_sensitive: bool,
     evaluate_result: bool,
+    max_matches: Option<usize>,
 ) -> PyResult<Py<PyAny>> {
+    let at_limit = |count: usize| max_matches.map(|m| count >= m).unwrap_or(false);
     let has_custom_converters = extra_types
         .as_ref()
         .map(|et| !et.is_empty())
@@ -39,6 +41,9 @@ pub(crate) fn findall_matches(
         let fields = FieldCaptureSlices::from_parser(&parser);
 
         for cap_result in search_regex.captures_iter(string) {
+            if at_limit(raw_results.len()) {
+                break;
+            }
             let captures = cap_result.map_err(crate::error::fancy_regex_match_error)?;
             let Some(full_match) = captures.get(0) else {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(
@@ -84,6 +89,9 @@ pub(crate) fn findall_matches(
         let extra_types_for_matching = extra_types.unwrap_or(&empty_extra_types);
 
         for cap_result in search_regex.captures_iter(string) {
+            if at_limit(results.len()) {
+                break;
+            }
             let captures = cap_result.map_err(crate::error::fancy_regex_match_error)?;
             let Some(full_match) = captures.get(0) else {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(

@@ -217,13 +217,14 @@ fn search(
 
 /// Find all matches of a pattern in a string
 #[pyfunction]
-#[pyo3(signature = (pattern, string, extra_types=None, case_sensitive=false, evaluate_result=true))]
+#[pyo3(signature = (pattern, string, extra_types=None, case_sensitive=false, evaluate_result=true, max_matches=None))]
 fn findall(
     pattern: &str,
     string: &str,
     extra_types: Option<HashMap<String, Py<PyAny>>>,
     case_sensitive: bool,
     evaluate_result: bool,
+    max_matches: Option<usize>,
 ) -> PyResult<Py<PyAny>> {
     // Validate input lengths
     formatparse_core::validate_input_length(string)
@@ -250,6 +251,7 @@ fn findall(
         extra_types.as_ref(),
         case_sensitive,
         evaluate_result,
+        max_matches,
     )
 }
 
@@ -257,7 +259,7 @@ fn findall(
 ///
 /// See :class:`FindallIter` for memory semantics and limitations (issue #13 MVP).
 #[pyfunction]
-#[pyo3(signature = (pattern, string, extra_types=None, case_sensitive=false, evaluate_result=true))]
+#[pyo3(signature = (pattern, string, extra_types=None, case_sensitive=false, evaluate_result=true, max_matches=None))]
 fn findall_iter(
     py: Python<'_>,
     pattern: &str,
@@ -265,6 +267,7 @@ fn findall_iter(
     extra_types: Option<HashMap<String, Py<PyAny>>>,
     case_sensitive: bool,
     evaluate_result: bool,
+    max_matches: Option<usize>,
 ) -> PyResult<Py<FindallIter>> {
     formatparse_core::validate_input_length(string)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
@@ -303,6 +306,7 @@ fn findall_iter(
             case_sensitive,
             evaluate_result,
             et_map,
+            max_matches,
         ),
     )
 }
