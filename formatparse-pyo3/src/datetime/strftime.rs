@@ -12,7 +12,7 @@ fn is_regex_group_redefinition_error(err: &PyErr) -> bool {
 
 /// Fallback parser for strftime format strings when strptime fails due to regex group conflicts
 /// This manually parses the format string and extracts datetime components
-fn parse_strftime_fallback(py: Python, value: &str, format_str: &str) -> PyResult<PyObject> {
+fn parse_strftime_fallback(py: Python, value: &str, format_str: &str) -> PyResult<Py<PyAny>> {
     let datetime_module = py.import("datetime")?;
     let datetime_class = datetime_module.getattr("datetime")?;
     let date_class = datetime_module.getattr("date")?;
@@ -225,7 +225,7 @@ fn parse_strftime_fallback(py: Python, value: &str, format_str: &str) -> PyResul
 }
 
 /// Parse strftime-style datetime using Python's strptime
-pub fn parse_strftime_datetime(py: Python, value: &str, format_str: &str) -> PyResult<PyObject> {
+pub fn parse_strftime_datetime(py: Python, value: &str, format_str: &str) -> PyResult<Py<PyAny>> {
     let datetime_module = py.import("datetime")?;
     let datetime_class = datetime_module.getattr("datetime")?;
     let date_class = datetime_module.getattr("date")?;
@@ -442,7 +442,7 @@ pub fn parse_strftime_datetime(py: Python, value: &str, format_str: &str) -> PyR
 pub fn parse_merged_strftime_datetime(
     py: Python<'_>,
     parts: &[(String, String)],
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     if parts.is_empty() {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
             "merged strftime: empty fragment list",

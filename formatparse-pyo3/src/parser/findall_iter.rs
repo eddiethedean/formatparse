@@ -20,7 +20,7 @@ pub struct FindallIter {
     case_sensitive: bool,
     evaluate_result: bool,
     fast_path: bool,
-    extra_types: HashMap<String, PyObject>,
+    extra_types: HashMap<String, Py<PyAny>>,
     last_end: usize,
     search_pos: usize,
 }
@@ -31,7 +31,7 @@ impl FindallIter {
         haystack: String,
         case_sensitive: bool,
         evaluate_result: bool,
-        extra_types: HashMap<String, PyObject>,
+        extra_types: HashMap<String, Py<PyAny>>,
     ) -> Self {
         let has_custom_converters = !extra_types.is_empty();
         let has_nested_dicts = parser.fields.has_nested_dict_fields.iter().any(|&b| b);
@@ -63,7 +63,7 @@ impl FindallIter {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<'_, Self>, py: Python<'_>) -> PyResult<Option<PyObject>> {
+    fn __next__(mut slf: PyRefMut<'_, Self>, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         if slf.fast_path {
             loop {
                 if slf.search_pos > slf.haystack.len() {

@@ -37,7 +37,7 @@ pub(crate) fn per_field_capture_geometry(
     field_specs: &[FieldSpec],
     _normalized_names: &[Option<String>],
     py: Python<'_>,
-    custom_converters: &HashMap<String, PyObject>,
+    custom_converters: &HashMap<String, Py<PyAny>>,
     precomputed_pattern_groups: Option<&[usize]>,
 ) -> PyResult<Vec<(usize, usize)>> {
     let mut aci = 1usize;

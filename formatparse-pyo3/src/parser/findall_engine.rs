@@ -16,10 +16,10 @@ use std::sync::Arc;
 pub(crate) fn findall_matches(
     parser: Arc<FormatParser>,
     string: &str,
-    extra_types: Option<&HashMap<String, PyObject>>,
+    extra_types: Option<&HashMap<String, Py<PyAny>>>,
     case_sensitive: bool,
     evaluate_result: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let has_custom_converters = extra_types
         .as_ref()
         .map(|et| !et.is_empty())
@@ -69,14 +69,14 @@ pub(crate) fn findall_matches(
         }
 
         if !raw_path_failed {
-            return Python::with_gil(|py| -> PyResult<PyObject> {
+            return Python::attach(|py| -> PyResult<Py<PyAny>> {
                 let results = Results::new(raw_results);
                 Py::new(py, results)?.into_py_any(py)
             });
         }
     }
 
-    Python::with_gil(|py| -> PyResult<PyObject> {
+    Python::attach(|py| -> PyResult<Py<PyAny>> {
         let search_regex = parser.get_search_regex(case_sensitive);
         let mut results = Vec::new();
         let mut last_end = 0;

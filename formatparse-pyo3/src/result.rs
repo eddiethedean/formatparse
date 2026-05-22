@@ -3,18 +3,18 @@ use pyo3::types::{PySlice, PyString, PyTuple};
 use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct ParseResult {
-    fixed: Vec<PyObject>,
+    fixed: Vec<Py<PyAny>>,
     #[pyo3(get)]
-    pub named: HashMap<String, PyObject>,
+    pub named: HashMap<String, Py<PyAny>>,
     pub span: (usize, usize),
     pub field_spans: HashMap<String, (usize, usize)>, // Maps field index/name to (start, end)
 }
 
 impl Clone for ParseResult {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| Self {
+        Python::attach(|py| Self {
             fixed: self.fixed.iter().map(|obj| obj.clone_ref(py)).collect(),
             named: self
                 .named
@@ -42,8 +42,8 @@ fn repr_trunc(s: &str, max_chars: usize) -> String {
 
 impl ParseResult {
     pub fn new(
-        fixed: Vec<PyObject>,
-        named: HashMap<String, PyObject>,
+        fixed: Vec<Py<PyAny>>,
+        named: HashMap<String, Py<PyAny>>,
         span: (usize, usize),
     ) -> Self {
         Self {
@@ -55,8 +55,8 @@ impl ParseResult {
     }
 
     pub fn new_with_spans(
-        fixed: Vec<PyObject>,
-        named: HashMap<String, PyObject>,
+        fixed: Vec<Py<PyAny>>,
+        named: HashMap<String, Py<PyAny>>,
         span: (usize, usize),
         field_spans: HashMap<String, (usize, usize)>,
     ) -> Self {
@@ -136,16 +136,16 @@ impl ParseResult {
     #[new]
     #[pyo3(signature = (fixed, named, span=None))]
     fn new_py(
-        fixed: Vec<PyObject>,
-        named: HashMap<String, PyObject>,
+        fixed: Vec<Py<PyAny>>,
+        named: HashMap<String, Py<PyAny>>,
         span: Option<(usize, usize)>,
     ) -> Self {
         Self::new(fixed, named, span.unwrap_or((0, 0)))
     }
 
     #[getter]
-    fn fixed(&self) -> PyResult<PyObject> {
-        Python::with_gil(|py| {
+    fn fixed(&self) -> PyResult<Py<PyAny>> {
+        Python::attach(|py| {
             let items: Vec<_> = self.fixed.iter().map(|obj| obj.bind(py)).collect();
             let tuple = PyTuple::new(py, items)?;
             Ok(tuple.into())
@@ -175,10 +175,10 @@ impl ParseResult {
         self.format_display(py)
     }
 
-    fn __getitem__(&self, key: &Bound<'_, PyAny>) -> PyResult<PyObject> {
-        Python::with_gil(|py| {
+    fn __getitem__(&self, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        Python::attach(|py| {
             // Try to extract as slice first
-            if let Ok(slice) = key.downcast::<PySlice>() {
+            if let Ok(slice) = key.cast::<PySlice>() {
                 let len = self.fixed.len() as isize;
                 let indices = slice.indices(len)?;
 
@@ -219,7 +219,7 @@ impl ParseResult {
     }
 
     fn __contains__(&self, key: &Bound<'_, PyAny>) -> PyResult<bool> {
-        Python::with_gil(|_py| {
+        Python::attach(|_py| {
             if let Ok(idx) = key.extract::<usize>() {
                 Ok(idx < self.fixed.len())
             } else if let Ok(name) = key.extract::<String>() {
@@ -231,11 +231,11 @@ impl ParseResult {
     }
 
     #[getter]
-    fn spans(&self) -> PyResult<PyObject> {
-        Python::with_gil(|py| {
+    fn spans(&self) -> PyResult<Py<PyAny>> {
+        Python::attach(|py| {
             let dict = pyo3::types::PyDict::new(py);
             for (key, value) in &self.field_spans {
-                let py_key: PyObject = if let Ok(idx) = key.parse::<usize>() {
+                let py_key: Py<PyAny> = if let Ok(idx) = key.parse::<usize>() {
                     idx.into_py_any(py)?
                 } else {
                     key.clone().into_py_any(py)?

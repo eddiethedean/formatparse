@@ -37,7 +37,7 @@ pub struct CapturedMatchContext<'a> {
     pub pattern: &'a str,
     pub fields: FieldCaptureSlices<'a>,
     pub py: Python<'a>,
-    pub custom_converters: &'a HashMap<String, PyObject>,
+    pub custom_converters: &'a HashMap<String, Py<PyAny>>,
     pub evaluate_result: bool,
 }
 
@@ -50,7 +50,7 @@ pub struct RegexMatchContext<'a> {
     pub normalized_names: &'a [Option<String>],
     pub nested_parsers: &'a [Option<Arc<FormatParser>>],
     pub py: Python<'a>,
-    pub custom_converters: &'a HashMap<String, PyObject>,
+    pub custom_converters: &'a HashMap<String, Py<PyAny>>,
     pub evaluate_result: bool,
 }
 

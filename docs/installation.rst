@@ -31,6 +31,6 @@ Requirements
 ------------
 
 - Python 3.8+
-- Rust 1.70+ (for building from source)
+- Rust 1.83+ (for building from source)
 - maturin (for building from source)
 

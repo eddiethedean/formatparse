@@ -15,13 +15,13 @@ static RE_US_NAMED: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Parse US (month/day) datetime format - similar to global but different order
-pub fn parse_us_datetime(py: Python, value: &str) -> PyResult<PyObject> {
+pub fn parse_us_datetime(py: Python, value: &str) -> PyResult<Py<PyAny>> {
     let datetime_module = py.import("datetime")?;
     let datetime_class = datetime_module.getattr("datetime")?;
 
     let month_map = get_month_map();
 
-    let parse_tz = |tz_str: &str| -> PyResult<PyObject> {
+    let parse_tz = |tz_str: &str| -> PyResult<Py<PyAny>> {
         // Handle formats: +1000, +10:00, +10:30, etc.
         if let Some(caps) = RE_TZ_COLON.captures(tz_str) {
             if let (Some(sign_match), Some(hour_match), Some(min_match)) =

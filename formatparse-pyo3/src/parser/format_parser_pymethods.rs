@@ -16,7 +16,7 @@ impl FormatParser {
     #[pyo3(signature = (pattern=None, extra_types=None))]
     fn new_py(
         pattern: Option<&str>,
-        extra_types: Option<HashMap<String, PyObject>>,
+        extra_types: Option<HashMap<String, Py<PyAny>>>,
     ) -> PyResult<Self> {
         match pattern {
             Some(p) => Self::new_with_extra_types(p, extra_types),
@@ -58,9 +58,9 @@ impl FormatParser {
         &self,
         string: &str,
         case_sensitive: bool,
-        extra_types: Option<HashMap<String, PyObject>>,
+        extra_types: Option<HashMap<String, Py<PyAny>>>,
         evaluate_result: bool,
-    ) -> PyResult<Option<PyObject>> {
+    ) -> PyResult<Option<Py<PyAny>>> {
         // Validate input length
         validate_input_length(string).map_err(PyValueError::new_err)?;
 
@@ -70,7 +70,7 @@ impl FormatParser {
         }
         // Merge stored extra_types with provided extra_types (provided takes precedence)
         let merged_extra_types =
-            Python::with_gil(|py| -> PyResult<Option<HashMap<String, PyObject>>> {
+            Python::attach(|py| -> PyResult<Option<HashMap<String, Py<PyAny>>>> {
                 let mut merged = if let Some(ref stored) = self.stored_extra_types {
                     stored
                         .iter()
@@ -178,9 +178,9 @@ impl FormatParser {
         &self,
         string: &str,
         case_sensitive: bool,
-        extra_types: Option<HashMap<String, PyObject>>,
+        extra_types: Option<HashMap<String, Py<PyAny>>>,
         evaluate_result: bool,
-    ) -> PyResult<Option<PyObject>> {
+    ) -> PyResult<Option<Py<PyAny>>> {
         // Validate input length
         validate_input_length(string).map_err(PyValueError::new_err)?;
 
@@ -190,7 +190,7 @@ impl FormatParser {
         }
 
         let merged_extra_types =
-            Python::with_gil(|py| -> PyResult<Option<HashMap<String, PyObject>>> {
+            Python::attach(|py| -> PyResult<Option<HashMap<String, Py<PyAny>>>> {
                 let mut merged = if let Some(ref stored) = self.stored_extra_types {
                     stored
                         .iter()
@@ -222,7 +222,7 @@ impl FormatParser {
         py: Python<'_>,
         string: &str,
         case_sensitive: bool,
-        extra_types: Option<HashMap<String, PyObject>>,
+        extra_types: Option<HashMap<String, Py<PyAny>>>,
         evaluate_result: bool,
     ) -> PyResult<Py<FindallIter>> {
         validate_input_length(string).map_err(PyValueError::new_err)?;
@@ -232,7 +232,7 @@ impl FormatParser {
         }
 
         let merged_extra_types =
-            Python::with_gil(|py| -> PyResult<Option<HashMap<String, PyObject>>> {
+            Python::attach(|py| -> PyResult<Option<HashMap<String, Py<PyAny>>>> {
                 let mut merged = if let Some(ref stored) = self.stored_extra_types {
                     stored
                         .iter()
@@ -275,7 +275,7 @@ impl FormatParser {
     }
 
     /// Pickle state: pattern string only (see class doc for ``extra_types``).
-    fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
+    fn __getstate__(&self, py: Python) -> PyResult<Py<PyAny>> {
         use pyo3::types::PyDict;
         let state = PyDict::new(py);
         state.set_item("pattern", &self.pattern)?;
@@ -285,7 +285,7 @@ impl FormatParser {
     /// Restore from pickle state (pattern only; ``extra_types`` are not recovered).
     fn __setstate__(&mut self, _py: Python, state: &Bound<'_, PyAny>) -> PyResult<()> {
         use pyo3::types::PyDict;
-        let dict = state.downcast::<PyDict>()?;
+        let dict = state.cast::<PyDict>()?;
         let pattern: String = dict
             .get_item("pattern")?
             .ok_or_else(|| error::missing_field_error("pattern"))?
@@ -324,7 +324,7 @@ impl Format {
         let format_method = pattern_obj.getattr("format")?;
 
         // Call format with the args (can be a single value, tuple, or *args)
-        let result = if let Ok(tuple) = args.downcast::<PyTuple>() {
+        let result = if let Ok(tuple) = args.cast::<PyTuple>() {
             format_method.call1(tuple)?
         } else {
             // Single argument

@@ -11,7 +11,7 @@ use pyo3::IntoPyObjectExt;
 pub struct Results {
     raw_data: Vec<RawMatchData>,
     // Cache for converted ParseResult objects (lazy evaluation)
-    cached_results: Option<PyObject>,
+    cached_results: Option<Py<PyAny>>,
 }
 
 impl Results {
@@ -23,12 +23,12 @@ impl Results {
     }
 
     /// Convert all raw data to ParseResult objects (called lazily)
-    fn convert_all(&mut self, py: Python) -> PyResult<PyObject> {
+    fn convert_all(&mut self, py: Python) -> PyResult<Py<PyAny>> {
         if let Some(ref cached) = self.cached_results {
             return Ok(cached.clone_ref(py));
         }
 
-        let mut py_results: Vec<PyObject> = Vec::with_capacity(self.raw_data.len());
+        let mut py_results: Vec<Py<PyAny>> = Vec::with_capacity(self.raw_data.len());
         for raw_data in &self.raw_data {
             let parse_result = raw_data.to_parse_result(py)?;
             py_results.push(parse_result.into_py_any(py)?);
@@ -44,7 +44,7 @@ impl Results {
     }
 
     /// Convert a single raw data item to ParseResult (for lazy indexing)
-    pub fn convert_item(&self, index: usize, py: Python) -> PyResult<PyObject> {
+    pub fn convert_item(&self, index: usize, py: Python) -> PyResult<Py<PyAny>> {
         if index >= self.raw_data.len() {
             return Err(PyIndexError::new_err("list index out of range"));
         }
@@ -63,7 +63,7 @@ impl Results {
     }
 
     /// Get an item by index (lazy conversion - only converts the requested item)
-    fn __getitem__(&self, key: &Bound<'_, PyAny>, py: Python) -> PyResult<PyObject> {
+    fn __getitem__(&self, key: &Bound<'_, PyAny>, py: Python) -> PyResult<Py<PyAny>> {
         // Try to extract as usize first (positive index)
         if let Ok(index) = key.extract::<usize>() {
             // Single item access - convert only this item
@@ -113,7 +113,7 @@ impl Results {
     /// Convert to list (forces conversion of all items).
     /// Name matches the `parse` library Python API (`results.to_list()`).
     #[allow(clippy::wrong_self_convention)] // `to_*` + `&mut self` is required by pymethods / API parity
-    fn to_list(&mut self, py: Python) -> PyResult<PyObject> {
+    fn to_list(&mut self, py: Python) -> PyResult<Py<PyAny>> {
         self.convert_all(py)
     }
 
@@ -132,7 +132,7 @@ impl Results {
 #[pyclass]
 pub struct ResultsIterator {
     results: Py<Results>,
-    cached_list: Option<PyObject>, // Cached list of converted items
+    cached_list: Option<Py<PyAny>>, // Cached list of converted items
     index: usize,
 }
 
@@ -142,7 +142,7 @@ impl ResultsIterator {
         slf
     }
 
-    fn __next__(&mut self, py: Python) -> PyResult<Option<PyObject>> {
+    fn __next__(&mut self, py: Python) -> PyResult<Option<Py<PyAny>>> {
         // On first iteration, batch convert all items at once
         if self.cached_list.is_none() {
             let results = self.results.bind(py);
@@ -157,7 +157,7 @@ impl ResultsIterator {
             .as_ref()
             .expect("cached_list set immediately above when None")
             .bind(py)
-            .downcast::<pyo3::types::PyList>()?;
+            .cast::<pyo3::types::PyList>()?;
         let len = list_bound.len();
 
         if self.index >= len {

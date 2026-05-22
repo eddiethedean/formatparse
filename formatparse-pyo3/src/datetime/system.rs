@@ -10,7 +10,7 @@ static RE_SYSTEM_DATETIME: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Parse Linux system log format: Nov 21 10:21:36 (year is current year)
-pub fn parse_system_datetime(py: Python, value: &str) -> PyResult<PyObject> {
+pub fn parse_system_datetime(py: Python, value: &str) -> PyResult<Py<PyAny>> {
     let datetime_module = py.import("datetime")?;
     let datetime_class = datetime_module.getattr("datetime")?;
     let today = datetime_class.call_method0("today")?;

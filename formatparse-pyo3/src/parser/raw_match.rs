@@ -58,9 +58,9 @@ pub fn convert_value_raw(spec: &FieldSpec, value: &str) -> Result<RawValue, Stri
     }
 }
 
-/// Convert RawValue to PyObject (batch conversion)
+/// Convert RawValue to Py<PyAny> (batch conversion)
 impl RawValue {
-    pub fn to_py_object(&self, py: Python) -> PyResult<PyObject> {
+    pub fn to_py_object(&self, py: Python) -> PyResult<Py<PyAny>> {
         match self {
             RawValue::String(s) => s.into_py_any(py),
             RawValue::Integer(n) => n.into_py_any(py),
@@ -76,13 +76,13 @@ impl RawMatchData {
     pub fn to_parse_result(&self, py: Python) -> PyResult<pyo3::Py<crate::result::ParseResult>> {
         use crate::result::ParseResult;
 
-        let fixed: Vec<PyObject> = self
+        let fixed: Vec<Py<PyAny>> = self
             .fixed
             .iter()
             .map(|v| v.to_py_object(py))
             .collect::<PyResult<_>>()?;
 
-        let mut named: HashMap<String, PyObject> = HashMap::with_capacity(self.named.len());
+        let mut named: HashMap<String, Py<PyAny>> = HashMap::with_capacity(self.named.len());
         for (k, v) in &self.named {
             named.insert(k.clone(), v.to_py_object(py)?);
         }

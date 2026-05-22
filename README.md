@@ -3,7 +3,7 @@
 [![PyPI version](https://badge.fury.io/py/formatparse.svg)](https://badge.fury.io/py/formatparse)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/rust-1.83+-orange.svg)](https://www.rust-lang.org/)
 [![Documentation](https://readthedocs.org/projects/formatparse/badge/?version=latest)](https://formatparse.readthedocs.io/)
 
 A high-performance, Rust-backed implementation of the [parse](https://github.com/r1chardj0n3s/parse) library for Python. `formatparse` provides the same API as the original `parse` library but with **significant performance improvements** (up to **80x faster**) thanks to Rust's zero-cost abstractions and optimized regex engine.

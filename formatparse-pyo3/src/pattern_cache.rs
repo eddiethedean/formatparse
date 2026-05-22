@@ -25,7 +25,7 @@ fn lock_pattern_cache(
 /// Must stay aligned with [`create_cache_key_hash`].
 pub(crate) fn extract_extra_types_identity(
     py: Python<'_>,
-    extra_types: &Option<HashMap<String, PyObject>>,
+    extra_types: &Option<HashMap<String, Py<PyAny>>>,
 ) -> Vec<(String, String, i64)> {
     let mut out = Vec::new();
     if let Some(extra_types) = extra_types {
@@ -69,7 +69,7 @@ pub(crate) fn extract_extra_types_identity(
 fn create_cache_key_hash(
     py: Python<'_>,
     pattern: &str,
-    extra_types: &Option<HashMap<String, PyObject>>,
+    extra_types: &Option<HashMap<String, Py<PyAny>>>,
 ) -> u64 {
     let mut hasher = DefaultHasher::new();
     pattern.hash(&mut hasher);
@@ -84,10 +84,10 @@ fn create_cache_key_hash(
 /// Get or create a FormatParser from cache
 pub(crate) fn get_or_create_parser(
     pattern: &str,
-    extra_types: Option<HashMap<String, PyObject>>,
+    extra_types: Option<HashMap<String, Py<PyAny>>>,
 ) -> PyResult<Arc<FormatParser>> {
     let normalized = pattern_normalize::prepare_compiled_pattern(pattern)?;
-    Python::with_gil(|py| -> PyResult<Arc<FormatParser>> {
+    Python::attach(|py| -> PyResult<Arc<FormatParser>> {
         let cache_key = create_cache_key_hash(py, &normalized, &extra_types);
 
         let cached = {

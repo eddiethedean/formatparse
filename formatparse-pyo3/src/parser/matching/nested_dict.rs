@@ -4,10 +4,10 @@ use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;
 
 pub fn get_nested_dict_value(
-    named: &HashMap<String, PyObject>,
+    named: &HashMap<String, Py<PyAny>>,
     path: &[String],
     py: Python,
-) -> PyResult<Option<PyObject>> {
+) -> PyResult<Option<Py<PyAny>>> {
     if path.is_empty() {
         return Ok(None);
     }
@@ -19,20 +19,20 @@ pub fn get_nested_dict_value(
 
     // Navigate through nested dicts
     let first_key = &path[0];
-    let mut current_obj: PyObject = match named.get(first_key) {
+    let mut current_obj: Py<PyAny> = match named.get(first_key) {
         Some(v) => v.clone_ref(py),
         None => return Ok(None),
     };
 
     for key in path.iter().skip(1) {
-        let current_dict = match current_obj.bind(py).downcast::<PyDict>() {
+        let current_dict = match current_obj.bind(py).cast::<PyDict>() {
             Ok(d) => d,
             Err(_) => return Ok(None), // Not a dict, path doesn't exist
         };
 
         match current_dict.get_item(key.as_str())? {
             Some(v) => {
-                // Get the PyObject to continue navigation
+                // Get the Py<PyAny> to continue navigation
                 current_obj = v.into();
             }
             None => return Ok(None), // Path doesn't exist
@@ -44,9 +44,9 @@ pub fn get_nested_dict_value(
 
 /// Insert a value into a nested dict structure in the named HashMap
 pub fn insert_nested_dict(
-    named: &mut HashMap<String, PyObject>,
+    named: &mut HashMap<String, Py<PyAny>>,
     path: &[String],
-    value: PyObject,
+    value: Py<PyAny>,
     py: Python,
 ) -> PyResult<()> {
     if path.is_empty() {
@@ -65,7 +65,7 @@ pub fn insert_nested_dict(
     // Get or create the top-level dict
     let top_dict = if let Some(existing) = named.get(first_key) {
         // Check if it's already a dict
-        if let Ok(dict) = existing.bind(py).downcast::<PyDict>() {
+        if let Ok(dict) = existing.bind(py).cast::<PyDict>() {
             dict.clone()
         } else {
             // It's not a dict, we can't nest - this is an error case
@@ -86,7 +86,7 @@ pub fn insert_nested_dict(
     let mut current_dict = top_dict;
     for key in path.iter().skip(1).take(path.len() - 2) {
         let nested_dict = if let Some(existing) = current_dict.get_item(key.as_str())? {
-            if let Ok(dict) = existing.downcast::<PyDict>() {
+            if let Ok(dict) = existing.cast::<PyDict>() {
                 dict.clone()
             } else {
                 // Not a dict, replace it

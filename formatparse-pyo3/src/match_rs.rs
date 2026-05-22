@@ -39,11 +39,11 @@ impl Match {
     fn evaluate_result(
         &self,
         py: Python,
-        extra_types: Option<HashMap<String, PyObject>>,
-    ) -> PyResult<PyObject> {
+        extra_types: Option<HashMap<String, Py<PyAny>>>,
+    ) -> PyResult<Py<PyAny>> {
         let custom_converters = extra_types.unwrap_or_default();
         let mut fixed = Vec::new();
-        let mut named: HashMap<String, PyObject> = HashMap::new();
+        let mut named: HashMap<String, Py<PyAny>> = HashMap::new();
 
         // Apply type conversions using stored field specs
         for (i, spec) in self.field_specs.iter().enumerate() {

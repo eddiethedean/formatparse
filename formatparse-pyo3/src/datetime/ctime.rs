@@ -10,7 +10,7 @@ static RE_CTIME_DATETIME: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Parse ctime() format: Mon Nov 21 10:21:36 2011
-pub fn parse_ctime_datetime(py: Python, value: &str) -> PyResult<PyObject> {
+pub fn parse_ctime_datetime(py: Python, value: &str) -> PyResult<Py<PyAny>> {
     let datetime_module = py.import("datetime")?;
     let datetime_class = datetime_module.getattr("datetime")?;
 

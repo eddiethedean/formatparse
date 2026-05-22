@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 pub fn validate_custom_type_pattern(
     field_spec: &FieldSpec,
-    custom_converters: &HashMap<String, PyObject>,
+    custom_converters: &HashMap<String, Py<PyAny>>,
     py: Python,
 ) -> PyResult<usize> {
     if matches!(&field_spec.field_type, FieldType::Nested) {

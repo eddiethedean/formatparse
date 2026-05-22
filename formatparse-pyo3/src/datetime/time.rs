@@ -8,11 +8,11 @@ use regex::Regex;
 static RE_TIME_TZ: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+([+-]\d{1,2}:?\d{2,4})$").unwrap());
 
 /// Parse time format: 10:21:36, 10:21:36 AM, 10:21:36 PM, 10:21 - returns time object
-pub fn parse_time(py: Python, value: &str) -> PyResult<PyObject> {
+pub fn parse_time(py: Python, value: &str) -> PyResult<Py<PyAny>> {
     let datetime_module = py.import("datetime")?;
     let time_class = datetime_module.getattr("time")?;
 
-    let parse_tz = |tz_str: &str| -> PyResult<PyObject> {
+    let parse_tz = |tz_str: &str| -> PyResult<Py<PyAny>> {
         if let Some(caps) = RE_TZ_COLON.captures(tz_str) {
             if let (Some(sign_match), Some(hour_match), Some(min_match)) =
                 (caps.get(1), caps.get(2), caps.get(3))

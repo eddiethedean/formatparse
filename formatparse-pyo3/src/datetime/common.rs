@@ -73,7 +73,7 @@ pub fn get_abbreviated_month_map() -> HashMap<&'static str, u8> {
 }
 
 /// Create a FixedTzOffset from offset minutes
-pub fn create_fixed_tz(py: Python, offset_minutes: i32, name: &str) -> PyResult<PyObject> {
+pub fn create_fixed_tz(py: Python, offset_minutes: i32, name: &str) -> PyResult<Py<PyAny>> {
     let fixed_tz_module = py.import("formatparse")?;
     let fixed_tz_class = fixed_tz_module.getattr("FixedTzOffset")?;
     let tz = fixed_tz_class.call1((offset_minutes, name.to_string()))?;
@@ -82,7 +82,7 @@ pub fn create_fixed_tz(py: Python, offset_minutes: i32, name: &str) -> PyResult<
 
 /// Parse timezone string into FixedTzOffset
 /// Handles formats: +1:00, +10:00, +10:30, +1000, etc.
-pub fn parse_timezone(py: Python, tz_str: &str) -> PyResult<PyObject> {
+pub fn parse_timezone(py: Python, tz_str: &str) -> PyResult<Py<PyAny>> {
     // Handle formats: +1:00, +10:00, +10:30, +1000, etc.
     if let Some(caps) = RE_TZ_COLON.captures(tz_str) {
         if let (Some(sign_match), Some(hour_match), Some(min_match)) =
