@@ -178,6 +178,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-bin: false
+          # Per-matrix shared-key avoids parallel Windows/macOS jobs corrupting the same cache entry.
+          shared-key: wheel-${{ matrix.os }}-${{ matrix.architecture }}-py${{ matrix.python }}
 
       - name: Install build tooling (macOS/Windows)
         if: matrix.os != 'ubuntu-latest'
@@ -314,10 +316,26 @@ jobs:
           fi
 
       - name: Publish formatparse-core
-        run: cargo publish -p formatparse-core --locked
+        run: |
+          set -o pipefail
+          cargo publish -p formatparse-core --locked 2>&1 | tee /tmp/cargo-publish-core.log || {
+            if grep -q 'is already uploaded' /tmp/cargo-publish-core.log; then
+              echo "formatparse-core already on crates.io, skipping."
+            else
+              exit 1
+            fi
+          }
 
       - name: Publish formatparse-pyo3
-        run: cargo publish -p formatparse-pyo3 --locked
+        run: |
+          set -o pipefail
+          cargo publish -p formatparse-pyo3 --locked 2>&1 | tee /tmp/cargo-publish-pyo3.log || {
+            if grep -q 'is already uploaded' /tmp/cargo-publish-pyo3.log; then
+              echo "formatparse-pyo3 already on crates.io, skipping."
+            else
+              exit 1
+            fi
+          }
 
   publish:
     name: Publish to PyPI
