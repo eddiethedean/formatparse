@@ -83,3 +83,19 @@ files = ["formatparse", "tests"]
 module = ["pympler", "memory_profiler"]
 ignore_missing_imports = true
 
+[tool.ty]
+# Stubs for the maturin extension live at repo root as ``_formatparse.pyi``.
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+
+[tool.ty.overrides.rules]
+# Tests rely on runtime asserts and plain callables; keep strict checking on ``formatparse/``.
+invalid-argument-type = "ignore"
+not-subscriptable = "ignore"
+not-iterable = "ignore"
+unresolved-attribute = "ignore"
+unsupported-operator = "ignore"
+too-many-positional-arguments = "ignore"
+invalid-assignment = "ignore"
+

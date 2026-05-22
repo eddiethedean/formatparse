@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar, cast
 
 from ._native import FormatParser, ParseResult
+from .types import ConverterProtocol
+
+
+F = TypeVar("F", bound=Callable[[str], Any])
 
 
 def with_pattern(
     pattern: str, regex_group_count: int = 0
-) -> Callable[[Callable[[str], Any]], Callable[[str], Any]]:
+) -> Callable[[F], ConverterProtocol]:
     """Decorator to create a custom type converter with a regex pattern.
 
     This decorator adds a ``pattern`` attribute to the converter function,
@@ -41,10 +45,10 @@ def with_pattern(
         'ABC'
     """
 
-    def decorator(func: Callable[[str], Any]) -> Callable[[str], Any]:
-        func.pattern = pattern  # type: ignore[attr-defined]
-        func.regex_group_count = regex_group_count  # type: ignore[attr-defined]
-        return func
+    def decorator(func: F) -> ConverterProtocol:
+        setattr(func, "pattern", pattern)
+        setattr(func, "regex_group_count", regex_group_count)
+        return cast(ConverterProtocol, func)
 
     return decorator
 

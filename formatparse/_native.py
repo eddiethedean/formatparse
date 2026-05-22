@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from _formatparse import (  # type: ignore[import-not-found, import-untyped]
+from _formatparse import (
     parse as _parse,
     parse_batch as _parse_batch,
     search as _search,

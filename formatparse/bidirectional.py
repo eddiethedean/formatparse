@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from ._native import FormatParser, ParseResult
 from .api import compile
@@ -62,7 +62,6 @@ class BidirectionalPattern:
 
         for match in re.finditer(field_pattern, pattern):
             field_spec = match.group(1)
-            constraint: FieldConstraint
             if not field_spec:
                 # Positional field with no spec
                 constraint = {
@@ -71,7 +70,7 @@ class BidirectionalPattern:
                     "width": None,
                     "precision": None,
                 }
-                constraints.append(constraint)
+                constraints.append(cast(FieldConstraint, constraint))
                 continue
 
             # Parse field name and format spec
@@ -123,7 +122,7 @@ class BidirectionalPattern:
                 if width_match:
                     constraint["width"] = int(width_match.group(1))
 
-            constraints.append(constraint)
+            constraints.append(cast(FieldConstraint, constraint))
 
         return constraints
 
@@ -182,14 +181,13 @@ class BidirectionalPattern:
         # Format.format() expects args or kwargs, not a dict directly
         # For named fields, we need to unpack the dict as kwargs
         if isinstance(values, dict):
-            # Use Python's format() method directly with **kwargs
-            return self._pattern.format(**values)
+            return self._pattern.format(**cast(Dict[str, object], values))
         elif isinstance(values, tuple):
             return self._pattern.format(*values)
         elif isinstance(values, ParseResult):
             # Convert ParseResult to dict or tuple
             if values.named:
-                return self._pattern.format(**dict(values.named))
+                return self._pattern.format(**cast(Dict[str, object], values.named))
             else:
                 return self._pattern.format(*values.fixed)
         else:
@@ -303,11 +301,8 @@ class BidirectionalResult:
         """
         self._pattern: BidirectionalPattern = pattern
         self._result: ParseResult = result
-        # Store values in mutable dict/list
-        self._values: Dict[str, Union[Dict[str, Any], List[Any]]] = {
-            "named": dict(result.named) if result.named else {},
-            "fixed": list(result.fixed) if result.fixed else [],
-        }
+        self._named: Dict[str, Any] = dict(result.named) if result.named else {}
+        self._fixed: List[Any] = list(result.fixed) if result.fixed else []
 
     @property
     def named(self) -> Dict[str, Any]:
@@ -324,7 +319,7 @@ class BidirectionalResult:
             >>> result.format()
             'Alice: 31'
         """
-        return self._values["named"]  # type: ignore[return-value]
+        return self._named
 
     @property
     def fixed(self) -> List[Any]:
@@ -341,7 +336,7 @@ class BidirectionalResult:
             >>> result.format()
             'Hello, Python'
         """
-        return self._values["fixed"]  # type: ignore[return-value]
+        return self._fixed
 
     def format(self) -> str:
         """Format values back using the pattern.
@@ -360,10 +355,9 @@ class BidirectionalResult:
             >>> result.format()
             '      John: 00100'
         """
-        if self._values["named"]:
-            return self._pattern.format(self._values["named"])
-        else:
-            return self._pattern.format(tuple(self._values["fixed"]))
+        if self._named:
+            return self._pattern.format(self._named)
+        return self._pattern.format(tuple(self._fixed))
 
     def validate(self) -> Tuple[bool, List[str]]:
         """Validate current values against format constraints.
@@ -388,14 +382,12 @@ class BidirectionalResult:
             True
         """
         # Pass the actual values dict/list, not the wrapper structure
-        if self._values["named"]:
-            return self._pattern.validate(self._values["named"])
-        else:
-            return self._pattern.validate(tuple(self._values["fixed"]))
+        if self._named:
+            return self._pattern.validate(self._named)
+        return self._pattern.validate(tuple(self._fixed))
 
     def __repr__(self) -> str:
         """String representation"""
-        if self._values["named"]:
-            return f"<BidirectionalResult {self._values['named']}>"
-        else:
-            return f"<BidirectionalResult {self._values['fixed']}>"
+        if self._named:
+            return f"<BidirectionalResult {self._named}>"
+        return f"<BidirectionalResult {self._fixed}>"
