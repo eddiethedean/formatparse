@@ -10,7 +10,7 @@ static RE_HTTP_DATETIME: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Parse HTTP log format: 21/Nov/2011:10:21:36 +1000
-pub fn parse_http_datetime(py: Python, value: &str) -> PyResult<PyObject> {
+pub fn parse_http_datetime(py: Python, value: &str) -> PyResult<Py<PyAny>> {
     let datetime_module = py.import("datetime")?;
     let datetime_class = datetime_module.getattr("datetime")?;
 

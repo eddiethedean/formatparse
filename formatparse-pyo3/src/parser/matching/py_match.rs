@@ -16,7 +16,7 @@ use super::{
 pub fn match_with_captures(
     captures: &Captures,
     ctx: &CapturedMatchContext<'_>,
-) -> PyResult<Option<PyObject>> {
+) -> PyResult<Option<Py<PyAny>>> {
     let field_specs = ctx.fields.field_specs;
     let field_names = ctx.fields.field_names;
     let normalized_names = ctx.fields.normalized_names;
@@ -46,7 +46,7 @@ pub fn match_with_captures(
     let field_count = field_specs.len();
     // Fast path: for single-field patterns, use optimized allocation
     let mut fixed = Vec::with_capacity(field_count);
-    let mut named: HashMap<String, PyObject> = HashMap::with_capacity(field_count.max(1));
+    let mut named: HashMap<String, Py<PyAny>> = HashMap::with_capacity(field_count.max(1));
     let mut field_spans: HashMap<String, (usize, usize)> =
         HashMap::with_capacity(field_count.max(1));
     let mut captures_vec = Vec::with_capacity(field_count); // For Match object when evaluate_result=False
@@ -180,7 +180,7 @@ pub fn match_with_captures(
                         fixed.push(converted);
                     }
                 } else {
-                    let converted: PyObject = if matches!(spec.field_type, FieldType::Nested) {
+                    let converted: Py<PyAny> = if matches!(spec.field_type, FieldType::Nested) {
                         let nested_arc = ctx
                             .fields
                             .nested_parsers
@@ -296,7 +296,7 @@ pub fn match_with_captures(
 }
 
 /// Match a regex against a string and extract results
-pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<Option<PyObject>> {
+pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<Option<Py<PyAny>>> {
     let string = ctx.string;
     let pattern = ctx.pattern;
     let field_specs = ctx.field_specs;
@@ -314,7 +314,7 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
         // Pre-allocate with capacity based on expected field count
         let field_count = field_specs.len();
         let mut fixed = Vec::with_capacity(field_count);
-        let mut named: HashMap<String, PyObject> = HashMap::with_capacity(field_count);
+        let mut named: HashMap<String, Py<PyAny>> = HashMap::with_capacity(field_count);
         let mut field_spans: HashMap<String, (usize, usize)> = HashMap::with_capacity(field_count);
         let mut captures_vec = Vec::with_capacity(field_count); // For Match object when evaluate_result=False
         let mut named_captures = HashMap::with_capacity(field_count); // For Match object when evaluate_result=False
@@ -477,7 +477,7 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                             fixed_index += 1;
                         }
                     } else {
-                        let converted: PyObject = if matches!(spec.field_type, FieldType::Nested) {
+                        let converted: Py<PyAny> = if matches!(spec.field_type, FieldType::Nested) {
                             let nested_arc = nested_parsers
                                 .get(i)
                                 .and_then(|x| x.as_ref())
@@ -626,15 +626,15 @@ pub fn match_empty_default_string_parse(
     field_names: &[Option<String>],
     normalized_names: &[Option<String>],
     py: Python<'_>,
-    custom_converters: &HashMap<String, PyObject>,
+    custom_converters: &HashMap<String, Py<PyAny>>,
     evaluate_result: bool,
-) -> PyResult<Option<PyObject>> {
+) -> PyResult<Option<Py<PyAny>>> {
     let value_str = "";
     let field_start: usize = 0;
     let field_end: usize = 0;
     let field_count = field_specs.len();
-    let mut fixed: Vec<PyObject> = Vec::with_capacity(field_count);
-    let mut named: HashMap<String, PyObject> = HashMap::with_capacity(field_count);
+    let mut fixed: Vec<Py<PyAny>> = Vec::with_capacity(field_count);
+    let mut named: HashMap<String, Py<PyAny>> = HashMap::with_capacity(field_count);
     let mut field_spans: HashMap<String, (usize, usize)> = HashMap::with_capacity(field_count);
     let mut captures_vec: Vec<Option<String>> = Vec::with_capacity(field_count);
     let mut named_captures: HashMap<String, String> = HashMap::with_capacity(field_count);

@@ -33,7 +33,7 @@ impl CompiledFields {
     }
 }
 
-#[pyclass(module = "_formatparse")]
+#[pyclass(module = "_formatparse", from_py_object)]
 /// Compiled format pattern for parsing strings.
 ///
 /// Construct with :func:`formatparse.compile` (or ``FormatParser(pattern, extra_types=...)`` in Python).
@@ -58,7 +58,7 @@ pub struct FormatParser {
     pub(crate) fields: CompiledFields,
     #[allow(dead_code)]
     pub(crate) name_mapping: std::collections::HashMap<String, String>, // Map normalized -> original
-    pub(crate) stored_extra_types: Option<HashMap<String, PyObject>>, // Store extra_types for use during conversion
+    pub(crate) stored_extra_types: Option<HashMap<String, Py<PyAny>>>, // Store extra_types for use during conversion
     pub(crate) allows_empty_default_string_match: bool, // True iff parse("") can use empty-field fast path (issue #16)
 }
 
@@ -70,7 +70,7 @@ impl FormatParser {
         &self,
         py: Python<'_>,
         normalized_pattern: &str,
-        extra_types: &Option<HashMap<String, PyObject>>,
+        extra_types: &Option<HashMap<String, Py<PyAny>>>,
     ) -> bool {
         if self.pattern != normalized_pattern {
             return false;
@@ -86,10 +86,10 @@ impl FormatParser {
 
     pub fn new_with_extra_types(
         pattern: &str,
-        extra_types: Option<HashMap<String, PyObject>>,
+        extra_types: Option<HashMap<String, Py<PyAny>>>,
     ) -> PyResult<Self> {
         let pattern_owned = crate::pattern_normalize::prepare_compiled_pattern(pattern)?;
-        let custom_patterns = Python::with_gil(|py| -> PyResult<HashMap<String, String>> {
+        let custom_patterns = Python::attach(|py| -> PyResult<HashMap<String, String>> {
             let mut patterns = HashMap::new();
             if let Some(ref extra_types_map) = extra_types {
                 for (name, converter_obj) in extra_types_map {
@@ -142,7 +142,7 @@ impl FormatParser {
         }
 
         let nested_parsers: Vec<Option<Arc<FormatParser>>> =
-            Python::with_gil(|py| -> PyResult<_> {
+            Python::attach(|py| -> PyResult<_> {
                 let mut out = Vec::with_capacity(field_specs.len());
                 for spec in &field_specs {
                     if matches!(spec.field_type, FieldType::Nested) {
@@ -165,12 +165,12 @@ impl FormatParser {
             })?;
         // Pre-compute custom type validation results (pattern_groups per field)
         // This avoids calling validate_custom_type_pattern for every match
-        let custom_type_groups = Python::with_gil(|py| -> PyResult<Vec<usize>> {
+        let custom_type_groups = Python::attach(|py| -> PyResult<Vec<usize>> {
             let mut groups = Vec::with_capacity(field_specs.len());
             let empty_map = std::collections::HashMap::new();
             let custom_converters = extra_types
                 .as_ref()
-                .map(|et| et as &HashMap<String, PyObject>)
+                .map(|et| et as &HashMap<String, Py<PyAny>>)
                 .unwrap_or(&empty_map);
 
             for spec in &field_specs {
@@ -245,9 +245,9 @@ impl FormatParser {
         &self,
         string: &str,
         case_sensitive: bool,
-        extra_types: Option<HashMap<String, PyObject>>,
+        extra_types: Option<HashMap<String, Py<PyAny>>>,
         evaluate_result: bool,
-    ) -> PyResult<Option<PyObject>> {
+    ) -> PyResult<Option<Py<PyAny>>> {
         // Use pre-compiled search regex
         let search_regex = if case_sensitive {
             &self.search_regex
@@ -257,7 +257,7 @@ impl FormatParser {
                 .unwrap_or(&self.search_regex)
         };
 
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             if search_regex
                 .captures(string)
                 .map_err(crate::error::fancy_regex_match_error)?
@@ -292,11 +292,11 @@ impl FormatParser {
         &self,
         string: &str,
         case_sensitive: bool,
-        extra_types: Option<&HashMap<String, PyObject>>,
+        extra_types: Option<&HashMap<String, Py<PyAny>>>,
         evaluate_result: bool,
-    ) -> PyResult<Option<PyObject>> {
-        Python::with_gil(|py| {
-            let empty = HashMap::<String, PyObject>::new();
+    ) -> PyResult<Option<Py<PyAny>>> {
+        Python::attach(|py| {
+            let empty = HashMap::<String, Py<PyAny>>::new();
             let extra_types_ref = extra_types.unwrap_or(&empty);
 
             // Use existing regex (custom type handling is done in convert_value)
@@ -357,9 +357,9 @@ impl FormatParser {
         &self,
         py: Python<'_>,
         slice: &str,
-        custom_converters: &HashMap<String, PyObject>,
+        custom_converters: &HashMap<String, Py<PyAny>>,
     ) -> PyResult<Option<Py<ParseResult>>> {
-        use pyo3::types::PyAnyMethods;
+        
         let mut merged = HashMap::new();
         if let Some(ref stored) = self.stored_extra_types {
             for (k, v) in stored {
@@ -374,7 +374,7 @@ impl FormatParser {
             return Ok(None);
         };
         let bound = obj.bind(py);
-        let pr = bound.downcast::<ParseResult>().map_err(|_| {
+        let pr = bound.cast::<ParseResult>().map_err(|_| {
             PyValueError::new_err("internal error: nested parse did not return ParseResult")
         })?;
         Ok(Some(pr.clone().unbind()))
@@ -383,7 +383,7 @@ impl FormatParser {
 
 impl Clone for FormatParser {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| Self {
+        Python::attach(|py| Self {
             pattern: self.pattern.clone(),
             regex: self.regex.clone(),
             regex_str: self.regex_str.clone(),

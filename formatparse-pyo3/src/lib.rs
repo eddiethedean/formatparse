@@ -39,10 +39,10 @@ pub use error::PatternParseMismatch;
 fn parse(
     pattern: &str,
     string: &str,
-    extra_types: Option<HashMap<String, PyObject>>,
+    extra_types: Option<HashMap<String, Py<PyAny>>>,
     case_sensitive: bool,
     evaluate_result: bool,
-) -> PyResult<Option<PyObject>> {
+) -> PyResult<Option<Py<PyAny>>> {
     // Validate input lengths
     formatparse_core::validate_input_length(string)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
@@ -55,7 +55,7 @@ fn parse(
     }
 
     // Use cached parser if available
-    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+    let extra_types_cloned = Python::attach(|py| -> Option<HashMap<String, Py<PyAny>>> {
         extra_types.as_ref().map(|et| {
             et.iter()
                 .map(|(k, v)| (k.clone(), v.clone_ref(py)))
@@ -69,7 +69,7 @@ fn parse(
             extra_types.as_ref(),
             evaluate_result,
         ),
-        Err(e) => Python::with_gil(|py| {
+        Err(e) => Python::attach(|py| {
             if e.is_instance_of::<PyNotImplementedError>(py) {
                 return Err(e);
             }
@@ -91,10 +91,10 @@ fn parse(
 fn parse_batch(
     pattern: &str,
     strings: Vec<String>,
-    extra_types: Option<HashMap<String, PyObject>>,
+    extra_types: Option<HashMap<String, Py<PyAny>>>,
     case_sensitive: bool,
     evaluate_result: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     for s in &strings {
         formatparse_core::validate_input_length(s)
             .map_err(pyo3::exceptions::PyValueError::new_err)?;
@@ -105,7 +105,7 @@ fn parse_batch(
         }
     }
 
-    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+    let extra_types_cloned = Python::attach(|py| -> Option<HashMap<String, Py<PyAny>>> {
         extra_types.as_ref().map(|et| {
             et.iter()
                 .map(|(k, v)| (k.clone(), v.clone_ref(py)))
@@ -116,13 +116,13 @@ fn parse_batch(
     let parser = match get_or_create_parser(pattern, extra_types_cloned) {
         Ok(p) => p,
         Err(e) => {
-            return Python::with_gil(|py| -> PyResult<PyObject> {
+            return Python::attach(|py| -> PyResult<Py<PyAny>> {
                 if e.is_instance_of::<PyNotImplementedError>(py) {
                     return Err(e);
                 }
                 if e.is_instance_of::<crate::error::PatternParseMismatch>(py) {
                     let none_obj = py.None().into_py_any(py)?;
-                    let mut out: Vec<PyObject> = Vec::with_capacity(strings.len());
+                    let mut out: Vec<Py<PyAny>> = Vec::with_capacity(strings.len());
                     for _ in 0..strings.len() {
                         out.push(none_obj.clone_ref(py));
                     }
@@ -134,8 +134,8 @@ fn parse_batch(
         }
     };
 
-    Python::with_gil(|py| -> PyResult<PyObject> {
-        let mut out: Vec<PyObject> = Vec::with_capacity(strings.len());
+    Python::attach(|py| -> PyResult<Py<PyAny>> {
+        let mut out: Vec<Py<PyAny>> = Vec::with_capacity(strings.len());
         for s in &strings {
             match parser.parse_internal(s, case_sensitive, extra_types.as_ref(), evaluate_result)? {
                 Some(obj) => out.push(obj),
@@ -155,10 +155,10 @@ fn search(
     string: &str,
     pos: usize,
     endpos: Option<usize>,
-    extra_types: Option<HashMap<String, PyObject>>,
+    extra_types: Option<HashMap<String, Py<PyAny>>>,
     case_sensitive: bool,
     evaluate_result: bool,
-) -> PyResult<Option<PyObject>> {
+) -> PyResult<Option<Py<PyAny>>> {
     // Validate pos parameter
     if pos > string.len() {
         return Ok(None);
@@ -184,7 +184,7 @@ fn search(
         ));
     }
 
-    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+    let extra_types_cloned = Python::attach(|py| -> Option<HashMap<String, Py<PyAny>>> {
         extra_types.as_ref().map(|et| {
             et.iter()
                 .map(|(k, v)| (k.clone(), v.clone_ref(py)))
@@ -198,8 +198,8 @@ fn search(
         parser.search_pattern(search_string, case_sensitive, extra_types, evaluate_result)?
     {
         // Adjust positions if it's a ParseResult (not Match)
-        Python::with_gil(|py| {
-            if let Ok(parse_result) = result.bind(py).downcast::<ParseResult>() {
+        Python::attach(|py| {
+            if let Ok(parse_result) = result.bind(py).cast::<ParseResult>() {
                 let result_value = parse_result.borrow();
                 let adjusted = result_value.clone().with_offset(pos);
                 // Py::new() is already optimized when GIL is held
@@ -221,10 +221,10 @@ fn search(
 fn findall(
     pattern: &str,
     string: &str,
-    extra_types: Option<HashMap<String, PyObject>>,
+    extra_types: Option<HashMap<String, Py<PyAny>>>,
     case_sensitive: bool,
     evaluate_result: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     // Validate input lengths
     formatparse_core::validate_input_length(string)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
@@ -236,7 +236,7 @@ fn findall(
         ));
     }
 
-    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+    let extra_types_cloned = Python::attach(|py| -> Option<HashMap<String, Py<PyAny>>> {
         extra_types.as_ref().map(|et| {
             et.iter()
                 .map(|(k, v)| (k.clone(), v.clone_ref(py)))
@@ -262,7 +262,7 @@ fn findall_iter(
     py: Python<'_>,
     pattern: &str,
     string: &str,
-    extra_types: Option<HashMap<String, PyObject>>,
+    extra_types: Option<HashMap<String, Py<PyAny>>>,
     case_sensitive: bool,
     evaluate_result: bool,
 ) -> PyResult<Py<FindallIter>> {
@@ -275,7 +275,7 @@ fn findall_iter(
         ));
     }
 
-    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+    let extra_types_cloned = Python::attach(|py| -> Option<HashMap<String, Py<PyAny>>> {
         extra_types.as_ref().map(|et| {
             et.iter()
                 .map(|(k, v)| (k.clone(), v.clone_ref(py)))
@@ -284,7 +284,7 @@ fn findall_iter(
     });
     let parser = get_or_create_parser(pattern, extra_types_cloned)?;
 
-    let et_map = Python::with_gil(|py| -> HashMap<String, PyObject> {
+    let et_map = Python::attach(|py| -> HashMap<String, Py<PyAny>> {
         extra_types
             .as_ref()
             .map(|et| {
@@ -316,9 +316,9 @@ fn findall_iter(
 #[pyo3(signature = (pattern, extra_types=None))]
 fn compile(
     pattern: &str,
-    extra_types: Option<HashMap<String, PyObject>>,
+    extra_types: Option<HashMap<String, Py<PyAny>>>,
 ) -> PyResult<FormatParser> {
-    let extra_types_cloned = Python::with_gil(|py| -> Option<HashMap<String, PyObject>> {
+    let extra_types_cloned = Python::attach(|py| -> Option<HashMap<String, Py<PyAny>>> {
         extra_types.as_ref().map(|et| {
             et.iter()
                 .map(|(k, v)| (k.clone(), v.clone_ref(py)))
@@ -335,7 +335,7 @@ fn compile(
 fn extract_format(
     format_string: &str,
     _match_dict: Option<&Bound<'_, PyDict>>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     use crate::types::FieldSpec;
 
     // Parse the format spec string
@@ -411,7 +411,7 @@ fn extract_format(
     };
 
     // Build result dictionary
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         let result = PyDict::new(py);
         result.set_item("type", type_str)?;
 

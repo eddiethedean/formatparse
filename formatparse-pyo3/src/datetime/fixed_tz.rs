@@ -33,7 +33,7 @@ impl FixedTzOffset {
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
-        if let Ok(other_tz) = other.downcast::<Self>() {
+        if let Ok(other_tz) = other.cast::<Self>() {
             Ok(self.offset_seconds == other_tz.borrow().offset_seconds
                 && self.name == other_tz.borrow().name)
         } else {
@@ -58,7 +58,7 @@ impl FixedTzOffset {
     }
 
     /// tzinfo.utcoffset() - returns timedelta for offset
-    fn utcoffset(&self, py: Python, _dt: Option<&Bound<'_, PyAny>>) -> PyResult<PyObject> {
+    fn utcoffset(&self, py: Python, _dt: Option<&Bound<'_, PyAny>>) -> PyResult<Py<PyAny>> {
         let datetime_module = py.import("datetime")?;
         let timedelta_class = datetime_module.getattr("timedelta")?;
         // timedelta(seconds=offset_seconds)
@@ -67,7 +67,7 @@ impl FixedTzOffset {
     }
 
     /// tzinfo.dst() - returns None (no DST)
-    fn dst(&self, py: Python, _dt: Option<&Bound<'_, PyAny>>) -> PyResult<PyObject> {
+    fn dst(&self, py: Python, _dt: Option<&Bound<'_, PyAny>>) -> PyResult<Py<PyAny>> {
         Ok(py.None())
     }
 

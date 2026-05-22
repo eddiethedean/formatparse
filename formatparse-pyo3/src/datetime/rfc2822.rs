@@ -19,7 +19,7 @@ static RE_RFC2822_NO_WEEKDAY: Lazy<Regex> = Lazy::new(|| {
 
 /// Parse RFC2822 datetime string and return Python datetime object
 /// Format: Mon, 21 Nov 2011 10:21:36 +1000
-pub fn parse_rfc2822_datetime(py: Python, value: &str) -> PyResult<PyObject> {
+pub fn parse_rfc2822_datetime(py: Python, value: &str) -> PyResult<Py<PyAny>> {
     let datetime_module = py.import("datetime")?;
     let datetime_class = datetime_module.getattr("datetime")?;
 

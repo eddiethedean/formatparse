@@ -201,8 +201,8 @@ pub fn convert_value(
     spec: &FieldSpec,
     value: &str,
     py: Python,
-    custom_converters: &HashMap<String, PyObject>,
-) -> PyResult<PyObject> {
+    custom_converters: &HashMap<String, Py<PyAny>>,
+) -> PyResult<Py<PyAny>> {
     // Fast path: if no custom converters, skip the lookup entirely
     if !custom_converters.is_empty() {
         // Check if this type has a custom converter (even if it's a built-in type name)

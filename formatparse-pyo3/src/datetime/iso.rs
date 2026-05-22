@@ -25,7 +25,7 @@ static RE_ISO_DATETIME_NO_TZ: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Parse ISO 8601 datetime string and return Python datetime object
-pub fn parse_iso_datetime(py: Python, value: &str) -> PyResult<PyObject> {
+pub fn parse_iso_datetime(py: Python, value: &str) -> PyResult<Py<PyAny>> {
     let datetime_module = py.import("datetime")?;
     let datetime_class = datetime_module.getattr("datetime")?;
 

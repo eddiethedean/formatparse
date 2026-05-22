@@ -14,14 +14,14 @@ static RE_GLOBAL_NAMED: Lazy<Regex> = Lazy::new(|| {
 
 /// Parse Global (day/month) datetime format
 /// Formats: 21/11/2011, 21-11-2011, 21-Nov-2011, 21-November-2011
-pub fn parse_global_datetime(py: Python, value: &str) -> PyResult<PyObject> {
+pub fn parse_global_datetime(py: Python, value: &str) -> PyResult<Py<PyAny>> {
     let datetime_module = py.import("datetime")?;
     let datetime_class = datetime_module.getattr("datetime")?;
 
     let month_map = get_month_map();
 
     // Helper to parse timezone - use common function
-    let parse_tz = |tz_str: &str| -> PyResult<PyObject> { parse_timezone(py, tz_str) };
+    let parse_tz = |tz_str: &str| -> PyResult<Py<PyAny>> { parse_timezone(py, tz_str) };
 
     // Helper to parse AM/PM - use common function
     let parse_time_with_ampm = |time_str: &str| -> Result<(u8, u8, u8), PyErr> {
