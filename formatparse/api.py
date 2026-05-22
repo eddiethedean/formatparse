@@ -377,7 +377,7 @@ def findall(
     :param evaluate_result: Whether to evaluate and convert result types (default: True)
     :type evaluate_result: bool
     :param max_matches: Stop after this many matches (default: no limit). Useful for
-        untrusted input; see :doc:`security`.
+        untrusted input; see the Security guide in the project docs (``docs/security.rst``).
     :type max_matches: int, optional
     :returns: ``Results`` (preferred) or ``list`` of matches, depending on options
     :rtype: Results | list
