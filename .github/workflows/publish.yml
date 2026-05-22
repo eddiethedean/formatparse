@@ -319,7 +319,7 @@ jobs:
         run: |
           set -o pipefail
           cargo publish -p formatparse-core --locked 2>&1 | tee /tmp/cargo-publish-core.log || {
-            if grep -q 'is already uploaded' /tmp/cargo-publish-core.log; then
+            if grep -qE 'is already uploaded|already exists on crates.io index' /tmp/cargo-publish-core.log; then
               echo "formatparse-core already on crates.io, skipping."
             else
               exit 1
@@ -330,7 +330,7 @@ jobs:
         run: |
           set -o pipefail
           cargo publish -p formatparse-pyo3 --locked 2>&1 | tee /tmp/cargo-publish-pyo3.log || {
-            if grep -q 'is already uploaded' /tmp/cargo-publish-pyo3.log; then
+            if grep -qE 'is already uploaded|already exists on crates.io index' /tmp/cargo-publish-pyo3.log; then
               echo "formatparse-pyo3 already on crates.io, skipping."
             else
               exit 1
