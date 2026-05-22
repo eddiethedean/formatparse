@@ -7,20 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- ``findall`` and ``findall_iter`` (including :meth:`FormatParser.findall_iter`) accept optional ``max_matches`` to cap how many non-overlapping matches are returned on untrusted input.
-
-### Fixed
-
-- :class:`BidirectionalPattern` now passes ``extra_types`` to :func:`compile` so custom-type regexes are strict at compile time, not only on :meth:`~BidirectionalPattern.parse`.
-- :meth:`FormatParser.parse` and :meth:`FormatParser.search` re-resolve the compiled parser through the pattern cache when call-time ``extra_types`` differ from compile-time fingerprints, so custom converters use their ``@with_pattern`` regex instead of the ``\S+`` fallback (and no longer raise ``ValueError`` on non-matching text that the loose regex would accept).
-- :class:`BidirectionalPattern` validation constraints are derived from compiled field metadata (``field_constraints``), fixing incorrect constraint extraction for nested brace specs and custom type names.
-
-### Changed
-
-- Pattern LRU cache emits a :mod:`warnings` message when a hash hit fails full verification (e.g. in-place mutation of ``converter.pattern`` on a reused ``extra_types`` dict).
-
 ### Planned
 
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
@@ -28,14 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.2] - 2026-05-22
 
+### Added
+
+- **`ty` type checking**: ``_formatparse.pyi`` stubs, stricter typing in ``formatparse/``, and ``[tool.ty]`` configuration (tests use targeted overrides).
+- ``findall`` and ``findall_iter`` (including :meth:`FormatParser.findall_iter`) accept optional ``max_matches`` to cap how many non-overlapping matches are returned on untrusted input.
+
 ### Changed
 
 - **Dependencies**: PyO3 0.28 (with API migration), ``fancy-regex`` 0.17, ``lru`` 0.18, ``rayon`` 1.12; Sphinx / myst-parser / RTD theme bumps for docs; GitHub Actions artifact actions v7/v8.
 - **MSRV**: Rust **1.83** (required by PyO3 0.28).
+- Pattern LRU cache emits a :mod:`warnings` message when a hash hit fails full verification (e.g. in-place mutation of ``converter.pattern`` on a reused ``extra_types`` dict).
 
-### Added
+### Fixed
 
-- **`ty` type checking**: ``_formatparse.pyi`` stubs, stricter typing in ``formatparse/``, and ``[tool.ty]`` configuration (tests use targeted overrides).
+- :class:`BidirectionalPattern` now passes ``extra_types`` to :func:`compile` so custom-type regexes are strict at compile time, not only on :meth:`~BidirectionalPattern.parse`.
+- :meth:`FormatParser.parse` and :meth:`FormatParser.search` re-resolve the compiled parser through the pattern cache when call-time ``extra_types`` differ from compile-time fingerprints, so custom converters use their ``@with_pattern`` regex instead of the ``\S+`` fallback (and no longer raise ``ValueError`` on non-matching text that the loose regex would accept).
+- :class:`BidirectionalPattern` validation constraints are derived from compiled field metadata (``field_constraints``), fixing incorrect constraint extraction for nested brace specs and custom type names.
 
 ## [0.8.1] - 2026-05-15
 
