@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Dependencies**: ``fancy-regex`` 0.17 → 0.18 (see `#116 <https://github.com/eddiethedean/formatparse/pull/116>`_).
+
 ### Planned
 
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
