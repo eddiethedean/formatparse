@@ -16,9 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Core**: ``field_types_match`` compares ``Custom`` and ``DateTimeStrftime`` payloads; escape-aware ``count_capturing_groups``; ``validate_field_name`` and ``MAX_FIELDS`` enforced in ``parse_pattern``; width/precision capped at 1000; custom type names preserve ``_``; integer ``:d`` no longer accepts leading newlines; UTF-8-safe lookaround error truncation.
+- **Core**: ``field_types_match`` compares ``Custom`` payloads on repeated names; escape-aware ``count_capturing_groups``; ``validate_field_name`` and ``MAX_FIELDS`` enforced in ``parse_pattern``; width/precision capped at 1000; custom type names preserve ``_``; integer ``:d`` no longer accepts leading newlines; UTF-8-safe lookaround error truncation.
 - **Matching**: ``findall`` fast path validates alignment/precision like ``parse``; ``search`` ``Match`` spans respect ``pos``; ``Match.evaluate_result`` validates captures; ``__eq__`` errors propagate; ``Results`` slices convert only requested indices.
 - **Python API**: ``BidirectionalPattern`` mixed named+positional ``format``/``validate``; ``ValidationPipeline.apply`` returns result and rejects unknown modes; ``parse_batch`` rejects a bare ``str``; ``in_range`` rejects ``bool``; validator keys must be ``str`` or ``int``; bidirectional patterns with attribute/item access in field names are rejected.
+
+### Changed
+
+- **Stricter compile-time validation** (may reject patterns previously accepted): repeated field names with mismatched **custom** types; field names longer than 200 characters; more than 100 fields; width or precision above 1000.
+- **Security**: document bidirectional ``str.format`` trust boundary in ``SECURITY.md`` and ``docs/security.rst``; reject unsafe attribute/item-access field names in ``BidirectionalPattern`` at construction.
 
 ## [0.8.3] - 2026-06-06
 

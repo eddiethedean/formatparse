@@ -6,7 +6,7 @@ This document explains how to release a new version of `formatparse` to PyPI.
 
 The canonical version is **`0.8.4`** in the workspace [`Cargo.toml`](Cargo.toml) (`[workspace.package] version` and `[workspace.dependencies] formatparse-core` must match). Member crates use `version.workspace = true`. PyPI metadata uses `dynamic = ["version"]`; Maturin reads the workspace version when building wheels and sdist.
 
-**PyPI latest published:** `0.8.3` (as of the 0.8.4 prep). To ship 0.8.4, tag `v0.8.4` after the checklist below—do not re-run `release.sh` with a version bump unless you change the workspace version again.
+**PyPI / crates.io latest published:** `0.8.2` (tag `v0.8.2`). Version `0.8.3` was prepared in the changelog but never tagged or published; **0.8.4** is the next release. To ship 0.8.4, tag `v0.8.4` after the checklist below—do **not** run `release.sh 0.8.4` (that would create a redundant version commit); use [Tag without a version bump](#tag-without-a-version-bump) instead.
 
 Before tagging, confirm:
 
