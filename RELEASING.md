@@ -4,14 +4,14 @@ This document explains how to release a new version of `formatparse` to PyPI.
 
 ## Current version
 
-The canonical version is **`0.8.2`** in the workspace [`Cargo.toml`](Cargo.toml) (`[workspace.package] version` and `[workspace.dependencies] formatparse-core` must match). Member crates use `version.workspace = true`. PyPI metadata uses `dynamic = ["version"]`; Maturin reads the workspace version when building wheels and sdist.
+The canonical version is **`0.8.4`** in the workspace [`Cargo.toml`](Cargo.toml) (`[workspace.package] version` and `[workspace.dependencies] formatparse-core` must match). Member crates use `version.workspace = true`. PyPI metadata uses `dynamic = ["version"]`; Maturin reads the workspace version when building wheels and sdist.
 
-**PyPI latest published:** `0.8.1` (as of the 0.8.2 prep). To ship 0.8.2, tag `v0.8.2` after the checklist below—do not re-run `release.sh` with a version bump unless you change the workspace version again.
+**PyPI latest published:** `0.8.3` (as of the 0.8.4 prep). To ship 0.8.4, tag `v0.8.4` after the checklist below—do not re-run `release.sh` with a version bump unless you change the workspace version again.
 
 Before tagging, confirm:
 
-- `[workspace.package] version` and `formatparse-core` dependency version in root [`Cargo.toml`](Cargo.toml) are both **`0.8.2`**.
-- [`CHANGELOG.md`](CHANGELOG.md) lists all 0.8.2 changes under `## [0.8.2]` (not only under `[Unreleased]`).
+- `[workspace.package] version` and `formatparse-core` dependency version in root [`Cargo.toml`](Cargo.toml) are both **`0.8.4`**.
+- [`CHANGELOG.md`](CHANGELOG.md) lists all 0.8.4 changes under `## [0.8.4]` (not only under `[Unreleased]`).
 - CI on `main` is green.
 
 If the workspace version is **already** `X.Y.Z` on `main` (for example after a merge that bumped it), you do **not** need `release.sh` to edit `Cargo.toml` again. Push the tag only (see [Tag without a version bump](#tag-without-a-version-bump) below).

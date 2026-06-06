@@ -101,9 +101,11 @@ Subscribe to GitHub releases to be notified of security updates.
 
 1. **User-Provided Patterns**: Patterns are compiled into regular expressions. Patterns from untrusted sources should be validated.
 
-2. **Large Inputs**: While there are size limits, processing very large inputs may still consume significant resources.
+2. **Bidirectional formatting**: `BidirectionalPattern` and `BidirectionalResult` use Python's `str.format` for round-trip formatting. Treat bidirectional patterns as **trusted** (same trust boundary as parse patterns). Patterns containing attribute or item access in field names (for example `{0.__class__}` or `{name.attr}`) are rejected at `BidirectionalPattern` construction. Do not pass untrusted pattern strings to bidirectional APIs.
 
-3. **Dependencies**: We regularly audit dependencies for vulnerabilities using `cargo audit` and `pip-audit`. See our CI workflows for automated scanning.
+3. **Large Inputs**: While there are size limits, processing very large inputs may still consume significant resources.
+
+4. **Dependencies**: We regularly audit dependencies for vulnerabilities using `cargo audit` and `pip-audit`. See our CI workflows for automated scanning.
 
 ## Security Contact
 

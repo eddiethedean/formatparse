@@ -625,7 +625,7 @@ def test_mixed_type_variant():
 def test_too_many_fields_rejected_at_compile():
     """Patterns with more than MAX_FIELDS (100) fields are rejected at compile time."""
     pattern = "".join(f"{{{i}:d}}" for i in range(101))
-    with pytest.raises(ValueError, match="exceeds the maximum"):
+    with pytest.raises(ValueError, match="more than 100 fields"):
         compile(pattern)
 
 

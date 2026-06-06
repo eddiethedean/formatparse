@@ -69,14 +69,9 @@ def test_search_pos_boundary():
     assert result is not None
     assert result.named["age"] == 30
 
-    # pos beyond string length - should handle gracefully
-    # May raise panic or error depending on implementation
-    try:
-        result = search("age: {age:d}", text, pos=100)
-        assert result is None
-    except (ValueError, IndexError, Exception):
-        # Expected behavior - invalid pos may raise error or panic
-        pass
+    # pos beyond string length — no match in range
+    result = search("age: {age:d}", text, pos=100)
+    assert result is None
 
 
 def test_search_endpos_boundary():

@@ -2,11 +2,44 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from ._native import FormatParser, ParseResult
 from .api import compile
 from .types import ExtraTypes, FieldConstraint
+
+_UNSAFE_FORMAT_FIELD_RE = re.compile(r"\{([^}:]*[.\[][^}:]*)(?::[^}]*)?\}")
+
+
+def _reject_unsafe_format_pattern(pattern: str) -> None:
+    """Reject patterns that could use str.format attribute or item access."""
+    if _UNSAFE_FORMAT_FIELD_RE.search(pattern):
+        raise ValueError(
+            "bidirectional pattern contains unsafe format field access "
+            "(`.` or `[` in a field); use trusted patterns with simple field names only"
+        )
+
+
+def _format_args_kwargs(
+    pattern: str,
+    field_constraints: List[FieldConstraint],
+    named: Dict[str, Any],
+    fixed: List[Any],
+) -> str:
+    """Format using field constraint order for mixed named and positional fields."""
+    args: List[Any] = []
+    kwargs: Dict[str, Any] = {}
+    pos_idx = 0
+    for constraint in field_constraints:
+        name = constraint["name"]
+        if name:
+            if name in named:
+                kwargs[name] = named[name]
+        elif pos_idx < len(fixed):
+            args.append(fixed[pos_idx])
+            pos_idx += 1
+    return pattern.format(*args, **kwargs)
 
 
 def _constraints_from_parser(parser: FormatParser) -> List[FieldConstraint]:
@@ -68,6 +101,7 @@ class BidirectionalPattern:
         :param extra_types: Optional dictionary of custom type converters
         :type extra_types: dict, optional
         """
+        _reject_unsafe_format_pattern(pattern)
         self._parser: FormatParser = compile(pattern, extra_types=extra_types)
         self._pattern: str = pattern
         self._extra_types: Optional[ExtraTypes] = extra_types
@@ -127,23 +161,21 @@ class BidirectionalPattern:
             >>> formatter.format(("John", 42))  # Positional fields
             '      John: 00042'
         """
-        # Format.format() expects args or kwargs, not a dict directly
-        # For named fields, we need to unpack the dict as kwargs
-        if isinstance(values, dict):
-            return self._pattern.format(**cast(Dict[str, object], values))
+        if isinstance(values, ParseResult):
+            named = dict(values.named) if values.named else {}
+            fixed = list(values.fixed) if values.fixed else []
+        elif isinstance(values, dict):
+            named = cast(Dict[str, Any], values)
+            fixed = []
         elif isinstance(values, tuple):
-            return self._pattern.format(*values)
-        elif isinstance(values, ParseResult):
-            # Convert ParseResult to dict or tuple
-            if values.named:
-                return self._pattern.format(**cast(Dict[str, object], values.named))
-            else:
-                return self._pattern.format(*values.fixed)
+            named = {}
+            fixed = list(values)
         else:
             return self._pattern.format(values)
+        return _format_args_kwargs(self._pattern, self._field_constraints, named, fixed)
 
     def validate(
-        self, values: Union[dict, tuple, ParseResult]
+        self, values: Union[dict, tuple, ParseResult, "_MixedValues"]
     ) -> Tuple[bool, List[str]]:
         """
         Validate values against format constraints.
@@ -160,6 +192,9 @@ class BidirectionalPattern:
         if isinstance(values, ParseResult):
             named_values = dict(values.named) if values.named else {}
             fixed_values = list(values.fixed) if values.fixed else []
+        elif isinstance(values, _MixedValues):
+            named_values = values.named
+            fixed_values = values.fixed
         elif isinstance(values, dict):
             named_values = values
             fixed_values = []
@@ -170,6 +205,7 @@ class BidirectionalPattern:
             return False, ["Invalid values type: expected dict, tuple, or ParseResult"]
 
         # Validate each field
+        pos_idx = 0
         for i, constraint in enumerate(self._field_constraints):
             field_name = constraint["name"]
             field_type = constraint["type"]
@@ -182,9 +218,10 @@ class BidirectionalPattern:
                     continue  # Field not present, skip validation
                 value = named_values[field_name]
             else:
-                if i >= len(fixed_values):
+                if pos_idx >= len(fixed_values):
                     continue  # Positional field not present
-                value = fixed_values[i]
+                value = fixed_values[pos_idx]
+                pos_idx += 1
 
             # Type validation (single-letter built-in tags only; custom types are multi-char)
             if len(field_type) == 1:
@@ -220,6 +257,16 @@ class BidirectionalPattern:
                     )
 
         return len(errors) == 0, errors
+
+
+class _MixedValues:
+    """Named + fixed values for mixed-field validate (not a public API)."""
+
+    __slots__ = ("named", "fixed")
+
+    def __init__(self, named: Dict[str, Any], fixed: List[Any]) -> None:
+        self.named = named
+        self.fixed = fixed
 
 
 class BidirectionalResult:
@@ -305,9 +352,12 @@ class BidirectionalResult:
             >>> result.format()
             '      John: 00100'
         """
-        if self._named:
-            return self._pattern.format(self._named)
-        return self._pattern.format(tuple(self._fixed))
+        return _format_args_kwargs(
+            self._pattern._pattern,
+            self._pattern._field_constraints,
+            self._named,
+            self._fixed,
+        )
 
     def validate(self) -> Tuple[bool, List[str]]:
         """Validate current values against format constraints.
@@ -331,10 +381,7 @@ class BidirectionalResult:
             >>> len(errors) > 0
             True
         """
-        # Pass the actual values dict/list, not the wrapper structure
-        if self._named:
-            return self._pattern.validate(self._named)
-        return self._pattern.validate(tuple(self._fixed))
+        return self._pattern.validate(_MixedValues(self._named, self._fixed))
 
     def __repr__(self) -> str:
         """String representation"""

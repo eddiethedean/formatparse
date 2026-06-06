@@ -183,7 +183,8 @@ pub fn parse_pattern(
     let mut field_names = Vec::with_capacity(estimated_fields); // Original names
     let mut normalized_names = Vec::with_capacity(estimated_fields); // Normalized for regex
     let mut name_mapping = HashMap::with_capacity(estimated_fields); // normalized -> original
-    let mut field_name_types = HashMap::with_capacity(estimated_fields); // Track field name -> FieldType for validation
+    let mut field_name_specs = HashMap::with_capacity(estimated_fields); // repeated-name type validation
+    let mut field_count: usize = 0;
     let mut chars: std::iter::Peekable<std::str::Chars> = pattern.chars().peekable();
     let mut literal = String::new();
     let mut allows_empty_default_string_match = true;
@@ -336,15 +337,22 @@ pub fn parse_pattern(
                 let (lb_prefix, body, la_emit) =
                     crate::rewrite_field_fragments_for_engine_anchor(&pattern, la_raw);
 
+                field_count += 1;
+                if field_count > crate::parser::MAX_FIELDS {
+                    return Err(FormatParseError::PatternError(format!(
+                        "Pattern has more than {} fields",
+                        crate::parser::MAX_FIELDS
+                    )));
+                }
+
                 // Validate repeated field names have same type
                 if let Some(ref original_name) = name {
-                    if let Some(existing_type) = field_name_types.get(original_name) {
-                        // Check if types match
-                        if !field_types_match(existing_type, &spec.field_type) {
+                    if let Some(existing_spec) = field_name_specs.get(original_name) {
+                        if !field_specs_match_for_repeat(existing_spec, &spec) {
                             return Err(FormatParseError::RepeatedNameError(original_name.clone()));
                         }
                     } else {
-                        field_name_types.insert(original_name.clone(), spec.field_type.clone());
+                        field_name_specs.insert(original_name.clone(), spec.clone());
                     }
                 }
 
@@ -537,8 +545,26 @@ pub fn validate_multiline_mvp(spec: &FieldSpec) -> Result<(), FormatParseError> 
 
 /// Check if two field types match (for repeated name validation)
 pub fn field_types_match(t1: &FieldType, t2: &FieldType) -> bool {
-    use std::mem::discriminant;
-    discriminant(t1) == discriminant(t2)
+    match (t1, t2) {
+        (FieldType::Custom(a), FieldType::Custom(b)) => a == b,
+        (a, b) => std::mem::discriminant(a) == std::mem::discriminant(b),
+    }
+}
+
+/// Whether two field specs are compatible when the same name appears twice.
+pub fn field_specs_match_for_repeat(a: &FieldSpec, b: &FieldSpec) -> bool {
+    if !field_types_match(&a.field_type, &b.field_type) {
+        return false;
+    }
+    match (&a.field_type, &b.field_type) {
+        (FieldType::DateTimeStrftime, FieldType::DateTimeStrftime) => {
+            // Same name may repeat with different strftime fragments (merged at match time).
+            true
+        }
+        (FieldType::Integer, FieldType::Integer) => a.original_type_char == b.original_type_char,
+        (FieldType::Nested, FieldType::Nested) => a.nested_subpattern == b.nested_subpattern,
+        _ => true,
+    }
 }
 
 /// Parse a field name into a path (for dict-style names like "hello[world]" -> ["hello", "world"])
@@ -665,6 +691,7 @@ pub fn parse_field(
     let name = if field_name.is_empty() {
         None
     } else {
+        crate::parser::validate_field_name(&field_name).map_err(FormatParseError::PatternError)?;
         Some(field_name)
     };
 
@@ -729,7 +756,16 @@ pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec) -> Result<(), 
         }
     }
     if !width_str.is_empty() {
-        spec.width = width_str.parse::<usize>().ok();
+        if let Ok(w) = width_str.parse::<usize>() {
+            if w > crate::parser::MAX_WIDTH_PRECISION {
+                return Err(FormatParseError::PatternError(format!(
+                    "Width {} exceeds maximum allowed {}",
+                    w,
+                    crate::parser::MAX_WIDTH_PRECISION
+                )));
+            }
+            spec.width = Some(w);
+        }
     }
 
     // Parse comma (thousands separator) - skip for now
@@ -750,7 +786,16 @@ pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec) -> Result<(), 
             }
         }
         if !precision_str.is_empty() {
-            spec.precision = precision_str.parse::<usize>().ok();
+            if let Ok(p) = precision_str.parse::<usize>() {
+                if p > crate::parser::MAX_WIDTH_PRECISION {
+                    return Err(FormatParseError::PatternError(format!(
+                        "Precision {} exceeds maximum allowed {}",
+                        p,
+                        crate::parser::MAX_WIDTH_PRECISION
+                    )));
+                }
+                spec.precision = Some(p);
+            }
         }
     }
 
@@ -778,8 +823,11 @@ pub fn parse_format_spec(format_spec: &str, spec: &mut FieldSpec) -> Result<(), 
         ));
     }
 
-    // Extract type name (alphabetic characters only) from the type base (not from lookarounds)
-    let type_name: String = type_base.chars().filter(|c| c.is_alphabetic()).collect();
+    // Extract type name (alphanumeric + underscore) from the type base (not from lookarounds)
+    let type_name: String = type_base
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_')
+        .collect();
 
     spec.field_type = if type_name.is_empty() {
         FieldType::String

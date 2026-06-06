@@ -1,46 +1,22 @@
 """Comprehensive tests for error handling and edge cases"""
 
 import pytest
-from formatparse import parse, compile, RepeatedNameError
+from formatparse import parse, compile
 
 
 def test_invalid_pattern_unmatched_brace():
-    """Test invalid pattern with unmatched brace"""
-    # The library might handle this gracefully or raise an error
-    try:
-        result = parse("{unclosed", "text")
-        # If it doesn't raise, that's also acceptable behavior
-        assert result is None
-    except ValueError:
-        # Expected behavior - invalid pattern raises ValueError
-        pass
+    """Malformed pattern yields None from parse (compile raises PatternParseMismatch)."""
+    assert parse("{unclosed", "text") is None
 
 
 def test_invalid_pattern_double_open():
-    """Test invalid pattern with double opening brace"""
-    # {{ is escaped brace, so {{unclosed is actually {unclosed
-    # This might be handled gracefully
-    try:
-        result = parse("{{unclosed", "text")
-        # If it doesn't raise, check the result
-        assert result is None or result is not None
-    except ValueError:
-        # Expected behavior - invalid pattern raises ValueError
-        pass
+    """{{ escapes to literal {; remainder is still an unclosed field → no match."""
+    assert parse("{{unclosed", "text") is None
 
 
 def test_invalid_pattern_invalid_type_specifier():
-    """Test invalid pattern with invalid type specifier"""
-    # This might not raise an error, but should handle gracefully
-    result = parse("{value:xyz}", "value: test")
-    # May return None or handle as string
-    assert result is None or result is not None
-
-
-def test_repeated_name_error():
-    """Test RepeatedNameError for mismatched repeated names"""
-    with pytest.raises(RepeatedNameError):
-        compile("{name} {name:d}")
+    """Unknown type without extra_types does not match."""
+    assert parse("{value:xyz}", "value: test") is None
 
 
 def test_repeated_name_same_type():
@@ -51,11 +27,10 @@ def test_repeated_name_same_type():
 
 
 def test_empty_string_input():
-    """Test parsing empty string"""
+    """Non-greedy {} matches empty string with empty fixed capture."""
     result = parse("{}", "")
-    # Empty pattern may or may not match empty string depending on implementation
-    # The pattern {} is non-greedy and might not match empty
-    assert result is None or (result is not None and result.fixed[0] == "")
+    assert result is not None
+    assert result.fixed[0] == ""
 
 
 def test_empty_pattern():
@@ -159,32 +134,22 @@ def test_unicode_in_field_names():
 
 
 def test_very_deep_nesting():
-    """Test very deep nested dict fields"""
-    # This might hit recursion limits
+    """Nested dict field names parse into nested mapping structure."""
     pattern = "{a[b[c[d]]]}"
     result = parse(pattern, "value")
-    # May work or may hit limits
-    assert result is None or result is not None
+    assert result is not None
+    assert result.named["a"]["b"]["c"]["d"] == {"]]": "value"}
 
 
 def test_invalid_width_precision():
-    """Test invalid width/precision specifications"""
-    # Very large width - might cause issues or be handled gracefully
-    try:
-        result = parse("{value:1000000}", "value: test")
-        # If it doesn't raise, check the result
-        assert result is None or result is not None
-    except ValueError:
-        # Expected behavior - invalid width raises ValueError
-        pass
+    """Absurdly large width fails at pattern parse time."""
+    with pytest.raises(ValueError, match="1000"):
+        parse("{value:1000000}", "value: test")
 
 
 def test_malformed_format_spec():
-    """Test malformed format specification"""
-    # Multiple colons
-    result = parse("{value::d}", "value: 42")
-    # May work or may fail
-    assert result is None or result is not None
+    """Double colon in format spec is not a valid integer field."""
+    assert parse("{value::d}", "value: 42") is None
 
 
 def test_empty_field_name():
@@ -215,10 +180,8 @@ def test_newline_in_pattern():
 
 
 def test_newline_in_string():
-    """Test string with newlines"""
-    result = parse("hello {name} world", "hello Alice\nworld")
-    # May or may not match depending on regex flags
-    assert result is None or result is not None
+    """Default . does not match newline; full-string parse fails."""
+    assert parse("hello {name} world", "hello Alice\nworld") is None
 
 
 def test_tab_characters():
@@ -289,17 +252,12 @@ def test_parse_with_invalid_extra_types():
 
 
 def test_search_invalid_pos():
-    """Test search with invalid pos"""
+    """Negative pos is clamped to 0; search still finds the match."""
     from formatparse import search
 
-    # Negative pos - should handle gracefully (treat as 0 or raise)
-    try:
-        result = search("age: {age:d}", "age: 30", pos=-1)
-        # If it doesn't raise, result should be None or valid
-        assert result is None or result is not None
-    except (ValueError, IndexError):
-        # Expected behavior - invalid pos raises error
-        pass
+    result = search("age: {age:d}", "age: 30", pos=-1)
+    assert result is not None
+    assert result.named["age"] == 30
 
 
 def test_search_invalid_endpos():

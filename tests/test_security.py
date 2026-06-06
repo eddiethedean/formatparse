@@ -33,7 +33,7 @@ def test_field_count_limit():
     pattern = " ".join([f"{{field{i}}}" for i in range(101)])
     text = " ".join(["value" for _ in range(101)])
 
-    with pytest.raises(ValueError, match="exceeds the maximum allowed count"):
+    with pytest.raises(ValueError, match="more than 100 fields"):
         parse(pattern, text)
 
 

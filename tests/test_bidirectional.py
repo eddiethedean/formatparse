@@ -42,17 +42,16 @@ def test_validation_width_constraint():
     formatter = BidirectionalPattern("{name:>10}: {value:05d}")
     result = formatter.parse("      John: 00042")
 
-    # Valid: name fits in width
     valid, errors = result.validate()
-    assert isinstance(valid, bool)
-    assert isinstance(errors, list)
+    assert valid
+    assert errors == []
 
-    # Invalid: name too long
     result.named["name"] = "VeryLongNameThatExceedsWidth"
     valid, errors = result.validate()
-    # Note: width validation for strings may not catch this if pattern allows it
-    # This test verifies the validation logic works without crashing
-    assert isinstance(valid, bool)
+    assert not valid
+    assert any(
+        "width" in str(err).lower() or "exceeds" in str(err).lower() for err in errors
+    )
 
 
 def test_validation_integer_width():
@@ -82,20 +81,14 @@ def test_validation_type_constraint():
 
     assert result.named["value"] == 42
 
-    # Valid: integer
     valid, errors = result.validate()
-    assert isinstance(valid, bool)
-    assert isinstance(errors, list)
+    assert valid
+    assert errors == []
 
-    # Invalid: wrong type
     result.named["value"] = "not a number"
     valid, errors = result.validate()
-    # Validation should catch type mismatch
-    assert isinstance(valid, bool)
-    assert isinstance(errors, list)
-    # If validation catches it, errors should mention int
-    if not valid:
-        assert any("int" in str(err).lower() for err in errors)
+    assert not valid
+    assert any("int" in str(err).lower() for err in errors)
 
 
 def test_positional_fields():
@@ -256,9 +249,9 @@ def test_validate_empty_result():
     # Remove a field
     del result.named["age"]
 
-    # Validation should skip missing fields
     valid, errors = result.validate()
-    # Should still be valid (missing fields are skipped)
+    assert valid is True
+    assert errors == []
 
 
 def test_case_sensitivity():

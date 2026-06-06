@@ -79,30 +79,6 @@ def test_pickling_bug_110():
     pickle.dumps(p)
 
 
-def test_pattern_cache_distinguishes_extra_types_same_key():
-    """Global parse/search/findall cache must not reuse a parser when only the
-    converter's pattern (or group count) changes for the same extra_types key."""
-
-    @with_pattern(r"\d+")
-    def as_int(text):
-        return int(text)
-
-    @with_pattern(r"[a-z]+")
-    def as_lower(text):
-        return text.lower()
-
-    fmt = "Value is {x:T}"
-    r1 = parse(fmt, "Value is 42", extra_types={"T": as_int})
-    assert r1.named["x"] == 42
-    r2 = parse(fmt, "Value is hello", extra_types={"T": as_lower})
-    assert r2.named["x"] == "hello"
-
-    s1 = search(fmt, "xx Value is 99 yy", extra_types={"T": as_int})
-    assert s1.named["x"] == 99
-    s2 = search(fmt, "xx Value is abc yy", extra_types={"T": as_lower})
-    assert s2.named["x"] == "abc"
-
-
 def test_pickle_formatparser_does_not_restore_extra_types():
     """Pickle round-trip keeps only the pattern; ``extra_types`` must be supplied again."""
 

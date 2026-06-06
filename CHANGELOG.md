@@ -12,6 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
 - ``composed_type`` extensions: pattern ``+``, inheritance, and **flattening** nested parse results into the parent (see `#7 <https://github.com/eddiethedean/formatparse/issues/7>`_).
 
+## [0.8.4] - 2026-06-06
+
+### Fixed
+
+- **Core**: ``field_types_match`` compares ``Custom`` and ``DateTimeStrftime`` payloads; escape-aware ``count_capturing_groups``; ``validate_field_name`` and ``MAX_FIELDS`` enforced in ``parse_pattern``; width/precision capped at 1000; custom type names preserve ``_``; integer ``:d`` no longer accepts leading newlines; UTF-8-safe lookaround error truncation.
+- **Matching**: ``findall`` fast path validates alignment/precision like ``parse``; ``search`` ``Match`` spans respect ``pos``; ``Match.evaluate_result`` validates captures; ``__eq__`` errors propagate; ``Results`` slices convert only requested indices.
+- **Python API**: ``BidirectionalPattern`` mixed named+positional ``format``/``validate``; ``ValidationPipeline.apply`` returns result and rejects unknown modes; ``parse_batch`` rejects a bare ``str``; ``in_range`` rejects ``bool``; validator keys must be ``str`` or ``int``; bidirectional patterns with attribute/item access in field names are rejected.
+
+## [0.8.3] - 2026-06-06
+
+### Changed
+
+- **Test suite**: replaced tautological error-path assertions with pinned behavior; strengthened bidirectional validation, ``findall_iter`` / ``max_matches``, composition, validation pipeline, and pattern-cache coverage; trimmed duplicate smoke tests and adopted shared ``conftest`` fixtures.
+
 ## [0.8.2] - 2026-05-22
 
 ### Added
@@ -128,6 +142,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: load `pytest-cov` when `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`; bump `cargo-audit` in the main CI Ubuntu step for advisory DB compatibility.
 - Dependency updates (e.g. `lru` for RustSec advisories), formatting, and Clippy cleanups.
 
+[0.8.4]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.4
+[0.8.3]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.3
 [0.8.2]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.2
 [0.8.1]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.1
 [0.8.0]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.0

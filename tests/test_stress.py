@@ -151,7 +151,7 @@ def test_large_pattern_compilation():
     num_fields_too_many = 101
     pattern_too_many = " ".join([f"{{field{i}:d}}" for i in range(num_fields_too_many)])
 
-    with pytest.raises(ValueError, match="exceeds the maximum allowed count"):
+    with pytest.raises(ValueError, match="more than 100 fields"):
         compile(pattern_too_many)
 
 

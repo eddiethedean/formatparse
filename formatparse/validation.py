@@ -11,6 +11,13 @@ from ._native import ParseResult
 from .exceptions import MultipleValidationErrors, ValidationError, ValidationWarning
 from .types import ValidationMode, ValidatorMap
 
+_VALIDATION_MODES = frozenset({"strict", "collect", "lenient"})
+
+
+def _check_validation_mode(mode: str) -> None:
+    if mode not in _VALIDATION_MODES:
+        raise ValueError(f"invalid validation_mode: {mode!r}")
+
 
 def validator(func: Callable[..., Any]) -> Callable[..., Any]:
     """Mark a function as a post-parse validator (metadata for tooling / docs).
@@ -26,8 +33,11 @@ def validator(func: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def _sorted_validator_keys(keys: Iterable[Union[str, int]]) -> List[Union[str, int]]:
-    ints = sorted(k for k in keys if isinstance(k, int))
-    strs = sorted(k for k in keys if isinstance(k, str))
+    key_list = list(keys)
+    ints = sorted(k for k in key_list if isinstance(k, int))
+    strs = sorted(k for k in key_list if isinstance(k, str))
+    if len(ints) + len(strs) != len(key_list):
+        raise TypeError("validator keys must be str or int")
     return ints + strs
 
 
@@ -113,6 +123,8 @@ def apply_validators(
     """
     if result is None or not validators:
         return result
+
+    _check_validation_mode(mode)
 
     if mode == "lenient":
         for key in _sorted_validator_keys(validators.keys()):
@@ -226,6 +238,7 @@ class ValidationPipeline:
         """
         if result is None:
             return result
+        _check_validation_mode(mode)
         if mode == "collect":
             errors = _collect_field_validator_errors(result, self.as_mapping())
             for h in self._hooks:
@@ -280,6 +293,8 @@ def in_range(
     """Return a validator that accepts numeric ``value`` within ``[min_value, max_value]``."""
 
     def check(value: Union[int, float]) -> None:
+        if type(value) is bool:
+            raise ValidationError("expected numeric value, got bool")
         if min_value is not None and value < min_value:
             raise ValidationError(
                 f"expected value >= {min_value!r}, got {value!r}",

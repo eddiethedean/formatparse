@@ -135,10 +135,10 @@ pub fn parse_lookaround_tail(tail: &str) -> Result<(String, String), String> {
 
 fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
-        s.to_string()
-    } else {
-        format!("{}…", &s[..max])
+        return s.to_string();
     }
+    let prefix = s.get(..max).unwrap_or(s);
+    format!("{}…", prefix)
 }
 
 fn is_allowed_lookaround_prefix(group: &str) -> bool {

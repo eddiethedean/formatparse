@@ -7,6 +7,8 @@ pub const MAX_PATTERN_LENGTH: usize = 10_000;
 pub const MAX_INPUT_LENGTH: usize = 10_000_000; // 10MB
 pub const MAX_FIELDS: usize = 100;
 pub const MAX_FIELD_NAME_LENGTH: usize = 200;
+/// Maximum width or precision quantifier in a format spec (ReDoS guard).
+pub const MAX_WIDTH_PRECISION: usize = 1000;
 
 /// Validate pattern length
 pub fn validate_pattern_length(pattern: &str) -> Result<(), String> {
@@ -51,43 +53,12 @@ pub fn validate_field_name(field_name: &str) -> Result<(), String> {
 }
 
 /// Count capturing groups in a regex pattern string (for validating `with_pattern` / custom types).
-///
-/// Handles `(?P<name>...)` named captures; other `(?...)` extensions are treated as non-capturing
-/// at the opening parenthesis (same rule of thumb as skipping `(?:...)`, `(?=...)`, etc.).
 pub fn count_capturing_groups(pattern: &str) -> usize {
-    let mut count = 0;
-    let mut i = 0;
-    let chars: Vec<char> = pattern.chars().collect();
-
-    while i < chars.len() {
-        if chars[i] == '\\' {
-            i += 2;
-            if i > chars.len() {
-                break;
-            }
-            continue;
-        }
-        if chars[i] == '(' {
-            if i + 1 < chars.len() && chars[i + 1] == '?' {
-                i += 2;
-                if i + 1 < chars.len() && chars[i] == 'P' && chars[i + 1] == '<' {
-                    i += 2;
-                    while i < chars.len() && chars[i] != '>' {
-                        i += 1;
-                    }
-                    if i < chars.len() {
-                        i += 1;
-                    }
-                    count += 1;
-                    continue;
-                }
-                continue;
-            }
-            count += 1;
-        }
-        i += 1;
+    use fancy_regex::Regex;
+    match Regex::new(pattern) {
+        Ok(re) => re.captures_len().saturating_sub(1),
+        Err(_) => usize::MAX,
     }
-    count
 }
 
 #[cfg(test)]
@@ -117,5 +88,15 @@ mod count_capturing_groups_tests {
     #[test]
     fn backreference_not_counted_as_capture_here() {
         assert_eq!(count_capturing_groups(r"(?P<x>a)(?P=x)"), 1);
+    }
+
+    #[test]
+    fn unicode_escape_not_counted_as_capture() {
+        assert_eq!(count_capturing_groups(r"\u{28}abc"), 0);
+    }
+
+    #[test]
+    fn hex_escape_not_counted_as_capture() {
+        assert_eq!(count_capturing_groups(r"\x28abc"), 0);
     }
 }

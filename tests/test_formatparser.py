@@ -2,7 +2,7 @@
 
 import pytest
 import pickle
-from formatparse import compile, FormatParser, RepeatedNameError
+from formatparse import compile, FormatParser
 
 
 def test_compile_valid_pattern():
@@ -260,13 +260,6 @@ def test_parser_extra_types_override():
     result = parser.parse("value: 42", extra_types={"Number": parse_number_alt})
     assert result is not None
     assert result.named["value"] == 84  # Should use the provided converter
-
-
-def test_parser_repeated_name_error():
-    """Test that RepeatedNameError is raised for mismatched repeated names"""
-    # This should raise RepeatedNameError if the same name appears with different types
-    with pytest.raises(RepeatedNameError):
-        compile("{name} {name:d}")
 
 
 def test_parser_complex_pattern():

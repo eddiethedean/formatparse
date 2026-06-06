@@ -18,7 +18,8 @@ pub struct MatchInit {
 }
 
 /// Match object that stores raw regex captures without type conversion
-#[pyclass]
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
 pub struct Match {
     #[pyo3(get)]
     pattern: String,
@@ -60,6 +61,13 @@ impl Match {
                 };
 
             if let Some(value_str) = value_str {
+                if !crate::types::conversion::validate_alignment_precision_for_capture(
+                    spec, value_str,
+                ) {
+                    return Err(pyo3::exceptions::PyValueError::new_err(
+                        "capture failed alignment/precision validation",
+                    ));
+                }
                 let converted = crate::types::conversion::convert_value(
                     spec,
                     value_str,
@@ -81,10 +89,8 @@ impl Match {
                         if let Some(existing_value) = named.get(original_name.as_str()) {
                             let existing_obj = existing_value.clone_ref(py);
                             let converted_obj = converted.clone_ref(py);
-                            let are_equal: bool = existing_obj
-                                .bind(py)
-                                .eq(converted_obj.bind(py))
-                                .unwrap_or(false);
+                            let are_equal: bool =
+                                existing_obj.bind(py).eq(converted_obj.bind(py))?;
                             if !are_equal {
                                 return Err(error::repeated_name_error(original_name));
                             }
@@ -116,5 +122,15 @@ impl Match {
             span: init.span,
             field_spans: init.field_spans,
         }
+    }
+
+    pub fn with_offset(mut self, offset: usize) -> Self {
+        self.span = (self.span.0 + offset, self.span.1 + offset);
+        self.field_spans = self
+            .field_spans
+            .into_iter()
+            .map(|(k, (start, end))| (k, (start + offset, end + offset)))
+            .collect();
+        self
     }
 }

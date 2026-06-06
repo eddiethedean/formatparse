@@ -85,15 +85,19 @@ impl Results {
                 u
             };
             self.convert_item(actual_index, py)
-        } else if key.is_instance_of::<pyo3::types::PySlice>() {
-            // Slice access - convert all items to a list and let Python handle slicing
-            // This is less optimal but necessary for slice support
-            let mut results = Results::new(self.raw_data.clone());
-            let list = results.convert_all(py)?;
-            // Use Python's __getitem__ to handle the slice
-            let list_bound = list.bind(py);
-            let slice_result = list_bound.get_item(key)?;
-            Ok(slice_result.into_py_any(py)?)
+        } else if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let len = self.raw_data.len() as isize;
+            let indices = slice.indices(len)?;
+            let mut items: Vec<Py<PyAny>> = Vec::new();
+            let mut i = indices.start;
+            while (indices.step > 0 && i < indices.stop) || (indices.step < 0 && i > indices.stop) {
+                if i >= 0 && (i as usize) < self.raw_data.len() {
+                    items.push(self.convert_item(i as usize, py)?);
+                }
+                i += indices.step;
+            }
+            let py_items: Vec<_> = items.iter().map(|obj| obj.bind(py)).collect();
+            Ok(PyList::new(py, py_items)?.into_py_any(py)?)
         } else {
             Err(PyTypeError::new_err(
                 "list indices must be integers or slices",

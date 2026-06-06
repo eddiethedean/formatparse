@@ -76,7 +76,7 @@ pub(crate) fn pattern(spec: &FieldSpec) -> String {
                         // Decimal `d` / `i`: optional leading whitespace before digits (#81);
                         // each radix branch uses the same inclusive min/max digit count.
                         format!(
-                            "{}{}{}(?:0[xX]{}|0[oO]{}|0[bB]{}|\\s*{})",
+                            "{}{}{}(?:0[xX]{}|0[oO]{}|0[bB]{}|[ \\t]*{})",
                             sign, fill_prefix, fill_suffix, q_hex, q_oct, q_bin, q_dec
                         )
                     }
@@ -107,7 +107,7 @@ pub(crate) fn pattern(spec: &FieldSpec) -> String {
                         // so values like "    0" match like str.format padding, without widening
                         // the 0x/0o/0b branches.
                         format!(
-                            "{}{}{}(?:0[xX][0-9a-fA-F]+|0[oO][0-7]+|0[bB][01]+|\\s*[0-9]+)",
+                            "{}{}{}(?:0[xX][0-9a-fA-F]+|0[oO][0-7]+|0[bB][01]+|[ \\t]*[0-9]+)",
                             sign, fill_prefix, fill_suffix
                         )
                     }

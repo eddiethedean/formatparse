@@ -13,6 +13,10 @@ use super::{
     capture_string_for_match_storage, CapturedMatchContext, RegexMatchContext,
 };
 
+fn py_objects_equal(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> PyResult<bool> {
+    a.bind(py).eq(b.bind(py))
+}
+
 pub fn match_with_captures(
     captures: &Captures,
     ctx: &CapturedMatchContext<'_>,
@@ -145,11 +149,7 @@ pub fn match_with_captures(
                             let path = crate::parser::pattern::parse_field_path(original_name);
                             if let Some(existing_value) = get_nested_dict_value(&named, &path, py)?
                             {
-                                let are_equal: bool = {
-                                    let existing_obj = existing_value.bind(py);
-                                    let converted_obj = converted.bind(py);
-                                    existing_obj.eq(converted_obj).unwrap_or(false)
-                                };
+                                let are_equal = py_objects_equal(py, &existing_value, &converted)?;
                                 if !are_equal {
                                     return Ok(None);
                                 }
@@ -158,14 +158,8 @@ pub fn match_with_captures(
                         } else {
                             match named.get(original_name) {
                                 Some(existing_value) => {
-                                    let are_equal: bool = {
-                                        let existing_obj = existing_value.clone_ref(py);
-                                        let converted_obj = converted.clone_ref(py);
-                                        existing_obj
-                                            .bind(py)
-                                            .eq(converted_obj.bind(py))
-                                            .unwrap_or(false)
-                                    };
+                                    let are_equal =
+                                        py_objects_equal(py, existing_value, &converted)?;
                                     if !are_equal {
                                         return Ok(None);
                                     }
@@ -214,11 +208,7 @@ pub fn match_with_captures(
                             if let Some(existing_value) = get_nested_dict_value(&named, &path, py)?
                             {
                                 // Compare values using Python's equality (batch GIL operation)
-                                let are_equal: bool = {
-                                    let existing_obj = existing_value.bind(py);
-                                    let converted_obj = converted.bind(py);
-                                    existing_obj.eq(converted_obj).unwrap_or(false)
-                                };
+                                let are_equal = py_objects_equal(py, &existing_value, &converted)?;
                                 if !are_equal {
                                     // Values don't match for repeated name
                                     return Ok(None);
@@ -232,14 +222,8 @@ pub fn match_with_captures(
                             match named.get(original_name) {
                                 Some(existing_value) => {
                                     // Field exists - check if values match (repeated name case)
-                                    let are_equal: bool = {
-                                        let existing_obj = existing_value.clone_ref(py);
-                                        let converted_obj = converted.clone_ref(py);
-                                        existing_obj
-                                            .bind(py)
-                                            .eq(converted_obj.bind(py))
-                                            .unwrap_or(false)
-                                    };
+                                    let are_equal =
+                                        py_objects_equal(py, existing_value, &converted)?;
                                     if !are_equal {
                                         // Values don't match for repeated name
                                         return Ok(None);
@@ -434,11 +418,8 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                                 if let Some(existing_value) =
                                     get_nested_dict_value(&named, &path, py)?
                                 {
-                                    let are_equal: bool = {
-                                        let existing_obj = existing_value.bind(py);
-                                        let converted_obj = converted.bind(py);
-                                        existing_obj.eq(converted_obj).unwrap_or(false)
-                                    };
+                                    let are_equal =
+                                        py_objects_equal(py, &existing_value, &converted)?;
                                     if !are_equal {
                                         return Ok(None);
                                     }
@@ -447,14 +428,8 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                             } else {
                                 match named.get(original_name) {
                                     Some(existing_value) => {
-                                        let are_equal: bool = {
-                                            let existing_obj = existing_value.clone_ref(py);
-                                            let converted_obj = converted.clone_ref(py);
-                                            existing_obj
-                                                .bind(py)
-                                                .eq(converted_obj.bind(py))
-                                                .unwrap_or(false)
-                                        };
+                                        let are_equal =
+                                            py_objects_equal(py, existing_value, &converted)?;
                                         if !are_equal {
                                             return Ok(None);
                                         }
@@ -514,11 +489,8 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                                     get_nested_dict_value(&named, &path, py)?
                                 {
                                     // Compare values using Python's equality (batch GIL operation)
-                                    let are_equal: bool = {
-                                        let existing_obj = existing_value.bind(py);
-                                        let converted_obj = converted.bind(py);
-                                        existing_obj.eq(converted_obj).unwrap_or(false)
-                                    };
+                                    let are_equal =
+                                        py_objects_equal(py, &existing_value, &converted)?;
                                     if !are_equal {
                                         // Values don't match for repeated name
                                         return Ok(None);
@@ -533,14 +505,8 @@ pub fn match_with_regex(regex: &Regex, ctx: &RegexMatchContext<'_>) -> PyResult<
                                     Some(existing_value) => {
                                         // Field exists - check if values match (repeated name case)
                                         // Compare values using Python's equality (batch GIL operation)
-                                        let are_equal: bool = {
-                                            let existing_obj = existing_value.clone_ref(py);
-                                            let converted_obj = converted.clone_ref(py);
-                                            existing_obj
-                                                .bind(py)
-                                                .eq(converted_obj.bind(py))
-                                                .unwrap_or(false)
-                                        };
+                                        let are_equal =
+                                            py_objects_equal(py, existing_value, &converted)?;
                                         if !are_equal {
                                             // Values don't match for repeated name
                                             return Ok(None);
@@ -668,11 +634,7 @@ pub fn match_empty_default_string_parse(
                 if original_name.contains('[') {
                     let path = crate::parser::pattern::parse_field_path(original_name);
                     if let Some(existing_value) = get_nested_dict_value(&named, &path, py)? {
-                        let are_equal: bool = {
-                            let existing_obj = existing_value.bind(py);
-                            let converted_obj = converted.bind(py);
-                            existing_obj.eq(converted_obj).unwrap_or(false)
-                        };
+                        let are_equal = py_objects_equal(py, &existing_value, &converted)?;
                         if !are_equal {
                             return Ok(None);
                         }
@@ -681,14 +643,7 @@ pub fn match_empty_default_string_parse(
                 } else {
                     match named.get(original_name) {
                         Some(existing_value) => {
-                            let are_equal: bool = {
-                                let existing_obj = existing_value.clone_ref(py);
-                                let converted_obj = converted.clone_ref(py);
-                                existing_obj
-                                    .bind(py)
-                                    .eq(converted_obj.bind(py))
-                                    .unwrap_or(false)
-                            };
+                            let are_equal = py_objects_equal(py, existing_value, &converted)?;
                             if !are_equal {
                                 return Ok(None);
                             }

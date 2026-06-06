@@ -189,7 +189,10 @@ pub fn convert_builtin_scalar(spec: &FieldSpec, value: &str) -> ConvertOutcome {
 }
 
 impl ConvertedScalar {
-    pub fn to_py_object(&self, py: pyo3::Python<'_>) -> pyo3::PyResult<pyo3::Py<pyo3::types::PyAny>> {
+    pub fn to_py_object(
+        &self,
+        py: pyo3::Python<'_>,
+    ) -> pyo3::PyResult<pyo3::Py<pyo3::types::PyAny>> {
         use pyo3::IntoPyObjectExt;
         match self {
             ConvertedScalar::String(s) => s.into_py_any(py),

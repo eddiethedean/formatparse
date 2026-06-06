@@ -280,6 +280,8 @@ def parse_batch(
         >>> out[2] is None
         True
     """
+    if isinstance(strings, (str, bytes)):
+        raise TypeError("expected a sequence of strings, not a single str")
     return _parse_batch(
         pattern, list(strings), extra_types, case_sensitive, evaluate_result
     )

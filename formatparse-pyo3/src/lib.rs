@@ -204,9 +204,10 @@ fn search(
                 let adjusted = result_value.clone().with_offset(pos);
                 // Py::new() is already optimized when GIL is held
                 Ok(Some(Py::new(py, adjusted)?.into_py_any(py)?))
+            } else if let Ok(match_obj) = result.bind(py).cast::<crate::match_rs::Match>() {
+                let adjusted = match_obj.borrow().clone().with_offset(pos);
+                Ok(Some(Py::new(py, adjusted)?.into_py_any(py)?))
             } else {
-                // It's a Match object - we need to adjust its span
-                // For now, just return it as-is (Match spans are relative to search start)
                 Ok(Some(result))
             }
         })

@@ -261,3 +261,65 @@ def test_non_empty_str():
     assert r is not None
     with pytest.raises(ValidationError, match="non-empty"):
         parse("{s}", "   ", validators={"s": non_empty_str})
+
+
+def test_apply_validators_lenient_unknown_field_warns():
+    r = parse("{x:d}", "1")
+    assert r is not None
+    with pytest.warns(ValidationWarning, match="no named field"):
+        apply_validators(r, {"y": lambda v: None}, mode="lenient")
+
+
+def test_pipeline_as_mapping_last_validator_wins():
+    pipe = (
+        ValidationPipeline()
+        .add_validator("x", lambda _: None)
+        .add_validator("x", lambda _: (_ for _ in ()).throw(ValidationError("second")))
+    )
+    mapping = pipe.as_mapping()
+    assert list(mapping.keys()) == ["x"]
+    r = parse("{x:d}", "1")
+    with pytest.raises(ValidationError, match="second"):
+        apply_validators(r, mapping)
+
+
+def test_hook_strict_wraps_generic_exception():
+    p = ValidationPipeline().add_hook(
+        lambda _: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    r = parse("{a:d}", "1")
+    with pytest.raises(ValidationError, match="hook failed: boom") as exc:
+        p.apply(r)
+    assert exc.value.field is None
+    assert isinstance(exc.value.__cause__, RuntimeError)
+
+
+def test_hook_collect_wraps_generic_exception():
+    p = ValidationPipeline().add_hook(
+        lambda _: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    r = parse("{a:d}", "1")
+    with pytest.raises(MultipleValidationErrors) as exc:
+        p.apply(r, mode="collect")
+    assert len(exc.value.errors) == 1
+    assert "hook failed: boom" in exc.value.errors[0].args[0]
+
+
+def test_in_range_min_only():
+    r = parse("{n:d}", "10")
+    apply_validators(r, {"n": in_range(min_value=5)})
+    with pytest.raises(ValidationError, match="expected value >="):
+        apply_validators(parse("{n:d}", "3"), {"n": in_range(min_value=5)})
+
+
+def test_in_range_max_only():
+    r = parse("{n:d}", "10")
+    apply_validators(r, {"n": in_range(max_value=20)})
+    with pytest.raises(ValidationError, match="expected value <="):
+        apply_validators(parse("{n:d}", "99"), {"n": in_range(max_value=20)})
+
+
+def test_non_empty_str_rejects_non_string():
+    r = parse("{n:d}", "1")
+    with pytest.raises(ValidationError, match="expected non-empty string"):
+        apply_validators(r, {"n": non_empty_str})

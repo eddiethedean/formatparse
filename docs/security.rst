@@ -166,6 +166,16 @@ For best performance and security:
        result = parser.parse(text)
        process_result(result)
 
+Bidirectional formatting
+------------------------
+
+:class:`~formatparse.bidirectional.BidirectionalPattern` and
+:class:`~formatparse.bidirectional.BidirectionalResult` use Python's
+``str.format`` for round-trip formatting. Treat bidirectional patterns as
+**trusted** (same trust boundary as parse patterns). Patterns with attribute or
+item access in field names (for example ``{0.__class__}``) are rejected at
+construction time.
+
 Known Limitations
 -----------------
 

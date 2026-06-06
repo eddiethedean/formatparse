@@ -79,3 +79,29 @@ def test_format_parser_findall_iter_parity():
     assert len(a) == len(b) == 2
     for x, y in zip(a, b):
         _assert_parse_like_equal(x, y)
+
+
+def test_findall_iter_max_matches():
+    """max_matches caps how many non-overlapping matches are returned."""
+    text = "ID:1 ID:2 ID:3 ID:4"
+    listed = findall("ID:{id:d}", text, max_matches=2)
+    iterated = list(findall_iter("ID:{id:d}", text, max_matches=2))
+    assert len(iterated) == 2
+    assert [r.named["id"] for r in iterated] == [r.named["id"] for r in listed]
+
+
+def test_format_parser_findall_iter_max_matches():
+    parser = compile("ID:{id:d}")
+    text = "ID:1 ID:2 ID:3"
+    assert len(list(parser.findall_iter(text, max_matches=1))) == 1
+    assert list(parser.findall_iter(text, max_matches=1))[0].named["id"] == 1
+
+
+def test_findall_iter_case_sensitivity():
+    results_insensitive = [r.fixed[0] for r in findall_iter("x({})x", "X(hi)X")]
+    assert results_insensitive == ["hi"]
+
+    results_sensitive = [
+        r.fixed[0] for r in findall_iter("x({})x", "X(hi)X", case_sensitive=True)
+    ]
+    assert results_sensitive == []

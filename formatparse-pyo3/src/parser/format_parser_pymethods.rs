@@ -122,9 +122,8 @@ impl FormatParser {
         if string.contains('\0') {
             return Err(PyValueError::new_err("Input string contains null byte"));
         }
-        let merged_extra_types = Python::attach(|py| {
-            merge_call_extra_types(py, &self.stored_extra_types, extra_types)
-        })?;
+        let merged_extra_types =
+            Python::attach(|py| merge_call_extra_types(py, &self.stored_extra_types, extra_types))?;
         let parser = Python::attach(|py| -> PyResult<std::sync::Arc<FormatParser>> {
             let cache_et = merged_extra_types.as_ref().map(|m| {
                 m.iter()
@@ -260,9 +259,8 @@ impl FormatParser {
             return Err(PyValueError::new_err("Input string contains null byte"));
         }
 
-        let merged_extra_types = Python::attach(|py| {
-            merge_call_extra_types(py, &self.stored_extra_types, extra_types)
-        })?;
+        let merged_extra_types =
+            Python::attach(|py| merge_call_extra_types(py, &self.stored_extra_types, extra_types))?;
         let parser = Python::attach(|py| -> PyResult<std::sync::Arc<FormatParser>> {
             let cache_et = merged_extra_types.as_ref().map(|m| {
                 m.iter()
@@ -296,9 +294,8 @@ impl FormatParser {
             return Err(PyValueError::new_err("Input string contains null byte"));
         }
 
-        let merged_extra_types = Python::attach(|py| {
-            merge_call_extra_types(py, &self.stored_extra_types, extra_types)
-        })?;
+        let merged_extra_types =
+            Python::attach(|py| merge_call_extra_types(py, &self.stored_extra_types, extra_types))?;
         let merged_map = merged_extra_types.unwrap_or_default();
         let parser = Python::attach(|py| -> PyResult<std::sync::Arc<FormatParser>> {
             let cache_et = if merged_map.is_empty() {

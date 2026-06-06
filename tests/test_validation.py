@@ -109,6 +109,13 @@ def test_unknown_named_field_key():
         apply_validators(r, {"y": lambda v: None})
 
 
+def test_unknown_fixed_field_index():
+    r = parse("{:d}", "42")
+    assert r is not None
+    with pytest.raises(ValidationError, match="out of range"):
+        apply_validators(r, {1: lambda v: None})
+
+
 def test_wrapped_non_validation_error():
     r = parse("{x:d}", "1")
     assert r is not None

@@ -2,7 +2,14 @@
 
 import pytest
 
-from formatparse import ComposedType, ParseResult, compile, composed_type
+from formatparse import (
+    ComposedType,
+    ParseResult,
+    compile,
+    composed_type,
+    findall,
+    search,
+)
 
 
 def test_composed_log_line_nested_parse_result():
@@ -44,3 +51,41 @@ def test_wrong_regex_group_count_still_errors_at_parent_compile():
 
     with pytest.raises(ValueError, match="capturing groups"):
         compile("{z:Bad}", extra_types={"Bad": BadConverter()})
+
+
+def test_composed_type_raises_when_child_does_not_match():
+    """ComposedType raises when captured text does not satisfy the child parser."""
+    child = compile("{month:02d}-{day:02d}")
+    conv = composed_type(child)
+    with pytest.raises(ValueError, match="did not match"):
+        conv("2024-01-15")
+
+
+def test_composed_type_via_search():
+    ts = compile("{year:d}-{month:02d}-{day:02d}")
+    extra = {"Timestamp": composed_type(ts)}
+    result = search(
+        "{ts:Timestamp} [{level}]",
+        "prefix 2024-01-15 [ERROR] suffix",
+        extra_types=extra,
+    )
+    assert result is not None
+    assert result.named["level"] == "ERROR"
+    inner = result.named["ts"]
+    assert isinstance(inner, ParseResult)
+    assert inner.named["year"] == 2024
+
+
+def test_composed_type_via_findall():
+    ts = compile("{year:d}-{month:02d}-{day:02d}")
+    extra = {"Timestamp": composed_type(ts)}
+    results = findall(
+        "{ts:Timestamp} [{level}]",
+        "2024-01-15 [ERROR] 2024-02-20 [WARN]",
+        extra_types=extra,
+    )
+    assert len(results) == 2
+    assert results[0].named["level"] == "ERROR"
+    assert results[1].named["level"] == "WARN"
+    assert results[0].named["ts"].named["month"] == 1
+    assert results[1].named["ts"].named["month"] == 2

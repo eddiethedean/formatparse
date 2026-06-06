@@ -299,10 +299,10 @@ def test_string_unicode():
 
 
 def test_string_empty():
-    """Test empty string"""
+    """Trailing space after colon yields empty :s capture."""
     result = parse("value: {value:s}", "value: ")
-    # Empty string might match whitespace
-    assert result is None or result is not None
+    assert result is not None
+    assert result.named["value"] == ""
 
 
 def test_string_default():

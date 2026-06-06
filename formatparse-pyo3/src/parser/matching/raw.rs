@@ -53,6 +53,11 @@ pub fn match_with_captures_raw(
             let field_start = cap.start();
             let field_end = cap.end();
 
+            if !crate::types::conversion::validate_alignment_precision_for_capture(spec, value_str)
+            {
+                return Ok(None);
+            }
+
             // Try to convert to raw value (fails for custom types and datetime)
             match crate::parser::raw_match::convert_value_raw(spec, value_str) {
                 Ok(raw_value) => {

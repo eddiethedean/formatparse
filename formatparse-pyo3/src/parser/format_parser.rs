@@ -141,28 +141,27 @@ impl FormatParser {
             )));
         }
 
-        let nested_parsers: Vec<Option<Arc<FormatParser>>> =
-            Python::attach(|py| -> PyResult<_> {
-                let mut out = Vec::with_capacity(field_specs.len());
-                for spec in &field_specs {
-                    if matches!(spec.field_type, FieldType::Nested) {
-                        let sub = spec.nested_subpattern.as_ref().ok_or_else(|| {
-                            PyValueError::new_err("internal error: nested field missing subpattern")
-                        })?;
-                        let cloned_et = extra_types.as_ref().map(|m| {
-                            m.iter()
-                                .map(|(k, v)| (k.clone(), v.clone_ref(py)))
-                                .collect::<HashMap<_, _>>()
-                        });
-                        out.push(Some(Arc::new(FormatParser::new_with_extra_types(
-                            sub, cloned_et,
-                        )?)));
-                    } else {
-                        out.push(None);
-                    }
+        let nested_parsers: Vec<Option<Arc<FormatParser>>> = Python::attach(|py| -> PyResult<_> {
+            let mut out = Vec::with_capacity(field_specs.len());
+            for spec in &field_specs {
+                if matches!(spec.field_type, FieldType::Nested) {
+                    let sub = spec.nested_subpattern.as_ref().ok_or_else(|| {
+                        PyValueError::new_err("internal error: nested field missing subpattern")
+                    })?;
+                    let cloned_et = extra_types.as_ref().map(|m| {
+                        m.iter()
+                            .map(|(k, v)| (k.clone(), v.clone_ref(py)))
+                            .collect::<HashMap<_, _>>()
+                    });
+                    out.push(Some(Arc::new(FormatParser::new_with_extra_types(
+                        sub, cloned_et,
+                    )?)));
+                } else {
+                    out.push(None);
                 }
-                Ok(out)
-            })?;
+            }
+            Ok(out)
+        })?;
         // Pre-compute custom type validation results (pattern_groups per field)
         // This avoids calling validate_custom_type_pattern for every match
         let custom_type_groups = Python::attach(|py| -> PyResult<Vec<usize>> {
@@ -359,7 +358,6 @@ impl FormatParser {
         slice: &str,
         custom_converters: &HashMap<String, Py<PyAny>>,
     ) -> PyResult<Option<Py<ParseResult>>> {
-        
         let mut merged = HashMap::new();
         if let Some(ref stored) = self.stored_extra_types {
             for (k, v) in stored {

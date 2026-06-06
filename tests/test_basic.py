@@ -19,9 +19,9 @@ def test_simple_string():
     assert result.fixed == ("World",)
 
 
-def test_named_fields():
-    """Test parsing with named fields"""
-    result = parse("{name}: {age:d}", "Alice: 30")
+def test_named_fields(sample_patterns, sample_strings):
+    """Test parsing with named fields (canonical smoke test for named-field patterns)."""
+    result = parse(sample_patterns["named"], sample_strings["named"])
     assert result is not None
     assert result.named["name"] == "Alice"
     assert result.named["age"] == 30

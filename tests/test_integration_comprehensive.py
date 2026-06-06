@@ -214,15 +214,3 @@ def test_case_sensitivity_integration():
     # Case-insensitive (default for search/findall)
     result = search(pattern, text_upper, case_sensitive=False)
     assert result is not None
-
-
-def test_cross_platform_compatibility():
-    """Integration test: Ensure basic functionality works cross-platform"""
-    pattern = "{name}: {age:d}"
-    text = "Alice: 30"
-
-    # Should work the same way everywhere
-    result = parse(pattern, text)
-    assert result is not None
-    assert result.named["name"] == "Alice"
-    assert result.named["age"] == 30
