@@ -7,14 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- **Dependencies**: ``fancy-regex`` 0.17 → 0.18 (see `#116 <https://github.com/eddiethedean/formatparse/pull/116>`_).
-
 ### Planned
 
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
 - ``composed_type`` extensions: pattern ``+``, inheritance, and **flattening** nested parse results into the parent (see `#7 <https://github.com/eddiethedean/formatparse/issues/7>`_).
+
+## [0.8.4] - 2026-06-06
+
+### Changed
+
+- **Dependencies**: ``fancy-regex`` 0.17 → 0.18 (see `#116 <https://github.com/eddiethedean/formatparse/pull/116>`_).
 
 ## [0.8.3] - 2026-06-06
 
@@ -146,6 +148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: load `pytest-cov` when `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`; bump `cargo-audit` in the main CI Ubuntu step for advisory DB compatibility.
 - Dependency updates (e.g. `lru` for RustSec advisories), formatting, and Clippy cleanups.
 
+[0.8.4]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.4
 [0.8.3]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.3
 [0.8.2]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.2
 [0.8.1]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.1
