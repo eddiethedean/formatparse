@@ -1,4 +1,4 @@
-"""Regression tests for 0.8.4 bug fixes."""
+"""Regression tests for 0.8.3 bug fixes."""
 
 import pytest
 

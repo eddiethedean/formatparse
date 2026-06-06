@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
 - ``composed_type`` extensions: pattern ``+``, inheritance, and **flattening** nested parse results into the parent (see `#7 <https://github.com/eddiethedean/formatparse/issues/7>`_).
 
-## [0.8.4] - 2026-06-06
+## [0.8.3] - 2026-06-06
 
 ### Fixed
 
@@ -22,14 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Test suite**: replaced tautological error-path assertions with pinned behavior; strengthened bidirectional validation, ``findall_iter`` / ``max_matches``, composition, validation pipeline, and pattern-cache coverage; trimmed duplicate smoke tests and adopted shared ``conftest`` fixtures.
 - **Stricter compile-time validation** (may reject patterns previously accepted): repeated field names with mismatched **custom** types; field names longer than 200 characters; more than 100 fields; width or precision above 1000.
 - **Security**: document bidirectional ``str.format`` trust boundary in ``SECURITY.md`` and ``docs/security.rst``; reject unsafe attribute/item-access field names in ``BidirectionalPattern`` at construction.
-
-## [0.8.3] - 2026-06-06
-
-### Changed
-
-- **Test suite**: replaced tautological error-path assertions with pinned behavior; strengthened bidirectional validation, ``findall_iter`` / ``max_matches``, composition, validation pipeline, and pattern-cache coverage; trimmed duplicate smoke tests and adopted shared ``conftest`` fixtures.
 
 ## [0.8.2] - 2026-05-22
 
@@ -147,7 +142,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: load `pytest-cov` when `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`; bump `cargo-audit` in the main CI Ubuntu step for advisory DB compatibility.
 - Dependency updates (e.g. `lru` for RustSec advisories), formatting, and Clippy cleanups.
 
-[0.8.4]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.4
 [0.8.3]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.3
 [0.8.2]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.2
 [0.8.1]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.1

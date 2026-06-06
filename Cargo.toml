@@ -3,7 +3,7 @@ members = ["formatparse-core", "formatparse-pyo3"]
 resolver = "2"
 
 [workspace.package]
-version = "0.8.4"
+version = "0.8.3"
 authors = ["Odos Matthews <odosmatthews@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/eddiethedean/formatparse"
@@ -11,4 +11,4 @@ readme = "README.md"
 edition = "2021"
 
 [workspace.dependencies]
-formatparse-core = { path = "formatparse-core", version = "0.8.4" }
+formatparse-core = { path = "formatparse-core", version = "0.8.3" }
