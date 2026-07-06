@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Dependencies**: PyO3 0.28 → 0.29 (security advisory), `regex` 1.12.4, `rand` 0.10.2; Sphinx 8.x, myst-parser 4.x, sphinx-autodoc-typehints 3.x for docs builds on Python 3.13.
+- **CI**: `actions/checkout` v7, `codecov/codecov-action` v7.
+
 ### Planned
 
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).

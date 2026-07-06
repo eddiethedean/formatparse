@@ -18,12 +18,12 @@ rust-version = "1.83"
 all-features = false
 
 [dependencies]
-regex = "1.12.3"
+regex = "1.12.4"
 fancy-regex = "0.18"
 once_cell = "1.21.4"
 
 [dev-dependencies]
 proptest = "1.10.0"
 # Direct dev-dep; proptest may still pull rand 0.9 transitively.
-rand = "0.10.1"
+rand = "0.10.2"
 
