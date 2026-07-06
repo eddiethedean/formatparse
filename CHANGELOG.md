@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Docs**: ``ValidatorMap`` typed as ``Dict`` instead of ``typing.Mapping`` so Sphinx autodoc builds on Python 3.13.
+- **Docs**: Document ``ValidatorMap`` manually in Sphinx (autodoc on Python 3.13.14 chokes on ``typing.Dict`` / ``typing.Mapping`` docstrings).
 
 ### Planned
 

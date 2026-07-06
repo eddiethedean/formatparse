@@ -38,4 +38,6 @@ class FieldConstraint(TypedDict, total=False):
 
 
 ValidationMode = Literal["strict", "collect", "lenient"]
+
 ValidatorMap = Dict[Union[str, int], Callable[..., Any]]
+"""Validators keyed by field name (:class:`str`) or positional index (:class:`int`)."""
