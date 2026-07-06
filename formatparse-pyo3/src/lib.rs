@@ -17,8 +17,10 @@ mod pattern_normalize;
 mod result;
 mod results;
 mod types;
+mod unicode_offsets;
 
 pub(crate) use pattern_cache::extract_extra_types_identity;
+use unicode_offsets::search_byte_range;
 use pattern_cache::get_or_create_parser;
 
 pub use datetime::FixedTzOffset;
@@ -159,19 +161,10 @@ fn search(
     case_sensitive: bool,
     evaluate_result: bool,
 ) -> PyResult<Option<Py<PyAny>>> {
-    // Validate pos parameter
-    if pos > string.len() {
+    // `pos` / `endpos` are Python character indices (like str slicing), not byte offsets.
+    let Some((byte_start, byte_end)) = search_byte_range(string, pos, endpos) else {
         return Ok(None);
-    }
-
-    // Validate endpos parameter
-    let end = endpos.unwrap_or(string.len());
-    if end > string.len() {
-        return Ok(None);
-    }
-    if end < pos {
-        return Ok(None);
-    }
+    };
 
     // Validate input lengths
     formatparse_core::validate_input_length(string)
@@ -192,20 +185,26 @@ fn search(
         })
     });
     let parser = get_or_create_parser(pattern, extra_types_cloned)?;
-    let search_string = &string[pos..end];
+    let search_string = &string[byte_start..byte_end];
 
     if let Some(result) =
         parser.search_pattern(search_string, case_sensitive, extra_types, evaluate_result)?
     {
-        // Adjust positions if it's a ParseResult (not Match)
+        // Adjust byte spans to absolute offsets, then expose character indices to Python.
         Python::attach(|py| {
             if let Ok(parse_result) = result.bind(py).cast::<ParseResult>() {
                 let result_value = parse_result.borrow();
-                let adjusted = result_value.clone().with_offset(pos);
-                // Py::new() is already optimized when GIL is held
+                let adjusted = result_value
+                    .clone()
+                    .with_offset(byte_start)
+                    .spans_as_char_indices(string);
                 Ok(Some(Py::new(py, adjusted)?.into_py_any(py)?))
             } else if let Ok(match_obj) = result.bind(py).cast::<crate::match_rs::Match>() {
-                let adjusted = match_obj.borrow().clone().with_offset(pos);
+                let adjusted = match_obj
+                    .borrow()
+                    .clone()
+                    .with_offset(byte_start)
+                    .spans_as_char_indices(string);
                 Ok(Some(Py::new(py, adjusted)?.into_py_any(py)?))
             } else {
                 Ok(Some(result))

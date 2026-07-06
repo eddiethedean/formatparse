@@ -264,3 +264,30 @@ def test_search_partial_match():
     # Should still match "age: 30" part
     assert result is not None
     assert result.named["age"] == 30
+
+
+def test_search_unicode_pos_char_index():
+    """search(pos) uses Python character indices, not UTF-8 byte offsets (issue #129)."""
+    text = "🚀ab value=42"
+    result = search("{v:d}", text, pos=1)
+    assert result is not None
+    assert result.named["v"] == 42
+    assert result.start >= 1
+
+
+def test_search_unicode_endpos_char_index():
+    """search(endpos) uses Python character indices (issue #129)."""
+    text = "🚀ab value=42"
+    # Only search through "🚀ab" (chars 0..3 exclusive of rest)
+    result = search("{v:d}", text, endpos=3)
+    assert result is None
+
+
+def test_search_unicode_pos_with_evaluate_result_false():
+    """Match objects from search also get char-index spans (issue #129)."""
+    text = "🚀ab value=42"
+    m = search("{v:d}", text, pos=1, evaluate_result=False)
+    assert m is not None
+    assert m.span[0] >= 1
+    evaluated = m.evaluate_result()
+    assert evaluated.named["v"] == 42
