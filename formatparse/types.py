@@ -7,7 +7,6 @@ from typing import (
     Callable,
     Dict,
     Literal,
-    Mapping,
     Optional,
     Protocol,
     TypedDict,
@@ -39,4 +38,4 @@ class FieldConstraint(TypedDict, total=False):
 
 
 ValidationMode = Literal["strict", "collect", "lenient"]
-ValidatorMap = Mapping[Union[str, int], Callable[..., Any]]
+ValidatorMap = Dict[Union[str, int], Callable[..., Any]]
