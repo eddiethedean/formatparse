@@ -4,14 +4,14 @@ This document explains how to release a new version of `formatparse` to PyPI.
 
 ## Current version
 
-The canonical version is **`0.8.4`** in the workspace [`Cargo.toml`](Cargo.toml) (`[workspace.package] version` and `[workspace.dependencies] formatparse-core` must match). Member crates use `version.workspace = true`. PyPI metadata uses `dynamic = ["version"]`; Maturin reads the workspace version when building wheels and sdist.
+The canonical version is **`0.8.5`** in the workspace [`Cargo.toml`](Cargo.toml) (`[workspace.package] version` and `[workspace.dependencies] formatparse-core` must match). Member crates use `version.workspace = true`. PyPI metadata uses `dynamic = ["version"]`; Maturin reads the workspace version when building wheels and sdist.
 
-**PyPI / crates.io latest published:** `0.8.3` (tag `v0.8.3`). To ship 0.8.4, tag `v0.8.4` after the checklist below—do **not** run `release.sh 0.8.4` (that would create a redundant version commit); use [Tag without a version bump](#tag-without-a-version-bump) instead.
+**PyPI / crates.io latest published:** `0.8.3` (tag `v0.8.3`). To ship 0.8.5, tag `v0.8.5` after the checklist below—do **not** run `release.sh 0.8.5` (that would create a redundant version commit); use [Tag without a version bump](#tag-without-a-version-bump) instead.
 
 Before tagging, confirm:
 
-- `[workspace.package] version` and `formatparse-core` dependency version in root [`Cargo.toml`](Cargo.toml) are both **`0.8.4`**.
-- [`CHANGELOG.md`](CHANGELOG.md) lists all 0.8.4 changes under `## [0.8.4]` (not only under `[Unreleased]`).
+- `[workspace.package] version` and `formatparse-core` dependency version in root [`Cargo.toml`](Cargo.toml) are both **`0.8.5`**.
+- [`CHANGELOG.md`](CHANGELOG.md) lists all 0.8.5 changes under `## [0.8.5]` (not only under `[Unreleased]`).
 - CI on `main` is green.
 
 If the workspace version is **already** `X.Y.Z` on `main` (for example after a merge that bumped it), you do **not** need `release.sh` to edit `Cargo.toml` again. Push the tag only (see [Tag without a version bump](#tag-without-a-version-bump) below).

@@ -1,3 +1,4 @@
+use crate::unicode_offsets::byte_to_char_index;
 use pyo3::prelude::*;
 use pyo3::types::{PySlice, PyString, PyTuple};
 use pyo3::IntoPyObjectExt;
@@ -75,6 +76,28 @@ impl ParseResult {
             .field_spans
             .into_iter()
             .map(|(k, (start, end))| (k, (start + offset, end + offset)))
+            .collect();
+        self
+    }
+
+    /// Convert absolute byte spans in `haystack` to Python character indices.
+    pub fn spans_as_char_indices(mut self, haystack: &str) -> Self {
+        self.span = (
+            byte_to_char_index(haystack, self.span.0),
+            byte_to_char_index(haystack, self.span.1),
+        );
+        self.field_spans = self
+            .field_spans
+            .into_iter()
+            .map(|(k, (start, end))| {
+                (
+                    k,
+                    (
+                        byte_to_char_index(haystack, start),
+                        byte_to_char_index(haystack, end),
+                    ),
+                )
+            })
             .collect();
         self
     }

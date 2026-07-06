@@ -35,5 +35,13 @@ Type aliases
 .. autodata:: formatparse.ValidationMode
    :annotation:
 
-.. autodata:: formatparse.ValidatorMap
-   :annotation:
+``ValidatorMap``
+~~~~~~~~~~~~~~~~
+
+.. py:data:: ValidatorMap
+   :module: formatparse
+
+   Type alias: ``Dict[Union[str, int], Callable[..., Any]]``.
+
+   Keys are field names (:class:`str`) or positional indices (:class:`int`);
+   values are callables invoked during post-parse validation.
