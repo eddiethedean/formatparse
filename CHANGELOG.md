@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Dependencies**: PyO3 0.28 → 0.29 (addresses RUSTSEC-2026-0176 and RUSTSEC-2026-0177).
+
+### Fixed
+
+- **Docs**: ``ValidatorMap`` typed as ``Dict`` instead of ``typing.Mapping`` so Sphinx autodoc builds on Python 3.13.
+
 ### Planned
 
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
