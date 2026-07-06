@@ -7,18 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- **Dependencies**: PyO3 0.28 → 0.29 (addresses RUSTSEC-2026-0176 and RUSTSEC-2026-0177).
-
-### Fixed
-
-- **Docs**: Document ``ValidatorMap`` manually in Sphinx (autodoc on Python 3.13.14 chokes on ``typing.Dict`` / ``typing.Mapping`` docstrings).
-
 ### Planned
 
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
 - ``composed_type`` extensions: pattern ``+``, inheritance, and **flattening** nested parse results into the parent (see `#7 <https://github.com/eddiethedean/formatparse/issues/7>`_).
+
+## [0.8.5] - 2026-07-06
+
+### Fixed
+
+- **search**: ``pos`` / ``endpos`` are interpreted as Unicode character indices, fixing a panic when slicing UTF-8 on non-ASCII text (fixes `#129 <https://github.com/eddiethedean/formatparse/issues/129>`_).
+- **Docs**: Document ``ValidatorMap`` manually in Sphinx (autodoc on Python 3.13.14 chokes on ``typing.Dict`` / ``typing.Mapping`` docstrings).
+
+### Changed
+
+- **Dependencies**: PyO3 0.28 → 0.29 (addresses RUSTSEC-2026-0176 and RUSTSEC-2026-0177).
 
 ## [0.8.4] - 2026-06-06
 
@@ -156,6 +159,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: load `pytest-cov` when `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`; bump `cargo-audit` in the main CI Ubuntu step for advisory DB compatibility.
 - Dependency updates (e.g. `lru` for RustSec advisories), formatting, and Clippy cleanups.
 
+[0.8.5]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.5
 [0.8.4]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.4
 [0.8.3]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.3
 [0.8.2]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.2
