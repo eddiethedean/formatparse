@@ -27,23 +27,22 @@ Parse ISO 8601 datetime strings:
 HTTP Date Format (``:th``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Parse HTTP date format (RFC 7231).
+Parse HTTP-style date/time strings (common in access logs), for example
+``21/Nov/2023:00:07:11 +0000``. Prefer ``:ti`` (ISO 8601) for new code; use
+``:th`` when matching legacy log lines.
 
-HTTP date format parsing may vary. Here's an example using a format that works:
+.. doctest::
 
-.. testcode::
+   >>> result = parse("{date:th}", "21/Nov/2023:00:07:11 +0000")
+   >>> result.named['date'].year
+   2023
+   >>> result.named['date'].month
+   11
+   >>> result.named['date'].day
+   21
 
-   from formatparse import parse
-   
-   # HTTP date format (RFC 7231) - note: exact format may vary
-   # For reliable parsing, consider using ISO 8601 or custom strftime formats
-   result = parse("{date:ti}", "2024-01-15T10:30:00")
-   if result:
-       print(f"Date year: {result.named['date'].year}")
-
-.. testoutput::
-
-   Date year: 2024
+If your input does not match this shape, test with a sample line or use a
+custom ``@with_pattern`` converter (see :doc:`custom_types`).
 
 RFC 2822 Format (``:te``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

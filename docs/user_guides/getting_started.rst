@@ -4,7 +4,7 @@ Getting Started
 Installation
 ------------
 
-Install formatparse from PyPI:
+Install from PyPI (see :doc:`../installation` for source builds and requirements):
 
 .. code-block:: bash
 
@@ -75,12 +75,17 @@ Understanding ParseResult
 -------------------------
 
 Both `parse()` and `search()` return a `ParseResult` object (or `None` if no match is found).
-`findall()` usually returns a `Results` object (list-like) containing `ParseResult` objects; with ``extra_types``, ``evaluate_result=False``, or nested dict field names it returns a plain Python ``list`` of the same element types.
+`findall()` usually returns a `Results` object (list-like) containing `ParseResult` objects; with ``extra_types``, ``evaluate_result=False``, or nested dict field names it returns a plain Python ``list`` of the same element types. See :doc:`matching_behavior`.
 
 ParseResult has two main attributes:
 
 - ``named``: A dictionary of named fields (read-only)
 - ``fixed``: A tuple of positional fields (read-only)
+
+Match positions:
+
+- ``span``: ``(start, end)`` character indices of the full match
+- ``spans`` / ``field_spans``: per-field spans (see :doc:`../api/native_reference`)
 
 .. doctest::
 
@@ -106,8 +111,20 @@ You can also access fields using dictionary-like syntax:
 Next Steps
 ----------
 
-- Learn about :doc:`patterns` for detailed pattern syntax
-- Explore :doc:`datetime_parsing` for parsing dates and times
-- Check out :doc:`custom_types` for creating custom converters
-- See :doc:`bidirectional_patterns` for round-trip parsing and formatting
+Recommended reading order:
+
+1. :doc:`patterns` — field syntax and type specifiers
+2. :doc:`type_specifiers` — quick reference for ``:d``, ``:ti``, ``:ml``, etc.
+3. :doc:`matching_behavior` — ``case_sensitive``, ``findall`` return types, ``pos`` / ``endpos``
+4. :doc:`migration_from_parse` — if replacing the ``parse`` package
+5. :doc:`../security` — before parsing untrusted patterns or inputs
+6. :doc:`performance` — if parsing at scale
+7. :doc:`../api/index` — full function reference
+8. :doc:`faq_troubleshooting` — common questions
+
+Also explore:
+
+- :doc:`datetime_parsing` for dates and times
+- :doc:`custom_types` for custom converters
+- :doc:`bidirectional_patterns` for round-trip parsing and formatting
 

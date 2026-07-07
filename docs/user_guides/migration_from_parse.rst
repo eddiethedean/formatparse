@@ -36,3 +36,20 @@ Pickling
 
 Pickling a :class:`~formatparse.FormatParser` stores only the pattern string. After
 ``pickle.loads``, pass ``extra_types`` again when parsing if your pattern uses custom types.
+
+Compatibility aliases
+---------------------
+
+The original ``parse`` module exports some names that formatparse provides as aliases:
+
+- :data:`~formatparse.Result` → :class:`~formatparse.ParseResult`
+- :data:`~formatparse.Parser` → :class:`~formatparse.FormatParser`
+- :data:`~formatparse.dt_format_to_regex` — strftime code to regex fragment map
+
+See :doc:`../api/compatibility`.
+
+Case sensitivity
+----------------
+
+:func:`~formatparse.search` defaults to ``case_sensitive=True``; :func:`~formatparse.parse`
+and :func:`~formatparse.findall` default to ``False``. See :doc:`matching_behavior`.

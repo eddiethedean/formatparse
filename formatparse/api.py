@@ -169,9 +169,19 @@ def parse_with_validation(
     ``validators`` map instead of a :class:`ValidationPipeline`.
 
     :param parser: Output of :func:`compile`.
+    :type parser: FormatParser
     :param string: Text to parse.
+    :type string: str
     :param pipeline: Validation pipeline (required).
+    :type pipeline: ValidationPipeline
+    :param extra_types: Same as :func:`parse` (custom type converters).
+    :type extra_types: dict, optional
+    :param case_sensitive: Same default as :func:`parse` (``False``).
+    :type case_sensitive: bool
+    :param evaluate_result: Whether to convert captured values (default ``True``).
+    :type evaluate_result: bool
     :param validation_mode: Passed to :meth:`ValidationPipeline.apply`.
+    :type validation_mode: str
     :returns: Same as :meth:`FormatParser.parse` after validation, or ``None`` if parse failed.
         In ``lenient`` mode, validation failures emit :exc:`ValidationWarning` and do not raise.
     :raises ValidationError: In ``strict`` mode when validation fails.
@@ -212,7 +222,20 @@ class ValidatedParser:
     ) -> Optional[ParseResult]:
         """Parse ``string`` with optional ``validators`` or ``pipeline`` (same rules as :func:`parse`).
 
-        :param validation_mode: ``\"strict\"``, ``\"collect\"``, or ``\"lenient\"`` (see :func:`parse`).
+        :param string: Text to parse.
+        :type string: str
+        :param case_sensitive: Whether matching is case sensitive (default ``False``).
+        :type case_sensitive: bool
+        :param extra_types: Custom type converters (same as :func:`parse`).
+        :type extra_types: dict, optional
+        :param evaluate_result: Whether to convert captured values (default ``True``).
+        :type evaluate_result: bool
+        :param validators: Per-field validator map (mutually exclusive with ``pipeline``).
+        :type validators: dict, optional
+        :param pipeline: :class:`ValidationPipeline` (mutually exclusive with ``validators``).
+        :type pipeline: ValidationPipeline, optional
+        :param validation_mode: ``\"strict\"``, ``\"collect\"``, or ``\"lenient\"``.
+        :type validation_mode: str
         """
         r = self._parser.parse(string, case_sensitive, extra_types, evaluate_result)
         return post_parse_validate(
@@ -232,7 +255,23 @@ class ValidatedParser:
         evaluate_result: bool = True,
         validation_mode: ValidationMode = "strict",
     ) -> Optional[ParseResult]:
-        """Parse ``string`` with the inner parser, then ``pipeline`` (see :func:`parse_with_validation`)."""
+        """Parse ``string`` with the inner parser, then ``pipeline``.
+
+        Same as :func:`parse_with_validation` on the wrapped :class:`FormatParser`.
+
+        :param string: Text to parse.
+        :type string: str
+        :param pipeline: Validation pipeline (required).
+        :type pipeline: ValidationPipeline
+        :param extra_types: Custom type converters.
+        :type extra_types: dict, optional
+        :param case_sensitive: Whether matching is case sensitive (default ``False``).
+        :type case_sensitive: bool
+        :param evaluate_result: Whether to convert captured values (default ``True``).
+        :type evaluate_result: bool
+        :param validation_mode: ``\"strict\"``, ``\"collect\"``, or ``\"lenient\"``.
+        :type validation_mode: str
+        """
         return parse_with_validation(
             self._parser,
             string,
@@ -305,9 +344,9 @@ def search(
     :type pattern: str
     :param string: String to search
     :type string: str
-    :param pos: Start position for search (default: 0)
+    :param pos: Start position for search as a Unicode character index (default: 0)
     :type pos: int
-    :param endpos: End position for search (default: None for end of string)
+    :param endpos: End position for search as a Unicode character index (default: end of string)
     :type endpos: int, optional
     :param extra_types: Same semantics as :func:`parse` (custom types / cache); see
         `Custom types guide <https://formatparse.readthedocs.io/en/latest/user_guides/custom_types.html>`_.
@@ -436,8 +475,18 @@ def findall_iter(
                 for m in parser.findall_iter(line.strip()):
                     process(m.named["id"])
 
-    :param max_matches: Same as :func:`findall` (default: no limit).
+    :param pattern: Format specification pattern
+    :type pattern: str
+    :param string: String to search within
+    :type string: str
+    :param max_matches: Stop after this many non-overlapping matches (default: no limit).
     :type max_matches: int, optional
+    :param extra_types: Same as :func:`findall`.
+    :type extra_types: dict, optional
+    :param case_sensitive: Same default as :func:`findall` (``False``).
+    :type case_sensitive: bool
+    :param evaluate_result: Same as :func:`findall` (default ``True``).
+    :type evaluate_result: bool
 
     :returns: Iterator of :class:`ParseResult` or :class:`Match` (same as ``findall``)
     """

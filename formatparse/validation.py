@@ -196,12 +196,26 @@ class ValidationPipeline:
         field: Union[str, int],
         fn: Callable[..., Any],
     ) -> ValidationPipeline:
-        """Register ``fn`` for ``field``; returns ``self`` for chaining."""
+        """Register ``fn`` for ``field``; returns ``self`` for chaining.
+
+        :param field: Field name (``str``) or positional index (``int``).
+        :type field: str or int
+        :param fn: Callable invoked with the field value; raise :exc:`ValidationError` on failure.
+        :type fn: callable
+        :returns: ``self`` for method chaining.
+        :rtype: ValidationPipeline
+        """
         self._steps.append((field, fn))
         return self
 
     def add_hook(self, fn: Callable[[ParseResult], None]) -> ValidationPipeline:
-        """Register a whole-result hook; runs after per-field validators. Chainable."""
+        """Register a whole-result hook; runs after per-field validators. Chainable.
+
+        :param fn: Callable taking the full :class:`~formatparse.ParseResult`.
+        :type fn: callable
+        :returns: ``self`` for method chaining.
+        :rtype: ValidationPipeline
+        """
         self._hooks.append(fn)
         return self
 
@@ -290,7 +304,14 @@ def in_range(
     min_value: Optional[Union[int, float]] = None,
     max_value: Optional[Union[int, float]] = None,
 ) -> Callable[[Union[int, float]], None]:
-    """Return a validator that accepts numeric ``value`` within ``[min_value, max_value]``."""
+    """Return a validator that accepts numeric ``value`` within ``[min_value, max_value]``.
+
+    :param min_value: Minimum allowed value (inclusive), or ``None`` for no lower bound.
+    :type min_value: int or float, optional
+    :param max_value: Maximum allowed value (inclusive), or ``None`` for no upper bound.
+    :type max_value: int or float, optional
+    :returns: Validator callable for use in :func:`~formatparse.apply_validators` or pipelines.
+    """
 
     def check(value: Union[int, float]) -> None:
         if type(value) is bool:
@@ -308,7 +329,12 @@ def in_range(
 
 
 def non_empty_str(value: Any) -> None:
-    """Reject ``None``, non-strings, or blank/whitespace-only strings."""
+    """Reject ``None``, non-strings, or blank/whitespace-only strings.
+
+    :param value: Field value after parsing.
+    :type value: Any
+    :raises ValidationError: If ``value`` is not a non-empty stripped string.
+    """
     if not isinstance(value, str) or not value.strip():
         raise ValidationError("expected non-empty string")
 

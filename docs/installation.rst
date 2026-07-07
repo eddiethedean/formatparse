@@ -22,7 +22,7 @@ To install from source, you'll need Rust and maturin:
    cd formatparse
 
    # Install maturin (build tool)
-   pip install maturin
+   pip install "maturin>=1.13.3,<2.0"
 
    # Build and install in development mode
    maturin develop --manifest-path formatparse-pyo3/Cargo.toml --release

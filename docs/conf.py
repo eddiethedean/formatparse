@@ -40,9 +40,10 @@ def _stub_fn(name: str):
     return _fn
 
 
-# Mock _formatparse if the Rust extension is not built (e.g. Read the Docs without maturin).
-# Must run before formatparse/__init__.py imports it. Use real types/callables (not
-# MagicMock) so sphinx-autodoc-typehints can inspect annotations safely.
+# Mock _formatparse only when the Rust extension is not built (e.g. bare Sphinx without maturin).
+# When the extension is installed (CI docs job, RTD pip install, local maturin develop),
+# autodoc documents the real Rust-backed types.
+_EXTENSION_AVAILABLE = False
 _FORMATPARSE_EXPORTS = (
     "parse",
     "parse_batch",
@@ -60,6 +61,8 @@ _FORMATPARSE_EXPORTS = (
 
 try:
     import _formatparse  # noqa: F401
+
+    _EXTENSION_AVAILABLE = True
 except ImportError:
     from datetime import tzinfo
 
@@ -138,7 +141,9 @@ html_theme_options = {
 
 # -- Extension configuration -------------------------------------------------
 
-autodoc_mock_imports = ["_formatparse"]
+# Do not mock the extension when it is installed; stubs are used only as a fallback.
+if not _EXTENSION_AVAILABLE:
+    autodoc_mock_imports = ["_formatparse"]
 
 autodoc_default_options = {
     "members": True,
