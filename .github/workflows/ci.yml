@@ -351,8 +351,6 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.83
 
       - name: Install documentation dependencies and extension
         run: |
