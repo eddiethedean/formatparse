@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
 - ``composed_type`` extensions: pattern ``+``, inheritance, and **flattening** nested parse results into the parent (see `#7 <https://github.com/eddiethedean/formatparse/issues/7>`_).
 
+### Fixed
+
+- **Validation**: Reject ``bool`` validator keys instead of treating them as positional indices (fixes `#132 <https://github.com/eddiethedean/formatparse/issues/132>`_).
+
 ## [0.8.5] - 2026-07-06
 
 ### Fixed

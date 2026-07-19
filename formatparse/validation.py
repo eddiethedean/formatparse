@@ -34,7 +34,7 @@ def validator(func: Callable[..., Any]) -> Callable[..., Any]:
 
 def _sorted_validator_keys(keys: Iterable[Union[str, int]]) -> List[Union[str, int]]:
     key_list = list(keys)
-    ints = sorted(k for k in key_list if isinstance(k, int))
+    ints = sorted(k for k in key_list if isinstance(k, int) and not isinstance(k, bool))
     strs = sorted(k for k in key_list if isinstance(k, str))
     if len(ints) + len(strs) != len(key_list):
         raise TypeError("validator keys must be str or int")

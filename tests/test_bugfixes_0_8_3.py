@@ -190,7 +190,8 @@ def test_in_range_rejects_bool():
 # --- Bug 21: validator key types ---
 
 
-def test_validator_keys_must_be_str_or_int():
+@pytest.mark.parametrize("key", [("tuple",), True, False])
+def test_validator_keys_must_be_str_or_int(key):
     result = parse("{n}", "x")
     with pytest.raises(TypeError, match="str or int"):
-        apply_validators(result, {("tuple",): non_empty_str})
+        apply_validators(result, {key: non_empty_str})
