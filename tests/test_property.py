@@ -4,7 +4,7 @@ These tests use property-based testing to explore edge cases and verify
 invariants that should hold for all valid inputs.
 """
 
-from typing import Optional
+from typing import Literal, Optional, Tuple
 
 import pytest
 from hypothesis import given, assume, strategies as st, settings
@@ -18,6 +18,8 @@ from formatparse import (
 )
 import math
 
+# Hypothesis CharacterCategory literal for surrogate exclusion (mypy-friendly).
+_SURROGATE_CAT: Tuple[Literal["Cs"], ...] = ("Cs",)
 
 # Strategies for generating test data
 integers = st.integers(min_value=-(10**18), max_value=10**18)
@@ -46,7 +48,7 @@ unicode_strings = st.text(
 # UTF-8-safe text: no lone surrogates (Cs), no NUL (rejected by the library).
 _UNICODE_SAFE_ALPHABET = st.characters(
     blacklist_characters="\x00{}",
-    blacklist_categories=("Cs",),
+    blacklist_categories=_SURROGATE_CAT,
 )
 unicode_non_surrogate_strings = st.text(
     alphabet=_UNICODE_SAFE_ALPHABET,
@@ -59,7 +61,7 @@ unicode_non_surrogate_strings = st.text(
 _GREEK_LETTERS = st.characters(
     min_codepoint=0x3B1,
     max_codepoint=0x3C9,
-    blacklist_categories=("Cs",),
+    blacklist_categories=_SURROGATE_CAT,
 )
 unicode_field_name_strings = st.text(
     alphabet=_GREEK_LETTERS,

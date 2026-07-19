@@ -160,7 +160,7 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "formatparse-core"
-version = "0.8.5"
+version = "0.8.6"
 dependencies = [
  "fancy-regex",
  "once_cell",
@@ -171,7 +171,7 @@ dependencies = [
 
 [[package]]
 name = "formatparse-pyo3"
-version = "0.8.5"
+version = "0.8.6"
 dependencies = [
  "fancy-regex",
  "formatparse-core",

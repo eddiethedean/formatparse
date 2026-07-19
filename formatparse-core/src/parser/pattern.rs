@@ -582,16 +582,12 @@ pub fn parse_field_path(field_name: &str) -> Vec<String> {
                 }
                 in_brackets = true;
             }
-            ']' => {
-                if in_brackets {
-                    if !current.is_empty() {
-                        path.push(current.clone());
-                        current.clear();
-                    }
-                    in_brackets = false;
-                } else {
-                    current.push(ch);
+            ']' if in_brackets => {
+                if !current.is_empty() {
+                    path.push(current.clone());
+                    current.clear();
                 }
+                in_brackets = false;
             }
             _ => {
                 current.push(ch);

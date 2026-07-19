@@ -29,14 +29,14 @@ def test_compile_cache_distinguishes_extra_types_converter_patterns() -> None:
 
     fmt = "Value is {x:T}"
     r1 = parse(fmt, "Value is 42", extra_types={"T": as_int})
-    assert r1.named["x"] == 42
+    assert r1 is not None and r1.named["x"] == 42
     r2 = parse(fmt, "Value is hello", extra_types={"T": as_lower})
-    assert r2.named["x"] == "hello"
+    assert r2 is not None and r2.named["x"] == "hello"
 
     s1 = search(fmt, "xx Value is 99 yy", extra_types={"T": as_int})
-    assert s1.named["x"] == 99
+    assert s1 is not None and s1.named["x"] == 99
     s2 = search(fmt, "xx Value is abc yy", extra_types={"T": as_lower})
-    assert s2.named["x"] == "abc"
+    assert s2 is not None and s2.named["x"] == "abc"
 
 
 def test_compile_equivalent_extra_types_produces_consistent_results() -> None:
@@ -49,4 +49,6 @@ def test_compile_equivalent_extra_types_produces_consistent_results() -> None:
     extra = {"CacheInt": conv}
     p1 = compile("{v:CacheInt}", extra_types=extra)
     p2 = compile("{v:CacheInt}", extra_types=extra)
-    assert p1.parse("7").named["v"] == p2.parse("7").named["v"] == 7
+    r1 = p1.parse("7")
+    r2 = p2.parse("7")
+    assert r1 is not None and r2 is not None and r1.named["v"] == r2.named["v"] == 7

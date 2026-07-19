@@ -1,7 +1,7 @@
 use crate::error;
 use crate::result::ParseResult;
-use crate::unicode_offsets::byte_to_char_index;
 use crate::types::FieldSpec;
+use crate::unicode_offsets::byte_to_char_index;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use std::collections::HashMap;

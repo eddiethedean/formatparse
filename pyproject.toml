@@ -88,7 +88,8 @@ paths_to_mutate = ["formatparse/"]
 test_command = "env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests -x"
 
 [tool.mypy]
-python_version = "3.9"
+# mypy 2.x requires >=3.10; package still supports 3.8+ at runtime.
+python_version = "3.10"
 files = ["formatparse", "tests"]
 
 [[tool.mypy.overrides]]
@@ -97,6 +98,10 @@ ignore_missing_imports = true
 
 [tool.ty]
 # Stubs for the maturin extension live at repo root as ``_formatparse.pyi``.
+
+[tool.ty.src]
+# Optional upstream ``parse`` benchmarks are not part of the typed package surface.
+exclude = ["scripts/"]
 
 [[tool.ty.overrides]]
 include = ["tests/**"]

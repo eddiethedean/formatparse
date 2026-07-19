@@ -20,8 +20,8 @@ mod types;
 mod unicode_offsets;
 
 pub(crate) use pattern_cache::extract_extra_types_identity;
-use unicode_offsets::search_byte_range;
 use pattern_cache::get_or_create_parser;
+use unicode_offsets::search_byte_range;
 
 pub use datetime::FixedTzOffset;
 pub use parser::{FindallIter, Format, FormatParser};

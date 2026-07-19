@@ -40,7 +40,6 @@ pub(crate) fn per_field_capture_geometry(
     custom_converters: &HashMap<String, Py<PyAny>>,
     precomputed_pattern_groups: Option<&[usize]>,
 ) -> PyResult<Vec<(usize, usize)>> {
-    let mut aci = 1usize;
     let mut go = 0usize;
     let mut out = Vec::with_capacity(field_specs.len());
     for (i, spec) in field_specs.iter().enumerate() {
@@ -56,8 +55,8 @@ pub(crate) fn per_field_capture_geometry(
         } else {
             0
         };
-        out.push((aci, go));
-        aci += 1;
+        // Capture group 0 is the full match, so field capture indices start at 1.
+        out.push((i + 1, go));
         if spec.alignment.is_some() {
             go += 1;
         }

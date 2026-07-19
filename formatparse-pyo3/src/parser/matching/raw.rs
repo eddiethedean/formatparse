@@ -28,7 +28,6 @@ pub fn match_with_captures_raw(
     raw_data.span = (start, end);
 
     let mut group_offset = 0;
-    let mut actual_capture_index = 1;
 
     for (i, spec) in field_specs.iter().enumerate() {
         let pattern_groups = custom_type_groups.get(i).copied().unwrap_or(0);
@@ -37,16 +36,8 @@ pub fn match_with_captures_raw(
             return Err("Nested format fields require Python conversion".to_string());
         }
 
-        let cap = extract_capture(
-            captures,
-            i,
-            normalized_names,
-            spec,
-            actual_capture_index,
-            group_offset,
-        );
-
-        actual_capture_index += 1;
+        // Capture group 0 is the full match, so field capture indices start at 1.
+        let cap = extract_capture(captures, i, normalized_names, spec, i + 1, group_offset);
 
         if let Some(cap) = cap {
             let value_str = cap.as_str();
