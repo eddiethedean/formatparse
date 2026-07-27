@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Dependencies**: PyO3 0.28 → 0.29 (addresses RUSTSEC-2026-0176 and RUSTSEC-2026-0177).
+- **Dependencies**: PyO3 0.28 → 0.29 (addresses RUSTSEC-2026-0176 / `#120 <https://github.com/eddiethedean/formatparse/issues/120>`_ and RUSTSEC-2026-0177 / `#121 <https://github.com/eddiethedean/formatparse/issues/121>`_).
 
 ## [0.8.4] - 2026-06-06
 
