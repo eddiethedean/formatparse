@@ -32,7 +32,7 @@ cargo audit
 
 echo ""
 echo "=== Running Cargo Deny ==="
-cargo deny check --config cargo-deny.toml
+cargo deny check
 
 echo ""
 echo "=== Running Pip Audit ==="
