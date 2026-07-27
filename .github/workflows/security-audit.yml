@@ -54,7 +54,8 @@ jobs:
         with:
           command: check
           arguments: --all-features
-          command-arguments: --config cargo-deny.toml
+          # Equals form required: cargo-deny-action passes command-arguments as one argv.
+          command-arguments: --config=cargo-deny.toml
 
   pip-audit:
     name: Pip Audit

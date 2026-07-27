@@ -282,7 +282,8 @@ jobs:
         with:
           command: check
           arguments: --all-features
-          command-arguments: --config cargo-deny.toml
+          # Equals form required: cargo-deny-action passes command-arguments as one argv.
+          command-arguments: --config=cargo-deny.toml
         continue-on-error: true  # May fail due to CVSS 4.0 compatibility issues
 
       - name: Run pip-audit
