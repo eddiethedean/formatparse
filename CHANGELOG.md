@@ -7,14 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- **Dependencies**: Bump transitive ``anyhow`` 1.0.102 → 1.0.104 (RUSTSEC-2026-0190 / `#127 <https://github.com/eddiethedean/formatparse/issues/127>`_).
-
 ### Planned
 
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
 - ``composed_type`` extensions: pattern ``+``, inheritance, and **flattening** nested parse results into the parent (see `#7 <https://github.com/eddiethedean/formatparse/issues/7>`_).
+
+## [0.8.7] - 2026-07-27
+
+### Changed
+
+- **Dependencies**: ``regex`` 1.13.0 → 1.13.1 (see `#143 <https://github.com/eddiethedean/formatparse/pull/143>`_); ``serde`` 1.0.228 → 1.0.229 (see `#142 <https://github.com/eddiethedean/formatparse/pull/142>`_).
+- **CI**: ``actions/setup-python`` v6 → v7 (see `#144 <https://github.com/eddiethedean/formatparse/pull/144>`_); rename ``cargo-deny.toml`` → ``deny.toml`` for cargo-deny 0.20 compatibility.
+
+### Fixed
+
+- **Dependencies**: Bump transitive ``anyhow`` 1.0.102 → 1.0.104 (RUSTSEC-2026-0190 / `#127 <https://github.com/eddiethedean/formatparse/issues/127>`_).
+- **Docs**: Link and close PyO3 advisory trackers RUSTSEC-2026-0176 / `#120 <https://github.com/eddiethedean/formatparse/issues/120>`_ and RUSTSEC-2026-0177 / `#121 <https://github.com/eddiethedean/formatparse/issues/121>`_ (already addressed in 0.8.5; see `#145 <https://github.com/eddiethedean/formatparse/pull/145>`_).
 
 ## [0.8.6] - 2026-07-19
 
@@ -169,6 +177,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: load `pytest-cov` when `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`; bump `cargo-audit` in the main CI Ubuntu step for advisory DB compatibility.
 - Dependency updates (e.g. `lru` for RustSec advisories), formatting, and Clippy cleanups.
 
+[0.8.7]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.7
 [0.8.6]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.6
 [0.8.5]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.5
 [0.8.4]: https://github.com/eddiethedean/formatparse/releases/tag/v0.8.4

@@ -47,11 +47,35 @@ fi
 
 # Update version in Cargo.toml (workspace package + formatparse-core dependency)
 echo "📝 Updating version in Cargo.toml to ${VERSION}..."
-sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
-rm -f Cargo.toml.bak
+python3 - "$VERSION" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+version = sys.argv[1]
+path = Path("Cargo.toml")
+text = path.read_text(encoding="utf-8")
+text, n1 = re.subn(
+    r'(?m)^version = "[^"]+"',
+    f'version = "{version}"',
+    text,
+    count=1,
+)
+text, n2 = re.subn(
+    r'(formatparse-core = \{ path = "formatparse-core", version = ")[^"]+("\s*\})',
+    rf"\g<1>{version}\2",
+    text,
+    count=1,
+)
+if n1 != 1 or n2 != 1:
+    raise SystemExit(
+        f"Failed to update Cargo.toml versions (workspace={n1}, formatparse-core={n2})"
+    )
+path.write_text(text, encoding="utf-8")
+PY
 
 if ! grep -q "^version = \"${VERSION}\"" Cargo.toml; then
-    echo "❌ Error: Could not confirm workspace version lines in Cargo.toml (expected version = \"${VERSION}\")."
+    echo "❌ Error: Could not confirm workspace version in Cargo.toml (expected version = \"${VERSION}\")."
     exit 1
 fi
 
@@ -60,9 +84,12 @@ if ! grep -q "formatparse-core = { path = \"formatparse-core\", version = \"${VE
     exit 1
 fi
 
+echo "🔒 Refreshing Cargo.lock workspace package versions..."
+cargo metadata --format-version 1 >/dev/null
+
 # Commit the version change
 echo "💾 Committing version change..."
-git add Cargo.toml
+git add Cargo.toml Cargo.lock
 git commit -m "Bump version to ${VERSION}"
 
 # Create and push tag
