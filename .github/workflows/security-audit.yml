@@ -15,6 +15,7 @@ on:
       - 'formatparse-core/Cargo.toml'
       - 'formatparse-pyo3/Cargo.toml'
       - 'pyproject.toml'
+      - 'deny.toml'
       - '.github/workflows/security-audit.yml'
 
 jobs:
@@ -54,8 +55,6 @@ jobs:
         with:
           command: check
           arguments: --all-features
-          # Equals form required: cargo-deny-action passes command-arguments as one argv.
-          command-arguments: --config=cargo-deny.toml
 
   pip-audit:
     name: Pip Audit
