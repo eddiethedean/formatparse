@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dependencies**: Bump transitive ``anyhow`` 1.0.102 → 1.0.104 (RUSTSEC-2026-0190 / `#127 <https://github.com/eddiethedean/formatparse/issues/127>`_).
+
 ### Planned
 
 - Inline ``{...:validator(...)}`` syntax and **async** validation pipelines (currently deferred in API documentation).
